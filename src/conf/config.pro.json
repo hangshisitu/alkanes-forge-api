@@ -1,0 +1,8 @@
+{
+  "mempoolHost": "idclub.mempool.space",
+  "redisUrl": "redis://:bicords%402088@10.5.96.26:6379",
+  "alkanesUrl": "https://alkanes-rpc.idclub.io",
+  "concurrencyLimit": 100,
+  "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
+  "network": "mainnet"
+}
