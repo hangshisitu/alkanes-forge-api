@@ -22,7 +22,7 @@ function refreshToken() {
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
             }
-            console.log(`refresh token start, update height: ${updateHeight} block height: ${blockHeight}`)
+            console.log(`refresh token start, update height: ${updateHeight} block height: ${blockHeight}`);
 
             const tokenList = await TokenInfoMapper.getAllTokens();
             console.log(`found exist tokens: ${tokenList.length}`);
@@ -36,11 +36,11 @@ function refreshToken() {
                     mintedList.push(token);
                 }
             }
-            console.log(`found active tokens: ${tokenList.length}`);
+            console.log(`found active tokens: ${mintIds.length}`);
 
             const alkaneList = [];
             for await (const result of asyncPool(config.concurrencyLimit, mintIds, AlkanesAPI.getAlkanesById)) {
-                if (result !== null && result.length > 0) {
+                if (result !== null) {
                     alkaneList.push(result);
                 }
             }
@@ -48,7 +48,7 @@ function refreshToken() {
 
             let lastIndex = 0;
             if (alkaneList.length > 0) {
-                lastIndex = parseInt(tokenList[tokenList.length - 1].split(':')[1]);
+                lastIndex = parseInt(tokenList[tokenList.length - 1].id.split(':')[1]) + 1;
             }
 
             const newAlkaneList = [];
@@ -67,8 +67,10 @@ function refreshToken() {
             await RedisHelper.set(updateRedisKey, blockHeight);
 
             const allTokens = alkaneList.concat(newAlkaneList).concat(mintedList);
-            allTokens.sort((a, b) => parseInt(a.id.split(':')[0]) - parseInt(b.id.split(':')[0]));
+            allTokens.sort((a, b) => parseInt(a.id.split(':')[1]) - parseInt(b.id.split(':')[1]));
             await RedisHelper.set('alkanesList', JSON.stringify(allTokens));
+
+            console.log(`refresh token finish.`);
         } catch (err) {
             console.error(`scan block error`, err);
         } finally {

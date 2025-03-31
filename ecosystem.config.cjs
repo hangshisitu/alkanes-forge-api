@@ -19,12 +19,10 @@ module.exports = {
             script: 'src/app.js',
             env: {
                 NODE_ENV: 'dev',
-                port: 20012,
                 jobEnable: true
             },
             env_pro: {
                 NODE_ENV: 'pro',
-                port: 20012,
                 jobEnable: true
             },
         }

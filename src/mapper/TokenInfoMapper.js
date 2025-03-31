@@ -12,7 +12,8 @@ export default class TokenInfoMapper {
 
         return await TokenInfo.findAll({
             where: whereClause,
-            order: [["id", "ASC"]]
+            order: [["id", "ASC"]],
+            raw: true
         });
     }
 
