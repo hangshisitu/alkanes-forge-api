@@ -191,6 +191,7 @@ router
 
 app.use(bodyParser());
 
+console.log(`process.env.port: ${process.env.port} process.env.jobEnable: ${process.env.jobEnable}`)
 if (process.env.port) {
     app.use(router.routes());
     app.listen(process.env.port, () => {
@@ -198,7 +199,7 @@ if (process.env.port) {
     });
 }
 
-if (process.env.jobEnable) {
+if (process.env.jobEnable == true) {
     jobs();
     console.log(`Jobs started.`)
 }
