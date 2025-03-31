@@ -267,7 +267,6 @@ export default class UnisatAPI {
         throw new Error(`get tx ${txid} error`);
     }
 
-
     static async unisatPush(hex_data) {
         if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
@@ -355,6 +354,11 @@ export default class UnisatAPI {
 
     static varIntSize(n) {
         return n < 0xfd ? 1 : 3;
+    }
+
+    static async blockHeight() {
+        const response = await axios.get(`https://mempool.space/api/v1/blocks/tip/height`);
+        return response.data;
     }
 
 }

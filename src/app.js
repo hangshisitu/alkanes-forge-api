@@ -6,6 +6,7 @@ import DateUtil from "./lib/DateUtil.js";
 import * as util from 'util'
 import AlkanesAPI from "./lib/AlkanesAPI.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
+import {jobs} from "./job/index.js";
 
 const app = new Koa();
 const router = new Router();
@@ -50,8 +51,7 @@ app.use(async (ctx, next) => {
 router
     .post('/tokens', async ctx => {
         try {
-            const params = ctx.request.body;
-            const alkanesList = await AlkanesAPI.getAllAlkanes(params.block);
+            const alkanesList = await AlkanesAPI.getAllAlkanes();
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -196,3 +196,9 @@ const port = 20011;
 app.listen(port, () => {
     console.log(`Server started on port ${port}`);
 });
+
+
+if (process.env.jobEnable) {
+    jobs();
+    console.log(`Jobs started.`)
+}

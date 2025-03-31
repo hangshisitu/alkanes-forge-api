@@ -29,8 +29,10 @@
     "leb128": "^0.0.5",
     "mathjs": "^12.4.1",
     "mime": "^3.0.0",
+    "mysql2": "^3.14.0",
     "node-schedule": "^2.1.1",
     "redis": "^4.7.0",
+    "sequelize": "^6.37.7",
     "tiny-async-pool": "^2.1.0",
     "tiny-secp256k1": "^2.2.1"
   }

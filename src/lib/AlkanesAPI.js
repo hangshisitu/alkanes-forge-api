@@ -26,15 +26,14 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 // 103: GetMinted() -> u128
 // 104: GetValuePerMint() -> u128
 // 1000: GetData() -> Vec
-const opcodes = ['99', '100', '101', '102', '103', '104', '1000']
+const opcodes = ['99', '100', '101', '102', '103', '104']
 const opcodesHRV = [
     'name',
     'symbol',
     'totalSupply',
     'cap',
     'minted',
-    'mintAmount',
-    'data',
+    'mintAmount'
 ]
 
 export default class AlkanesAPI {
@@ -129,9 +128,9 @@ export default class AlkanesAPI {
         }
     }
 
-    static async getAlkanesByIndex(block, index) {
-        const alkaneData = {
-            id: `${block}:${index}`
+    static async getAlkanesById(id) {
+        const tokenInfo = {
+            id: id
         };
 
         let hasValidResult = false;
@@ -140,7 +139,7 @@ export default class AlkanesAPI {
                 opcodes.map(async (opcode, opcodeIndex) => {
                     try {
                         const result = await AlkanesAPI.simulate({
-                            target: {block: block.toString(), tx: index.toString()},
+                            target: {block: id.split(':')[0], tx: id.split(':')[1]},
                             inputs: [opcode],
                         });
 
@@ -170,25 +169,24 @@ export default class AlkanesAPI {
             validResults.forEach(({result, opcodeHRV}) => {
                 if (!opcodeHRV) return;
 
-                if (['name', 'symbol', 'data'].includes(opcodeHRV)) {
-                    alkaneData[opcodeHRV] = result.string || '';
+                if (['name', 'symbol'].includes(opcodeHRV)) {
+                    tokenInfo[opcodeHRV] = result.string || '';
                 } else {
-                    alkaneData[opcodeHRV] = Number(result.le || 0);
+                    tokenInfo[opcodeHRV] = Number(result.le || 0);
                 }
                 hasValidResult = true;
             });
 
             if (hasValidResult) {
-                if (alkaneData.name === 'DIESEL') {
-                    alkaneData.mintActive = false;
-                    alkaneData.mintAmount = 3.125 * 1e8;
-                    alkaneData.cap = 500000;
-                    alkaneData.minted = Math.ceil(alkaneData.totalSupply / alkaneData.mintAmount);
-                } else {
-                    alkaneData.mintActive = Number(alkaneData.minted || 0) < Number(alkaneData.cap || 0);
+                if (tokenInfo.name === 'DIESEL') {
+                    tokenInfo.mintAmount = 3.125 * 1e8;
+                    tokenInfo.cap = 500000;
+                    tokenInfo.minted = Math.ceil(tokenInfo.totalSupply / tokenInfo.mintAmount);
                 }
-                alkaneData.percentageMinted = (Math.ceil((alkaneData.minted || 0) / (alkaneData.cap || 1) * 10000) / 100).toFixed(2);
-                return alkaneData;
+
+                tokenInfo.mintActive = Number(tokenInfo.minted || 0) < Number(tokenInfo.cap || 0) ? 1 : 0;
+                tokenInfo.progress = (Math.ceil((tokenInfo.minted || 0) / (tokenInfo.cap || 1) * 10000) / 100).toFixed(2);
+                return tokenInfo;
             }
         } catch (error) {
             console.log(`Error processing alkane at index ${index}:`, error);
@@ -196,35 +194,15 @@ export default class AlkanesAPI {
         return null;
     }
 
-    static async getAllAlkanes(block, maxIndex = 1000) {
-        // 构造缓存键
-        const cacheKey = `alkanes:${block}`;
-
-        // 先尝试从缓存获取
-        const cachedData = await RedisHelper.get(cacheKey);
+    static async getAllAlkanes() {
+        const cachedData = await RedisHelper.get('alkanesList');
         if (cachedData) {
             const alkanesList = JSON.parse(cachedData);
             if (alkanesList && alkanesList.length > 0) {
                 return alkanesList;
             }
         }
-
-        const alkanesList = [];
-        for (let i = 0; i < maxIndex; i++) {
-            const alkanes = await AlkanesAPI.getAlkanesByIndex(2, i);
-            if (!alkanes) {
-                break;
-            }
-
-            if (alkanes.name && alkanes.symbol) {
-                alkanesList.push(alkanes);
-            }
-        }
-
-        // 存入缓存
-        await RedisHelper.setEx(cacheKey, 30 * 60, JSON.stringify(alkanesList));
-
-        return alkanesList;
+        return [];
     }
 
     static async transferMintFee(segwitAddress, taprootAddress, id, mints, postage, feerate) {

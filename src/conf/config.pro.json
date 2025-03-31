@@ -5,5 +5,12 @@
   "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
-  "network": "mainnet"
+  "network": "mainnet",
+  "database": {
+    "host": "vultr-prod-9bc43166-b60e-449c-b39f-8124ccdc85a4-vultr-prod-2d32.vultrdb.com",
+    "port": 16751,
+    "username": "admin",
+    "password": "Bitcoin$2088",
+    "database": "alkanes"
+  }
 }

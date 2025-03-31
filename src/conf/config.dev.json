@@ -5,5 +5,12 @@
   "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
-  "network": "mainnet"
+  "network": "mainnet",
+  "database": {
+    "host": "149.28.90.24",
+    "port": 3306,
+    "username": "root",
+    "password": "Idclub&bicords@2088^",
+    "database": "alkanes"
+  }
 }
