@@ -6,12 +6,10 @@ module.exports = {
             env: {
                 NODE_ENV: 'dev',
                 port: 20011,
-                jobEnable: false
             },
             env_pro: {
                 NODE_ENV: 'pro',
                 port: 20011,
-                jobEnable: false
             },
         },
         {
