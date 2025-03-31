@@ -180,7 +180,7 @@ export default class AlkanesAPI {
 
             if (hasValidResult) {
                 if (alkaneData.name === 'DIESEL') {
-                    alkaneData.mintActive = true;
+                    alkaneData.mintActive = false;
                     alkaneData.mintAmount = 3.125 * 1e8;
                     alkaneData.cap = 500000;
                     alkaneData.minted = Math.ceil(alkaneData.totalSupply / alkaneData.mintAmount);
