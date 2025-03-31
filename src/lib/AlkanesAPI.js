@@ -184,9 +184,9 @@ export default class AlkanesAPI {
                     alkaneData.mintAmount = 3.125 * 1e8;
                     alkaneData.cap = 500000;
                     alkaneData.minted = Math.ceil(alkaneData.totalSupply / alkaneData.mintAmount);
+                } else {
+                    alkaneData.mintActive = Number(alkaneData.minted || 0) < Number(alkaneData.cap || 0);
                 }
-
-                alkaneData.mintActive = Number(alkaneData.minted || 0) < Number(alkaneData.cap || 0);
                 alkaneData.percentageMinted = (Math.ceil((alkaneData.minted || 0) / (alkaneData.cap || 1) * 10000) / 100).toFixed(2);
                 return alkaneData;
             }
