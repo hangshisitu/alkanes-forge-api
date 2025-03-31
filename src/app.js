@@ -190,13 +190,13 @@ router
     })
 
 app.use(bodyParser());
-app.use(router.routes());
 
-const port = 20011;
-app.listen(port, () => {
-    console.log(`Server started on port ${port}`);
-});
-
+if (process.env.port) {
+    app.use(router.routes());
+    app.listen(process.env.port, () => {
+        console.log(`Server started on port ${process.env.port}`);
+    });
+}
 
 if (process.env.jobEnable) {
     jobs();
