@@ -5,6 +5,7 @@ import bodyParser from 'koa-bodyparser';
 import DateUtil from "./lib/DateUtil.js";
 import * as util from 'util'
 import AlkanesAPI from "./lib/AlkanesAPI.js";
+import UnisatAPI from "./lib/UnisatAPI.js";
 
 const app = new Koa();
 const router = new Router();
@@ -121,7 +122,7 @@ router
         try {
             const params = ctx.request.body;
             const psbt = await AlkanesAPI.transferMintFee(params.segwitAddress, params.taprootAddress,
-                params.id, params.mints, params.feerate);
+                params.id, params.mints, params.postage, params.feerate);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -138,12 +139,46 @@ router
     .post('/startMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const txidList = await AlkanesAPI.startMint(params.segwitAddress, params.taprootAddress, params.toAddress,
-                params.id, params.amount, params.feerate, params.txid);
+            const txidList = await AlkanesAPI.startMint(params.segwitAddress, params.taprootAddress,
+                params.id, params.mints, params.postage, params.feerate, params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
                 'data': txidList
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/getAlkanesByUtxo', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const alkaneList = await AlkanesAPI.getAlkanesByUtxo(params.utxo);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': alkaneList
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/broadcast', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await UnisatAPI.unisatPush(params.psbt);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result.data
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

@@ -40,6 +40,9 @@ const opcodesHRV = [
 export default class AlkanesAPI {
 
     static async getAlkanesByUtxo(utxo) {
+        if (utxo.height < 880000) {
+            return [];
+        }
         const alkaneList = await AlkanesAPI._call('alkanes_protorunesbyoutpoint', [
             {
                 txid: Buffer.from(utxo.txid, 'hex').reverse().toString('hex'),
@@ -176,15 +179,15 @@ export default class AlkanesAPI {
             });
 
             if (hasValidResult) {
-                alkaneData.mintActive = Number(alkaneData.minted || 0) < Number(alkaneData.cap || 0);
-                alkaneData.percentageMinted = Math.floor((alkaneData.minted || 0) / (alkaneData.cap || 1) * 100);
-
                 if (alkaneData.name === 'DIESEL') {
                     alkaneData.mintActive = true;
                     alkaneData.mintAmount = 3.125 * 1e8;
-                    alkaneData.cap = 6050000;
+                    alkaneData.cap = 500000;
                     alkaneData.minted = Math.ceil(alkaneData.totalSupply / alkaneData.mintAmount);
                 }
+
+                alkaneData.mintActive = Number(alkaneData.minted || 0) < Number(alkaneData.cap || 0);
+                alkaneData.percentageMinted = (Math.ceil((alkaneData.minted || 0) / (alkaneData.cap || 1) * 10000) / 100).toFixed(2);
                 return alkaneData;
             }
         } catch (error) {
@@ -221,22 +224,24 @@ export default class AlkanesAPI {
         return alkanesList;
     }
 
-    static async transferMintFee(segwitAddress, taprootAddress, id, mints, feerate) {
+    static async transferMintFee(segwitAddress, taprootAddress, id, mints, postage, feerate) {
         const protostone = AlkanesAPI.getMintProtostone(id);
 
         const outputList = [];
         outputList.push({
             address: taprootAddress,
-            value: 330
+            value: postage
         });
         outputList.push({
             script: protostone,
             value: 0
         });
-        const mintFee = Math.ceil(UnisatAPI.estTxSize([{address: segwitAddress}], outputList) * feerate) + 330;
 
         const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${segwitAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
+        const mintSize = UnisatAPI.estTxSize([{address: mintAddress}], outputList);
+        const mintFee = Math.ceil(mintSize * feerate) + postage;
+
         const fundOutputList = [];
         for (let i = 0; i < mints; i++) {
             fundOutputList.push({
@@ -247,7 +252,7 @@ export default class AlkanesAPI {
         // 手续费
         fundOutputList.push({
             address: config.platformAddress,
-            value: 300 * mints
+            value: Math.max(Math.min(300 * mints, 5000), 1000)
         });
         const transferFee = Math.ceil(UnisatAPI.estTxSize([{address: segwitAddress}], [...fundOutputList, {address: segwitAddress}]) * feerate);
 
@@ -257,23 +262,27 @@ export default class AlkanesAPI {
         return UnisatAPI.createUnSignPsbt(utxoList, fundOutputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
     }
 
-    static async startMint(segwitAddress, taprootAddress, id, mints, feerate, txid) {
+    static async startMint(segwitAddress, taprootAddress, id, mints, postage, feerate, psbt) {
+        const ret = await UnisatAPI.unisatPush(psbt);
+        const txid = ret.data;
+
         const protostone = AlkanesAPI.getMintProtostone(id);
 
         const outputList = [];
         outputList.push({
             address: taprootAddress,
-            value: 330
+            value: postage
         });
         outputList.push({
             script: protostone,
             value: 0
         });
-        const mintFee = Math.ceil(UnisatAPI.estTxSize([{address: segwitAddress}], outputList) * feerate) + 330;
 
         const txidList = [];
         const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${segwitAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
+        const mintFee = Math.ceil(UnisatAPI.estTxSize([{address: mintAddress}], outputList) * feerate) + postage;
+
         for (let i = 0; i < mints; i++) {
             const inputList = [{
                 txid: txid,
@@ -294,7 +303,7 @@ export default class AlkanesAPI {
             BigInt(797), // free_mint.wasm contract
             BigInt(0),
             BigInt(premine || 0),
-            BigInt(new BigNumber(perMint).multipliedBy(1e8).toString()),
+            BigInt(new BigNumber(perMint).multipliedBy(1e8).toFixed()),
             BigInt(cap),
             BigInt(
                 '0x' +
@@ -345,7 +354,7 @@ export default class AlkanesAPI {
     }
 
     static async transferToken(segwitAddress, taprootAddress, toAddress, id, amount, feerate, alkanesList) {
-        if (alkanesList === null || alkanesList.length === 0) {
+        if (!alkanesList || alkanesList.length === 0) {
             alkanesList = await AlkanesAPI.getAlkanesByTarget(taprootAddress, id, amount);
         }
 
@@ -398,7 +407,7 @@ export default class AlkanesAPI {
         }
         inputList.push(...utxoList);
 
-        return UnisatAPI.createUnSignPsbt(inputList, outputList, segwitAddress, feerate, bitcoin.networks.bitcoin, true);
+        return UnisatAPI.createUnSignPsbt(inputList, outputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
     }
 
     static async simulate(request, decoder) {

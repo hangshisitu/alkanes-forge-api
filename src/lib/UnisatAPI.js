@@ -180,6 +180,10 @@ export default class UnisatAPI {
         let totalInputValue = 0;
         const inputList = [];
         for (const utxo of utxoList) {
+            if (utxo.value <= 546) {
+                continue;
+            }
+
             inputList.push(utxo);
             totalInputValue += utxo.value;
             if (totalInputValue >= amount) {
@@ -217,6 +221,7 @@ export default class UnisatAPI {
                         vout: utxo.vout,
                         value: utxo.satoshi,
                         address: utxo.address,
+                        height: utxo.height,
                         status: status
                     });
                 }
@@ -264,6 +269,12 @@ export default class UnisatAPI {
 
 
     static async unisatPush(hex_data) {
+        if (hex_data.startsWith('7073')) {
+            const psbt = bitcoin.Psbt.fromHex(hex_data);
+            const tx = psbt.extractTransaction();
+            hex_data = tx.toHex();
+        }
+
         for (let i = 0; i < 3; i++) {
             try {
                 const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
@@ -281,58 +292,69 @@ export default class UnisatAPI {
                 }
                 return result;
             } catch (err) {
-                console.error(`unisat push error: ${err.message}`);
+                console.error(`tx push error, hex: ${hex_data}`, err.message);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
         }
-        throw new Error('unist push tx error');
-    }
-
-    static estTxFee(inputs, outputs, feerate, bc1q = false) {
-        if (bc1q) {
-            return Math.ceil((24 + 67.75 * inputs + outputs * 43) * feerate);
-        }
-        return Math.ceil((inputs * 57.5 + outputs * 43 + 10) * feerate);
+        throw new Error('tx push error');
     }
 
     static estTxSize(inputs, outputs) {
-        let txSize = 4; // version (4 bytes)
-        txSize += 1 + inputs.length; // inputs count (varint)
-        txSize += 1 + outputs.length; // outputs count (varint)
-        txSize += 4; // locktime (4 bytes)
+        let baseSize = 4 + 4; // version + locktime
+        let witnessSize = 0;
+        const isSegWit = inputs.some(i => i.address?.startsWith('bc1'));
 
-        // 计算输入大小
+        // Input/output count (VarInt)
+        baseSize += this.varIntSize(inputs.length) + this.varIntSize(outputs.length);
+
+        // ============= Input Calculation =============
         for (const input of inputs) {
-            // 基础部分 (non-witness): prevTxHash (32) + index (4) + sequence (4) + scriptSigLen (1)
-            txSize += 32 + 4 + 4 + 1; // 41 bytes
+            baseSize += 32 + 4 + 4 + 1; // txid + vout + sequence + scriptSig placeholder
 
-            // Witness 部分 (SegWit 折扣)
-            if (input.address.startsWith('bc1q')) {
-                // P2WPKH: 72 (签名) + 33 (公钥) = 105 bytes
-                // 虚拟大小贡献: (105) / 4 = 26.25 → 计入 26.25
-                txSize += 105 / 4;
-            } else if (input.address.startsWith('bc1p')) {
-                // P2TR: 64 bytes (Schnorr 签名)
-                // 虚拟大小贡献: (64) / 4 = 16 → 计入 16
-                txSize += 64 / 4;
-            } else {
-                // P2PKH (Legacy): scriptSig ~107 bytes (无折扣)
-                txSize += 107;
+            if (input.address.startsWith('bc1p')) { // P2TR Input
+                witnessSize += 1; // witness item count (varint)
+                witnessSize += 1 + 64; // Schnorr signature (1-byte length + 64-byte sig)
+                witnessSize += 1 + 33; // control block (1-byte length + 33-byte)
+            }
+            else if (input.address.startsWith('bc1q')) { // P2WPKH Input
+                witnessSize += 1; // witness item count
+                witnessSize += 1 + 72; // DER-encoded signature
+                witnessSize += 1 + 33; // compressed pubkey
             }
         }
 
-        // 计算输出大小（无折扣）
+        // ============= Output Calculation =============
         for (const output of outputs) {
-            txSize += 8; // value (8 bytes)
-            if (output.address) {
-                const scriptPubKey = bitcoin.address.toOutputScript(output.address);
-                txSize += scriptPubKey.length;
-            } else if (output.script) {
-                txSize += output.script.length;
+            baseSize += 8; // value (8 bytes)
+
+            let scriptSize;
+            if (output.script) {
+                scriptSize = output.script.length;
+            } else if (output.address.startsWith('bc1p')) {
+                scriptSize = 34; // P2TR: 1-byte version + 32-byte hash
             }
+            else if (output.address.startsWith('bc1q')) {
+                scriptSize = 22; // P2WPKH: 1-byte version + 20-byte hash
+            }
+            else if (output.address.startsWith('3')) {
+                scriptSize = 23; // P2SH
+            }
+            else {
+                scriptSize = 25; // P2PKH (legacy)
+            }
+
+            baseSize += this.varIntSize(scriptSize) + scriptSize;
         }
 
-        return Math.ceil(txSize);
+        // SegWit marker
+        if (isSegWit) baseSize += 2;
+
+        // Final vsize = base + (witness/4)
+        return Math.ceil(baseSize + (witnessSize / 4));
+    }
+
+    static varIntSize(n) {
+        return n < 0xfd ? 1 : 3;
     }
 
 }
