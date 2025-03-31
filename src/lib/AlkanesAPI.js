@@ -257,7 +257,7 @@ export default class AlkanesAPI {
         const transferFee = Math.ceil(UnisatAPI.estTxSize([{address: segwitAddress}], [...fundOutputList, {address: segwitAddress}]) * feerate);
 
         const totalFee = mints * mintFee + transferFee;
-        const utxoList = await UnisatAPI.getUtxoByTarget(segwitAddress, totalFee);
+        const utxoList = await UnisatAPI.getUtxoByTarget(segwitAddress, totalFee, true);
 
         return UnisatAPI.createUnSignPsbt(utxoList, fundOutputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
     }

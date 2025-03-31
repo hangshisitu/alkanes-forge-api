@@ -171,8 +171,8 @@ export default class UnisatAPI {
         return allUtxoList;
     }
 
-    static async getUtxoByTarget(address, amount) {
-        const utxoList = await UnisatAPI.getUtxoList(address);
+    static async getUtxoByTarget(address, amount, filterConfirmed = false) {
+        const utxoList = await UnisatAPI.getUtxoList(address, filterConfirmed);
         if (utxoList === null || utxoList.length === 0) {
             throw new Error('Insufficient utxo balance');
         }
