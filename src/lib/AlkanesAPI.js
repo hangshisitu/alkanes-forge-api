@@ -444,7 +444,7 @@ export default class AlkanesAPI {
         };
 
         try {
-            const response = await axios.post(config.rpcUrl, payload, {
+            const response = await axios.post(rpcUrl, payload, {
                 headers: {
                     'content-type': 'application/json',
                 }
