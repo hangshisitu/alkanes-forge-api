@@ -49,7 +49,7 @@ export default class AlkanesAPI {
                 vout: utxo.vout,
                 protocolTag: '1',
             },
-        ])
+        ], config.alkanesPublicUrl)
 
         return alkaneList.map((alkane) => ({
             id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
@@ -203,7 +203,10 @@ export default class AlkanesAPI {
         // 先尝试从缓存获取
         const cachedData = await RedisHelper.get(cacheKey);
         if (cachedData) {
-            return JSON.parse(cachedData);
+            const alkanesList = JSON.parse(cachedData);
+            if (alkanesList && alkanesList.length > 0) {
+                return alkanesList;
+            }
         }
 
         const alkanesList = [];
@@ -423,7 +426,7 @@ export default class AlkanesAPI {
             vout: 0,
             ...request,
         };
-        const ret = await this._call('alkanes_simulate', [params]);
+        const ret = await this._call('alkanes_simulate', [params], config.alkanesUrl);
         const data = ret?.status === 0 ? ret.execution.data : null;
         if (decoder) {
             const operationType = Number(request.inputs[0])
@@ -432,7 +435,7 @@ export default class AlkanesAPI {
         return AlkanesAPI.parseSimulateReturn(data);
     }
 
-    static async _call(method, params = []) {
+    static async _call(method, params = [], rpcUrl) {
         const payload = {
             jsonrpc: "2.0",
             method: method,
@@ -441,7 +444,7 @@ export default class AlkanesAPI {
         };
 
         try {
-            const response = await axios.post(config.alkanesUrl, payload, {
+            const response = await axios.post(config.rpcUrl, payload, {
                 headers: {
                     'content-type': 'application/json',
                 }
