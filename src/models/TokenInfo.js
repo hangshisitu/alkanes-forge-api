@@ -27,9 +27,13 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.DECIMAL,
         comment: '累计铸造次数'
     },
-    mint_amount: {
+    mintAmount: {
         type: DataTypes.DECIMAL,
         comment: '单次铸造数量'
+    },
+    totalSupply: {
+        type: DataTypes.DECIMAL,
+        comment: '总供应量'
     },
     progress: {
         type: DataTypes.FLOAT,

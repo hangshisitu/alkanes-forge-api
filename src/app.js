@@ -68,7 +68,7 @@ router
     .post('/deploy', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.deployToken(params.segwitAddress, params.taprootAddress, params.name,
+            const psbt = await AlkanesAPI.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name,
                 params.symbol, params.cap, params.perMint, params.premine, params.feerate);
             ctx.body = {
                 'code': 0,
@@ -103,7 +103,7 @@ router
     .post('/transfer', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.transferToken(params.segwitAddress, params.taprootAddress, params.toAddress,
+            const psbt = await AlkanesAPI.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
                 params.id, params.amount, params.feerate);
             ctx.body = {
                 'code': 0,
@@ -121,7 +121,7 @@ router
     .post('/createMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.transferMintFee(params.segwitAddress, params.taprootAddress,
+            const psbt = await AlkanesAPI.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
                 params.id, params.mints, params.postage, params.feerate);
             ctx.body = {
                 'code': 0,
@@ -139,7 +139,7 @@ router
     .post('/startMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const txidList = await AlkanesAPI.startMint(params.segwitAddress, params.taprootAddress,
+            const txidList = await AlkanesAPI.startMint(params.fundAddress, params.toAddress,
                 params.id, params.mints, params.postage, params.feerate, params.psbt);
             ctx.body = {
                 'code': 0,

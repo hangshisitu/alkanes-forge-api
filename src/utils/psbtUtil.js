@@ -64,7 +64,10 @@ export async function utxo2PsbtInputEx(utxo) {
             }
         }
     } else if (psbtUtils.isP2SHScript(outScript)) {
-        input.witnessUtxo = {script: outScript, value: input.value}
+        input.witnessUtxo = { script: outScript, value: input.value };
+        if (utxo.pubkey) {
+            input.redeemScript = bitcoin.payments.p2wpkh({ network, pubkey: Buffer.from(utxo.pubkey, 'hex') }).output;
+        }
     } else {
         if (!txHex) {
             txHex = await MempoolUtils.getTxHex(utxo.txid);

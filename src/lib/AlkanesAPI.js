@@ -182,6 +182,9 @@ export default class AlkanesAPI {
                     tokenInfo.mintAmount = 3.125 * 1e8;
                     tokenInfo.cap = 500000;
                     tokenInfo.minted = Math.ceil(tokenInfo.totalSupply / tokenInfo.mintAmount);
+                    tokenInfo.premine = 440000 * 1e8;
+                } else {
+                    tokenInfo.premine = tokenInfo.totalSupply - tokenInfo.minted * tokenInfo.mintAmount;
                 }
 
                 tokenInfo.mintActive = Number(tokenInfo.minted || 0) < Number(tokenInfo.cap || 0) ? 1 : 0;
@@ -197,20 +200,24 @@ export default class AlkanesAPI {
     static async getAllAlkanes() {
         const cachedData = await RedisHelper.get('alkanesList');
         if (cachedData) {
+            const updateHeight = await RedisHelper.get(`token-update-height`);
             const alkanesList = JSON.parse(cachedData);
             if (alkanesList && alkanesList.length > 0) {
-                return alkanesList;
+                return {
+                    alkanesList,
+                    updateHeight
+                };
             }
         }
         return [];
     }
 
-    static async transferMintFee(segwitAddress, taprootAddress, id, mints, postage, feerate) {
+    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
         const protostone = AlkanesAPI.getMintProtostone(id);
 
         const outputList = [];
         outputList.push({
-            address: taprootAddress,
+            address: toAddress,
             value: postage
         });
         outputList.push({
@@ -218,7 +225,7 @@ export default class AlkanesAPI {
             value: 0
         });
 
-        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${segwitAddress}-${id}-${mints}`);
+        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
         const mintSize = UnisatAPI.estTxSize([{address: mintAddress}], outputList);
         const mintFee = Math.ceil(mintSize * feerate) + postage;
@@ -235,15 +242,16 @@ export default class AlkanesAPI {
             address: config.platformAddress,
             value: Math.max(Math.min(300 * mints, 5000), 1000)
         });
-        const transferFee = Math.ceil(UnisatAPI.estTxSize([{address: segwitAddress}], [...fundOutputList, {address: segwitAddress}]) * feerate);
+        const transferFee = Math.ceil(UnisatAPI.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
 
         const totalFee = mints * mintFee + transferFee;
-        const utxoList = await UnisatAPI.getUtxoByTarget(segwitAddress, totalFee, true);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalFee, true);
+        utxoList.map(utxo =>  utxo.pubkey = fundPublicKey);
 
-        return UnisatAPI.createUnSignPsbt(utxoList, fundOutputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
+        return UnisatAPI.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
-    static async startMint(segwitAddress, taprootAddress, id, mints, postage, feerate, psbt) {
+    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
         const ret = await UnisatAPI.unisatPush(psbt);
         const txid = ret.data;
 
@@ -251,7 +259,7 @@ export default class AlkanesAPI {
 
         const outputList = [];
         outputList.push({
-            address: taprootAddress,
+            address: toAddress,
             value: postage
         });
         outputList.push({
@@ -260,7 +268,7 @@ export default class AlkanesAPI {
         });
 
         const txidList = [];
-        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${segwitAddress}-${id}-${mints}`);
+        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
         const mintFee = Math.ceil(UnisatAPI.estTxSize([{address: mintAddress}], outputList) * feerate) + postage;
 
@@ -278,7 +286,7 @@ export default class AlkanesAPI {
         return txidList;
     }
 
-    static async deployToken(segwitAddress, taprootAddress, name, symbol, cap, perMint, premine, feerate) {
+    static async deployToken(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate) {
         const calldata = [
             BigInt(6),
             BigInt(797), // free_mint.wasm contract
@@ -296,8 +304,8 @@ export default class AlkanesAPI {
         if (symbol) {
             calldata.push(BigInt(
                 '0x' +
-                Buffer.from(name.split('').reverse().join('')).toString('hex')
-                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
+                Buffer.from(symbol.split('').reverse().join('')).toString('hex')
+                // Buffer.from(Array.from(Buffer.from(symbol, 'utf8')).reverse()).toString('hex')
             ))
         }
 
@@ -315,7 +323,7 @@ export default class AlkanesAPI {
 
         const outputList = [];
         outputList.push({
-            address: taprootAddress,
+            address: toAddress,
             value: 330
         });
         outputList.push({
@@ -327,16 +335,17 @@ export default class AlkanesAPI {
             value: 3000
         });
 
-        const txSize = UnisatAPI.estTxSize([{address: segwitAddress}], [...outputList, {address: taprootAddress}]);
+        const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
-        const inputList = await UnisatAPI.getUtxoByTarget(segwitAddress, txFee);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee);
+        utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
-        return UnisatAPI.createUnSignPsbt(inputList, outputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
+        return UnisatAPI.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
-    static async transferToken(segwitAddress, taprootAddress, toAddress, id, amount, feerate, alkanesList) {
+    static async transferToken(fundAddress, fundPublicKey, assetAddress, toAddress, id, amount, feerate, alkanesList) {
         if (!alkanesList || alkanesList.length === 0) {
-            alkanesList = await AlkanesAPI.getAlkanesByTarget(taprootAddress, id, amount);
+            alkanesList = await AlkanesAPI.getAlkanesByTarget(assetAddress, id, amount);
         }
 
         const protostone = encodeRunestoneProtostone({
@@ -362,7 +371,7 @@ export default class AlkanesAPI {
 
         const outputList = [];
         outputList.push({
-            address: taprootAddress,
+            address: assetAddress,
             value: 330
         });
         outputList.push({
@@ -378,9 +387,10 @@ export default class AlkanesAPI {
             value: 3000
         });
 
-        const txSize = UnisatAPI.estTxSize([{address: segwitAddress}], [...outputList, {address: taprootAddress}]);
+        const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
-        const utxoList = await UnisatAPI.getUtxoByTarget(segwitAddress, txFee);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee);
+        utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         const inputList = [];
         for (const alkanes of alkanesList) {
@@ -388,7 +398,7 @@ export default class AlkanesAPI {
         }
         inputList.push(...utxoList);
 
-        return UnisatAPI.createUnSignPsbt(inputList, outputList, segwitAddress, feerate, bitcoin.networks.bitcoin);
+        return UnisatAPI.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
     static async simulate(request, decoder) {
@@ -490,6 +500,18 @@ export default class AlkanesAPI {
         const hash = createHash("sha256").update(inputString).digest("hex");
         const privateKey = Buffer.from(hash, "hex");
         return privateKey.toString("hex");
+    }
+
+    static stringToU128(name) {
+        const utf8Bytes = Buffer.from(name, 'utf8');
+        const reversedBytes = Array.from(utf8Bytes).reverse();
+        let hexStr = Buffer.from(reversedBytes).toString('hex');
+        if (hexStr.length > 32) {
+            hexStr = hexStr.substring(0, 32);
+        } else {
+            hexStr = hexStr.padStart(32, '0');
+        }
+        return BigInt('0x' + hexStr);
     }
 
 }

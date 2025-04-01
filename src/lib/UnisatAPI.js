@@ -118,9 +118,25 @@ export default class UnisatAPI {
         } else {
             psbt.setMaximumFeeRate(50000);
         }
-        for (const input of inputList) {
+
+        const addressToIndexes = [];
+        for (let i = 0; i < inputList.length; i++) {
+            const input = inputList[i];
+            if (!addressToIndexes[input.address]) {
+                addressToIndexes[input.address] = [];
+            }
+            addressToIndexes[input.address].push(i);
+
             const vin = await utxo2PsbtInputEx(input);
             psbt.addInput(vin);
+        }
+
+        const signingIndexesArr = [];
+        for (const [address, indexes] of Object.entries(addressToIndexes)) {
+            signingIndexesArr.push({
+                address,
+                signingIndexes: indexes,
+            });
         }
 
         // 处理输出
@@ -154,7 +170,11 @@ export default class UnisatAPI {
             }
         }
 
-        return psbt.toHex();
+        return {
+            hex: psbt.toHex(),
+            base64: psbt.toBase64(),
+            signingIndexes: signingIndexesArr
+        };
     }
 
     static async getAllUtxo(address, confirmed = false) {
@@ -268,6 +288,11 @@ export default class UnisatAPI {
     }
 
     static async unisatPush(hex_data) {
+        if (hex_data.startsWith('cH')) {
+            const psbt = bitcoin.Psbt.fromBase64(hex_data);
+            psbt.finalizeAllInputs();
+            hex_data = psbt.toHex();
+        }
         if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
             const tx = psbt.extractTransaction();
@@ -301,54 +326,58 @@ export default class UnisatAPI {
     static estTxSize(inputs, outputs) {
         let baseSize = 4 + 4; // version + locktime
         let witnessSize = 0;
-        const isSegWit = inputs.some(i => i.address?.startsWith('bc1'));
+        const isSegWit = inputs.some(i => i.address?.startsWith('bc1') || i.address?.startsWith('3'));
 
-        // Input/output count (VarInt)
+        // 输入输出数量（VarInt）
         baseSize += this.varIntSize(inputs.length) + this.varIntSize(outputs.length);
 
-        // ============= Input Calculation =============
+        // ============= 输入计算 =============
         for (const input of inputs) {
-            baseSize += 32 + 4 + 4 + 1; // txid + vout + sequence + scriptSig placeholder
+            baseSize += 32 + 4 + 4; // txid + vout + sequence
 
-            if (input.address.startsWith('bc1p')) { // P2TR Input
-                witnessSize += 1; // witness item count (varint)
-                witnessSize += 1 + 64; // Schnorr signature (1-byte length + 64-byte sig)
-                witnessSize += 1 + 33; // control block (1-byte length + 33-byte)
+            if (input.address.startsWith('bc1p')) { // P2TR
+                baseSize += 1; // 空 scriptSig（1字节）
+                witnessSize += 1 + (1 + 64) + (1 + 33); // Schnorr 签名 + 控制块
             }
-            else if (input.address.startsWith('bc1q')) { // P2WPKH Input
-                witnessSize += 1; // witness item count
-                witnessSize += 1 + 72; // DER-encoded signature
-                witnessSize += 1 + 33; // compressed pubkey
+            else if (input.address.startsWith('bc1q')) { // P2WPKH
+                baseSize += 1; // 空 scriptSig（1字节）
+                witnessSize += 1 + (1 + 72) + (1 + 33); // DER 签名 + 压缩公钥
+            }
+            else if (input.address.startsWith('3')) { // P2SH（可能是嵌套SegWit）
+                const redeemScriptSize = 22; // 默认 P2SH-P2WPKH 的 redeemScript 是 22 字节
+                baseSize += 1 + redeemScriptSize; // scriptSig 长度 + redeemScript
+                witnessSize += 1 + (1 + 72) + (1 + 33); // 见证数据（DER 签名 + 压缩公钥）
+            }
+            else { // P2PKH（Legacy）
+                const scriptSigSize = input.script ? input.script.length : 107; // 默认估算
+                baseSize += this.varIntSize(scriptSigSize) + scriptSigSize;
             }
         }
 
-        // ============= Output Calculation =============
+        // ============= 输出计算 =============
         for (const output of outputs) {
-            baseSize += 8; // value (8 bytes)
+            baseSize += 8; // value（8字节）
 
             let scriptSize;
             if (output.script) {
-                scriptSize = output.script.length;
+                scriptSize = output.script.length + 1; // OP_RETURN 直接使用 script 长度
             } else if (output.address.startsWith('bc1p')) {
-                scriptSize = 34; // P2TR: 1-byte version + 32-byte hash
-            }
-            else if (output.address.startsWith('bc1q')) {
-                scriptSize = 22; // P2WPKH: 1-byte version + 20-byte hash
-            }
-            else if (output.address.startsWith('3')) {
+                scriptSize = 34; // P2TR
+            } else if (output.address.startsWith('bc1q')) {
+                scriptSize = 22; // P2WPKH
+            } else if (output.address.startsWith('3')) {
                 scriptSize = 23; // P2SH
-            }
-            else {
-                scriptSize = 25; // P2PKH (legacy)
+            } else {
+                scriptSize = 25; // P2PKH
             }
 
             baseSize += this.varIntSize(scriptSize) + scriptSize;
         }
 
-        // SegWit marker
+        // SegWit标记（如果有SegWit输入）
         if (isSegWit) baseSize += 2;
 
-        // Final vsize = base + (witness/4)
+        // 最终 vsize = baseSize + (witnessSize / 4)
         return Math.ceil(baseSize + (witnessSize / 4));
     }
 
