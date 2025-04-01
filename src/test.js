@@ -12,7 +12,7 @@ import UnisatAPI from "./lib/UnisatAPI.js";
 // const script = AlkanesAPI.getMintProtostone('2:29');
 // console.log(script.length)
 
-const alkanes = await AlkanesAPI.getAlkanesById('2:2');
+const alkanes = await AlkanesAPI.getAlkanesById('2:28');
 console.log(alkanes);
 
 // await AlkanesAPI.transferMintFee('bc1pd6u5watrxte7z26mgn5nlmstnpcd8uznk8wprkcguc3zedcdlw7shfnlx5', 'bc1pd6u5watrxte7z26mgn5nlmstnpcd8uznk8wprkcguc3zedcdlw7shfnlx5',

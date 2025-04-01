@@ -283,23 +283,23 @@ export default class AlkanesAPI {
             BigInt(6),
             BigInt(797), // free_mint.wasm contract
             BigInt(0),
-            BigInt(premine || 0),
+            BigInt(new BigNumber(premine).multipliedBy(1e8).toFixed()),
             BigInt(new BigNumber(perMint).multipliedBy(1e8).toFixed()),
             BigInt(cap),
             BigInt(
                 '0x' +
-                Buffer.from(name.split('').reverse().join('')).toString(
-                    'hex'
-                )
+                Buffer.from(name.split('').reverse().join('')).toString('hex')
+                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
             ),
             BigInt(0),
-            BigInt(
-                '0x' +
-                Buffer.from(
-                    symbol.split('').reverse().join('')
-                ).toString('hex')
-            ),
         ]
+        if (symbol) {
+            calldata.push(BigInt(
+                '0x' +
+                Buffer.from(name.split('').reverse().join('')).toString('hex')
+                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
+            ))
+        }
 
         const protostone = encodeRunestoneProtostone({
             protostones: [
