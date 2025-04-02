@@ -3,7 +3,6 @@ import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import * as psbtUtils from "bitcoinjs-lib/src/psbt/psbtutils.js";
 import axios from "axios";
 import {convertKeyPair, getOutputSize, utxo2PsbtInputEx} from "../utils/psbtUtil.js";
-import {re} from "mathjs";
 
 export default class UnisatAPI {
 
@@ -162,12 +161,14 @@ export default class UnisatAPI {
             const fee = Math.ceil(txSize * feerate);
             const changeValue = totalInputValue - totalOutputValue - fee;
 
-            if (changeValue > 1000) {
+            if (changeValue > 546) {
                 outputList.push({
                     address: changeAddress,
                     value: changeValue
                 });
                 return this.createUnSignPsbt(inputList, outputList, changeAddress, feerate, network, false);
+            } else if (changeValue < 0) {
+                throw new Error('Insufficient utxo balance');
             }
         }
 

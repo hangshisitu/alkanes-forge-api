@@ -238,13 +238,14 @@ export default class AlkanesAPI {
             });
         }
         // 手续费
+        const serviceFee = Math.max(Math.min(300 * mints, 5000), 1000);
         fundOutputList.push({
             address: config.platformAddress,
-            value: Math.max(Math.min(300 * mints, 5000), 1000)
+            value: serviceFee
         });
         let transferFee = Math.ceil(UnisatAPI.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
 
-        const totalFee = mints * mintFee + transferFee;
+        const totalFee = mints * mintFee + transferFee + serviceFee;
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalFee, feerate, true);
         utxoList.map(utxo =>  utxo.pubkey = fundPublicKey);
 
@@ -337,7 +338,7 @@ export default class AlkanesAPI {
 
         const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
-        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee, feerate);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         return UnisatAPI.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
@@ -389,7 +390,7 @@ export default class AlkanesAPI {
 
         const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
-        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee, feerate);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         const inputList = [];

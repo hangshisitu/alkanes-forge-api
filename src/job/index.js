@@ -1,6 +1,5 @@
 import schedule from 'node-schedule';
 import * as RedisHelper from "../lib/RedisHelper.js";
-import UnisatAPI from "../lib/UnisatAPI.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import asyncPool from "tiny-async-pool";
 import config from "../conf/config.js";
@@ -18,7 +17,8 @@ function refreshToken() {
             isRefreshToken = true;
 
             const updateHeight = await RedisHelper.get(updateRedisKey);
-            const blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
+            let blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
+            blockHeight = blockHeight - 1;
 
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
