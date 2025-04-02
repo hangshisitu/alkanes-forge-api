@@ -39,7 +39,7 @@ app.use(async (ctx, next) => {
     await next();
     const ms = Date.now() - start;
     const content = JSON.stringify(ctx.response.body) || '';
-    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}  params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
+    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms  params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
 });
 
 router
@@ -177,6 +177,22 @@ router
                 'code': 0,
                 'msg': 'ok',
                 'data': result.data
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/metashrewHeight', async ctx => {
+        try {
+            const height = await AlkanesAPI.metashrewHeight();
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': height
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

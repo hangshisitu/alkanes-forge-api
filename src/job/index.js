@@ -17,8 +17,7 @@ function refreshToken() {
             isRefreshToken = true;
 
             const updateHeight = await RedisHelper.get(updateRedisKey);
-            let blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
-            blockHeight = blockHeight - 1;
+            const blockHeight = await AlkanesAPI.metashrewHeight();
 
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
@@ -73,7 +72,7 @@ function refreshToken() {
 
             console.log(`refresh token finish.`);
         } catch (err) {
-            console.error(`scan block error`, err);
+            console.error(`scan block error`, err.message);
         } finally {
             isRefreshToken = false;
         }

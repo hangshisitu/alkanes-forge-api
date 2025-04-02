@@ -424,6 +424,20 @@ export default class AlkanesAPI {
         return AlkanesAPI.parseSimulateReturn(data);
     }
 
+    static async metashrewHeight() {
+        for (let i = 0; i < 3; i++) {
+            try {
+                let blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
+                if (blockHeight) {
+                    return parseInt(blockHeight) - 1;
+                }
+            } catch (err) {
+                console.log(`check metashrew_height error`, err.message);
+            }
+        }
+        throw new Error('check metashrew_height error');
+    }
+
     static async _call(method, params = [], rpcUrl) {
         const payload = {
             jsonrpc: "2.0",
