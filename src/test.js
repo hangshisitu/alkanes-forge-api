@@ -10,7 +10,7 @@ import AlkanesAPI from "./lib/AlkanesAPI.js";
 // const script = AlkanesAPI.getMintProtostone('2:60');
 // console.log(script.length)
 
-// const alkanes = await AlkanesAPI.getAlkanesById('2:16');
+// const alkanes = await AlkanesAPI.getAlkanesById('2:28');
 // console.log(alkanes);
 
 // await AlkanesAPI.transferMintFee('bc1pd6u5watrxte7z26mgn5nlmstnpcd8uznk8wprkcguc3zedcdlw7shfnlx5', 'bc1pd6u5watrxte7z26mgn5nlmstnpcd8uznk8wprkcguc3zedcdlw7shfnlx5',
@@ -44,7 +44,7 @@ import AlkanesAPI from "./lib/AlkanesAPI.js";
 // console.log(message);
 // process.exit(0);
 
-// console.log(parseInt('0x6d23ad5f8000', 16).toString())
+// console.log(Buffer.from('6f247f1097d6cef6c30eacedbb8614d3dde985c180956fc380a0603e14034759', 'hex').reverse().toString('hex'))
 
 // const metegrapUrl = 'https://mainnet.sandshrew.io/v2/lasereyes';
 // const idclubUrl = 'https://alkanes-private.idclub.io';

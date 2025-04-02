@@ -3,6 +3,7 @@ import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import * as psbtUtils from "bitcoinjs-lib/src/psbt/psbtutils.js";
 import axios from "axios";
 import {convertKeyPair, getOutputSize, utxo2PsbtInputEx} from "../utils/psbtUtil.js";
+import {re} from "mathjs";
 
 export default class UnisatAPI {
 
@@ -191,7 +192,7 @@ export default class UnisatAPI {
         return allUtxoList;
     }
 
-    static async getUtxoByTarget(address, amount, filterConfirmed = false) {
+    static async getUtxoByTarget(address, amount, feerate, filterConfirmed = false) {
         const utxoList = await UnisatAPI.getUtxoList(address, filterConfirmed);
         if (utxoList === null || utxoList.length === 0) {
             throw new Error('Insufficient utxo balance');
@@ -199,6 +200,7 @@ export default class UnisatAPI {
 
         let totalInputValue = 0;
         const inputList = [];
+        let needAmount = amount;
         for (const utxo of utxoList) {
             if (utxo.value <= 546) {
                 continue;
@@ -206,9 +208,11 @@ export default class UnisatAPI {
 
             inputList.push(utxo);
             totalInputValue += utxo.value;
-            if (totalInputValue >= amount) {
+            if (totalInputValue >= needAmount) {
                 break;
             }
+
+            needAmount += Math.ceil(getInputSize(address) * feerate);
         }
         if (totalInputValue < amount) {
             throw new Error('Insufficient utxo balance');
@@ -333,25 +337,7 @@ export default class UnisatAPI {
 
         // ============= 输入计算 =============
         for (const input of inputs) {
-            baseSize += 32 + 4 + 4; // txid + vout + sequence
-
-            if (input.address.startsWith('bc1p')) { // P2TR
-                baseSize += 1; // 空 scriptSig（1字节）
-                witnessSize += 1 + (1 + 64) + (1 + 33); // Schnorr 签名 + 控制块
-            }
-            else if (input.address.startsWith('bc1q')) { // P2WPKH
-                baseSize += 1; // 空 scriptSig（1字节）
-                witnessSize += 1 + (1 + 72) + (1 + 33); // DER 签名 + 压缩公钥
-            }
-            else if (input.address.startsWith('3')) { // P2SH（可能是嵌套SegWit）
-                const redeemScriptSize = 22; // 默认 P2SH-P2WPKH 的 redeemScript 是 22 字节
-                baseSize += 1 + redeemScriptSize; // scriptSig 长度 + redeemScript
-                witnessSize += 1 + (1 + 72) + (1 + 33); // 见证数据（DER 签名 + 压缩公钥）
-            }
-            else { // P2PKH（Legacy）
-                const scriptSigSize = input.script ? input.script.length : 107; // 默认估算
-                baseSize += this.varIntSize(scriptSigSize) + scriptSigSize;
-            }
+            baseSize += this.getInputSize(input.address);
         }
 
         // ============= 输出计算 =============
@@ -361,14 +347,8 @@ export default class UnisatAPI {
             let scriptSize;
             if (output.script) {
                 scriptSize = output.script.length + 1; // OP_RETURN 直接使用 script 长度
-            } else if (output.address.startsWith('bc1p')) {
-                scriptSize = 34; // P2TR
-            } else if (output.address.startsWith('bc1q')) {
-                scriptSize = 22; // P2WPKH
-            } else if (output.address.startsWith('3')) {
-                scriptSize = 23; // P2SH
             } else {
-                scriptSize = 25; // P2PKH
+                scriptSize = UnisatAPI.getOutputSize(output.address);
             }
 
             baseSize += this.varIntSize(scriptSize) + scriptSize;
@@ -383,6 +363,44 @@ export default class UnisatAPI {
 
     static varIntSize(n) {
         return n < 0xfd ? 1 : 3;
+    }
+
+    static getInputSize(address) {
+        let baseSize = 32 + 4 + 4; // txid + vout + sequence
+
+        if (address.startsWith('bc1p')) { // P2TR
+            baseSize += 1; // 空 scriptSig（1字节）
+            baseSize += (1 + (1 + 64) + (1 + 33)) / 4; // Schnorr 签名 + 控制块
+        }
+        else if (address.startsWith('bc1q')) { // P2WPKH
+            baseSize += 1; // 空 scriptSig（1字节）
+            baseSize += ( 1 + (1 + 72) + (1 + 33)) / 4; // DER 签名 + 压缩公钥
+        }
+        else if (address.startsWith('3')) { // P2SH（可能是嵌套SegWit）
+            const redeemScriptSize = 22; // 默认 P2SH-P2WPKH 的 redeemScript 是 22 字节
+            baseSize += 1 + redeemScriptSize; // scriptSig 长度 + redeemScript
+            baseSize += (1 + (1 + 72) + (1 + 33)) / 4; // 见证数据（DER 签名 + 压缩公钥）
+        }
+        else { // P2PKH（Legacy）
+            const scriptSigSize =  107; // 默认估算
+            baseSize += this.varIntSize(scriptSigSize) + scriptSigSize;
+        }
+
+        return baseSize;
+    }
+
+    static getOutputSize(address) {
+        let scriptSize;
+        if (address.startsWith('bc1p')) {
+            scriptSize = 34; // P2TR
+        } else if (address.startsWith('bc1q')) {
+            scriptSize = 22; // P2WPKH
+        } else if (address.startsWith('3')) {
+            scriptSize = 23; // P2SH
+        } else {
+            scriptSize = 25; // P2PKH
+        }
+        return scriptSize;
     }
 
     static async blockHeight() {

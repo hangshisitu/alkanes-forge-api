@@ -67,18 +67,18 @@ router
     })
     .post('/deploy', async ctx => {
         try {
-            // const params = ctx.request.body;
-            // const psbt = await AlkanesAPI.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name,
-            //     params.symbol, params.cap, params.perMint, params.premine, params.feerate);
-            // ctx.body = {
-            //     'code': 0,
-            //     'msg': 'ok',
-            //     'data': psbt
-            // }
+            const params = ctx.request.body;
+            const psbt = await AlkanesAPI.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name,
+                params.symbol, params.cap, params.perMint, params.premine, params.feerate);
             ctx.body = {
-                'code': 1,
-                'msg': 'Index maintenance'
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
             }
+            // ctx.body = {
+            //     'code': 1,
+            //     'msg': 'Index maintenance'
+            // }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
