@@ -54,7 +54,7 @@ export default class AlkanesAPI {
             id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
             name: alkane.token.name,
             symbol: alkane.token.symbol,
-            value: parseInt(alkane.value, 16).toString(), // 固定8位精度
+            value: alkane.value, // 固定8位精度
         }))
     }
 

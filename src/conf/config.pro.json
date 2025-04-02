@@ -1,8 +1,8 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@10.5.96.26:6379",
-  "alkanesUrl": "https://alkanes-private.idclub.io",
-  "alkanesPublicUrl": "https://alkanes-rpc.idclub.io",
+  "alkanesUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
+  "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
   "network": "mainnet",
