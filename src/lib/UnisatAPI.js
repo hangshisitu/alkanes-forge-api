@@ -212,7 +212,7 @@ export default class UnisatAPI {
                 break;
             }
 
-            needAmount += Math.ceil(getInputSize(address) * feerate);
+            needAmount += Math.ceil(this.getInputSize(address) * feerate);
         }
         if (totalInputValue < amount) {
             throw new Error('Insufficient utxo balance');
