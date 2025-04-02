@@ -18,7 +18,8 @@ function refreshToken() {
             isRefreshToken = true;
 
             const updateHeight = await RedisHelper.get(updateRedisKey);
-            const blockHeight = await UnisatAPI.blockHeight();
+            const blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
+
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
             }

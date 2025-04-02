@@ -44,7 +44,7 @@ import AlkanesAPI from "./lib/AlkanesAPI.js";
 // console.log(message);
 // process.exit(0);
 
-console.log(Buffer.from('75355ee1bddc44f5ad0d1b2a5043c79c6ee6eeba405a680cb6c02c310ebd0c98', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('75355ee1bddc44f5ad0d1b2a5043c79c6ee6eeba405a680cb6c02c310ebd0c98', 'hex').reverse().toString('hex'))
 
 // const metegrapUrl = 'https://mainnet.sandshrew.io/v2/lasereyes';
 // const idclubUrl = 'https://alkanes-private.idclub.io';
@@ -85,3 +85,6 @@ console.log(Buffer.from('75355ee1bddc44f5ad0d1b2a5043c79c6ee6eeba405a680cb6c02c3
 //         value: parseInt(alkane.value, 16).toString()
 //     }));
 // }
+
+const response = await AlkanesAPI._call('metashrew_height', [], 'https://mainnet.sandshrew.io/v2/lasereyes');
+console.log(response);
