@@ -42,20 +42,25 @@ export default class AlkanesAPI {
         if (utxo.height < 880000) {
             return [];
         }
-        const alkaneList = await AlkanesAPI._call('alkanes_protorunesbyoutpoint', [
-            {
-                txid: Buffer.from(utxo.txid, 'hex').reverse().toString('hex'),
-                vout: utxo.vout,
-                protocolTag: '1',
-            },
-        ], config.alkanesPublicUrl)
+        try {
+            const alkaneList = await AlkanesAPI._call('alkanes_protorunesbyoutpoint', [
+                {
+                    txid: Buffer.from(utxo.txid, 'hex').reverse().toString('hex'),
+                    vout: utxo.vout,
+                    protocolTag: '1',
+                },
+            ], config.alkanesPublicUrl)
 
-        return alkaneList.map((alkane) => ({
-            id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
-            name: alkane.token.name,
-            symbol: alkane.token.symbol,
-            value: alkane.value, // 固定8位精度
-        }))
+            return alkaneList.map((alkane) => ({
+                id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
+                name: alkane.token.name,
+                symbol: alkane.token.symbol,
+                value: alkane.value, // 固定8位精度
+            }))
+        } catch (err) {
+            console.log(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err);
+            throw new Error('Get Alkane Balance Error');
+        }
     }
 
     static async getAlkanesByAddress(address, id) {
