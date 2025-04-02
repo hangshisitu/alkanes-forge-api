@@ -44,7 +44,7 @@ import AlkanesAPI from "./lib/AlkanesAPI.js";
 // console.log(message);
 // process.exit(0);
 
-// console.log(Buffer.from('6f247f1097d6cef6c30eacedbb8614d3dde985c180956fc380a0603e14034759', 'hex').reverse().toString('hex'))
+console.log(Buffer.from('75355ee1bddc44f5ad0d1b2a5043c79c6ee6eeba405a680cb6c02c310ebd0c98', 'hex').reverse().toString('hex'))
 
 // const metegrapUrl = 'https://mainnet.sandshrew.io/v2/lasereyes';
 // const idclubUrl = 'https://alkanes-private.idclub.io';

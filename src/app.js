@@ -2,7 +2,6 @@ import Koa from 'koa';
 import cors from 'koa2-cors';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
-import DateUtil from "./lib/DateUtil.js";
 import * as util from 'util'
 import AlkanesAPI from "./lib/AlkanesAPI.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
@@ -35,17 +34,12 @@ app.use(bodyParser({
 
 // logger
 app.use(async (ctx, next) => {
-    await next();
-    const rt = ctx.response.get('X-Response-Time');
-    console.log(`${DateUtil.now()} - ${ctx.method} ${ctx.url} - ${rt} - ${JSON.stringify(ctx.request.body)}`);
-});
-
-// x-response-time
-app.use(async (ctx, next) => {
     const start = Date.now();
+    const bodyParams = JSON.stringify(ctx.request.body) || '';
     await next();
     const ms = Date.now() - start;
-    ctx.set('X-Response-Time', `${ms}ms`);
+    const content = JSON.stringify(ctx.response.body) || '';
+    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}  params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
 });
 
 router
