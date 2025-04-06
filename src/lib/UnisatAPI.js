@@ -2,7 +2,8 @@ import * as bitcoin from "bitcoinjs-lib";
 import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import * as psbtUtils from "bitcoinjs-lib/src/psbt/psbtutils.js";
 import axios from "axios";
-import {convertKeyPair, getOutputSize, utxo2PsbtInputEx} from "../utils/psbtUtil.js";
+import FeeUtil from "../utils/FeeUtil.js";
+import AddressUtil from "./AddressUtil.js";
 
 export default class UnisatAPI {
 
@@ -10,7 +11,7 @@ export default class UnisatAPI {
     static unisatToken = '0430a4cb33e4e75316a673a56d9ce874ff504e1eb3eb30994289350a5e866893';
 
     static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
-        const keyPair = convertKeyPair(privateKey);
+        const keyPair = AddressUtil.convertKeyPair(privateKey);
         const hex = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
         return await this.unisatPush(hex);
     }
@@ -48,19 +49,12 @@ export default class UnisatAPI {
             psbt.addInput(vin);
         }
 
-        // 处理输出
         if (outputList.length === 0) {
-            const totalInputValue = inputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-            const txFee = this.estTxFee(inputList.length, 1, feerate, inputList[0].address.startsWith('bc1q'));
-            psbt.addOutput({
-                address: changeAddress,
-                value: totalInputValue - txFee
-            });
-            checkFee = false;
-        } else {
-            for (const output of outputList) {
-                psbt.addOutput(output);
-            }
+            throw new Error('The output is empty');
+        }
+
+        for (const output of outputList) {
+            psbt.addOutput(output);
         }
 
         try {
@@ -68,7 +62,7 @@ export default class UnisatAPI {
                 const input = inputList[i];
                 const privateKey = inputList[i].privateKey;
                 if (privateKey) {
-                    const keyPair = convertKeyPair(privateKey);
+                    const keyPair = AddressUtil.convertKeyPair(privateKey);
                     const myXOnlyPubkey = toXOnly(keyPair.publicKey);
                     const tweakedChildNode = keyPair.tweak(
                         bitcoin.crypto.taggedHash('TapTweak', myXOnlyPubkey)
@@ -96,7 +90,7 @@ export default class UnisatAPI {
         if (checkFee) {
             const totalInputValue = inputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
             const totalOutputValue = outputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-            const fee = Math.ceil((tx.virtualSize() + getOutputSize(changeAddress)) * feerate);
+            const fee = Math.ceil((tx.virtualSize() + FeeUtil.getOutputSize(changeAddress)) * feerate);
             const changeValue = totalInputValue - totalOutputValue - fee;
 
             if (changeValue > 1000) {
@@ -109,74 +103,6 @@ export default class UnisatAPI {
         }
 
         return tx.toHex();
-    }
-
-    static async createUnSignPsbt(inputList, outputList, changeAddress, feerate, network, checkFee = true) {
-        const psbt = new bitcoin.Psbt({network});
-        if (checkFee) {
-            psbt.setMaximumFeeRate(500000000);
-        } else {
-            psbt.setMaximumFeeRate(50000);
-        }
-
-        const addressToIndexes = [];
-        for (let i = 0; i < inputList.length; i++) {
-            const input = inputList[i];
-            if (!addressToIndexes[input.address]) {
-                addressToIndexes[input.address] = [];
-            }
-            addressToIndexes[input.address].push(i);
-
-            const vin = await utxo2PsbtInputEx(input);
-            psbt.addInput(vin);
-        }
-
-        const signingIndexesArr = [];
-        for (const [address, indexes] of Object.entries(addressToIndexes)) {
-            signingIndexesArr.push({
-                address,
-                signingIndexes: indexes,
-            });
-        }
-
-        // 处理输出
-        if (outputList.length === 0) {
-            const totalInputValue = inputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-            const txFee = this.estTxFee(inputList.length, 1, feerate, inputList[0].address.startsWith('bc1q'));
-            psbt.addOutput({
-                address: changeAddress,
-                value: totalInputValue - txFee
-            });
-            checkFee = false;
-        } else {
-            for (const output of outputList) {
-                psbt.addOutput(output);
-            }
-        }
-
-        if (checkFee) {
-            const totalInputValue = inputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-            const totalOutputValue = outputList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-            const txSize = UnisatAPI.estTxSize(inputList, [...outputList, {address: changeAddress}]);
-            const fee = Math.ceil(txSize * feerate);
-            const changeValue = totalInputValue - totalOutputValue - fee;
-
-            if (changeValue > 546) {
-                outputList.push({
-                    address: changeAddress,
-                    value: changeValue
-                });
-                return this.createUnSignPsbt(inputList, outputList, changeAddress, feerate, network, false);
-            } else if (changeValue < 0) {
-                throw new Error('Insufficient utxo balance');
-            }
-        }
-
-        return {
-            hex: psbt.toHex(),
-            base64: psbt.toBase64(),
-            signingIndexes: signingIndexesArr
-        };
     }
 
     static async getAllUtxo(address, confirmed = false) {
@@ -199,11 +125,17 @@ export default class UnisatAPI {
             throw new Error('Insufficient utxo balance');
         }
 
+        return UnisatAPI.pickUtxoByTarget(address, amount, feerate, utxoList);
+    }
+
+    static pickUtxoByTarget(address, amount, feerate, utxoList) {
+        utxoList.sort((a, b) => b.value - a.value);
+
         let totalInputValue = 0;
         const inputList = [];
         let needAmount = amount;
         for (const utxo of utxoList) {
-            if (utxo.value <= 546) {
+            if (utxo.value <= 600) {
                 continue;
             }
 
@@ -213,12 +145,29 @@ export default class UnisatAPI {
                 break;
             }
 
-            needAmount += Math.ceil(this.getInputSize(address) * feerate);
+            needAmount += Math.ceil(FeeUtil.getInputSize(address) * feerate);
         }
         if (totalInputValue < amount) {
             throw new Error('Insufficient utxo balance');
         }
         return inputList;
+    }
+
+    static pickDummyList(utxoList) {
+        const dummyList = []
+        utxoList.sort((a, b) => a.value - b.value);
+        for (const utxo of utxoList) {
+            if (utxo.value === 600) {
+                dummyList.push(utxo);
+            }
+            if (dummyList.length === 2) {
+                break;
+            }
+        }
+        if (dummyList < 2) {
+            throw new Error('Not enough Dummy')
+        }
+        return dummyList;
     }
 
     static async getUtxoList(address, confirmed = false, page = 1, size = 1000) {
@@ -326,87 +275,6 @@ export default class UnisatAPI {
             }
         }
         throw new Error('tx push error');
-    }
-
-    static estTxSize(inputs, outputs) {
-        let baseSize = 4 + 4; // version + locktime
-        let witnessSize = 0;
-        const isSegWit = inputs.some(i => i.address?.startsWith('bc1') || i.address?.startsWith('3'));
-
-        // 输入输出数量（VarInt）
-        baseSize += this.varIntSize(inputs.length) + this.varIntSize(outputs.length);
-
-        // ============= 输入计算 =============
-        for (const input of inputs) {
-            baseSize += this.getInputSize(input.address);
-        }
-
-        // ============= 输出计算 =============
-        for (const output of outputs) {
-            baseSize += 8; // value（8字节）
-
-            let scriptSize;
-            if (output.script) {
-                scriptSize = output.script.length + 1; // OP_RETURN 直接使用 script 长度
-            } else {
-                scriptSize = UnisatAPI.getOutputSize(output.address);
-            }
-
-            baseSize += this.varIntSize(scriptSize) + scriptSize;
-        }
-
-        // SegWit标记（如果有SegWit输入）
-        if (isSegWit) baseSize += 2;
-
-        // 最终 vsize = baseSize + (witnessSize / 4)
-        return Math.ceil(baseSize + (witnessSize / 4));
-    }
-
-    static varIntSize(n) {
-        return n < 0xfd ? 1 : 3;
-    }
-
-    static getInputSize(address) {
-        let baseSize = 32 + 4 + 4; // txid + vout + sequence
-
-        if (address.startsWith('bc1p')) { // P2TR
-            baseSize += 1; // 空 scriptSig（1字节）
-            baseSize += (1 + (1 + 64) + (1 + 33)) / 4; // Schnorr 签名 + 控制块
-        }
-        else if (address.startsWith('bc1q')) { // P2WPKH
-            baseSize += 1; // 空 scriptSig（1字节）
-            baseSize += ( 1 + (1 + 72) + (1 + 33)) / 4; // DER 签名 + 压缩公钥
-        }
-        else if (address.startsWith('3')) { // P2SH（可能是嵌套SegWit）
-            const redeemScriptSize = 22; // 默认 P2SH-P2WPKH 的 redeemScript 是 22 字节
-            baseSize += 1 + redeemScriptSize; // scriptSig 长度 + redeemScript
-            baseSize += (1 + (1 + 72) + (1 + 33)) / 4; // 见证数据（DER 签名 + 压缩公钥）
-        }
-        else { // P2PKH（Legacy）
-            const scriptSigSize =  107; // 默认估算
-            baseSize += this.varIntSize(scriptSigSize) + scriptSigSize;
-        }
-
-        return baseSize;
-    }
-
-    static getOutputSize(address) {
-        let scriptSize;
-        if (address.startsWith('bc1p')) {
-            scriptSize = 34; // P2TR
-        } else if (address.startsWith('bc1q')) {
-            scriptSize = 22; // P2WPKH
-        } else if (address.startsWith('3')) {
-            scriptSize = 23; // P2SH
-        } else {
-            scriptSize = 25; // P2PKH
-        }
-        return scriptSize;
-    }
-
-    static async blockHeight() {
-        const response = await axios.get(`https://mempool.space/api/v1/blocks/tip/height`);
-        return response.data;
     }
 
 }

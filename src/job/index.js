@@ -3,7 +3,7 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import asyncPool from "tiny-async-pool";
 import config from "../conf/config.js";
-import AlkanesAPI from "../lib/AlkanesAPI.js";
+import AlkanesService from "../service/AlkanesService.js";
 
 let isRefreshToken = false;
 function refreshToken() {
@@ -15,9 +15,10 @@ function refreshToken() {
         const updateRedisKey = `token-update-height`;
         try {
             isRefreshToken = true;
+            const startTime = Date.now();
 
             const updateHeight = await RedisHelper.get(updateRedisKey);
-            const blockHeight = await AlkanesAPI.metashrewHeight();
+            const blockHeight = await AlkanesService.metashrewHeight(config.alkanesUrl);
 
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
@@ -39,7 +40,7 @@ function refreshToken() {
             console.log(`found active tokens: ${mintIds.length}`);
 
             const alkaneList = [];
-            for await (const result of asyncPool(config.concurrencyLimit, mintIds, AlkanesAPI.getAlkanesById)) {
+            for await (const result of asyncPool(config.concurrencyLimit, mintIds, AlkanesService.getAlkanesById)) {
                 if (result !== null) {
                     alkaneList.push(result);
                 }
@@ -53,7 +54,7 @@ function refreshToken() {
 
             const newAlkaneList = [];
             for (let i = lastIndex; i < lastIndex + 1000; i++) {
-                const alkanes = await AlkanesAPI.getAlkanesById(`2:${i}`);
+                const alkanes = await AlkanesService.getAlkanesById(`2:${i}`);
                 if (alkanes === null) {
                     break;
                 }
@@ -70,7 +71,7 @@ function refreshToken() {
             allTokens.sort((a, b) => parseInt(a.id.split(':')[1]) - parseInt(b.id.split(':')[1]));
             await RedisHelper.set('alkanesList', JSON.stringify(allTokens));
 
-            console.log(`refresh token finish.`);
+            console.log(`refresh token finish, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
             console.error(`scan block error`, err.message);
         } finally {

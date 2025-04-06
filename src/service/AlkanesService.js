@@ -1,15 +1,17 @@
 import config from "../conf/config.js";
-import UnisatAPI from "./UnisatAPI.js";
+import UnisatAPI from "../lib/UnisatAPI.js";
 import axios from "axios";
 import asyncPool from 'tiny-async-pool';
 import {encipher, encodeRunestoneProtostone, ProtoStone} from "alkanes";
 import * as bitcoin from "bitcoinjs-lib";
-import { createHash } from "crypto";
+import {createHash} from "crypto";
 import BigNumber from "bignumber.js";
-import { u128, u32 } from '@magiceden-oss/runestone-lib/dist/src/integer/index.js';
-import { ProtoruneRuneId } from 'alkanes/lib/protorune/protoruneruneid.js'
-import AddressUtil from "./AddressUtil.js";
+import {u128, u32} from '@magiceden-oss/runestone-lib/dist/src/integer/index.js';
+import {ProtoruneRuneId} from 'alkanes/lib/protorune/protoruneruneid.js'
+import AddressUtil from "../lib/AddressUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
+import PsbtUtil from "../utils/PsbtUtil.js";
+import FeeUtil from "../utils/FeeUtil.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -36,14 +38,14 @@ const opcodesHRV = [
     'mintAmount'
 ]
 
-export default class AlkanesAPI {
+export default class AlkanesService {
 
     static async getAlkanesByUtxo(utxo) {
         if (utxo.height < 880000) {
             return [];
         }
         try {
-            const alkaneList = await AlkanesAPI._call('alkanes_protorunesbyoutpoint', [
+            const alkaneList = await AlkanesService._call('alkanes_protorunesbyoutpoint', [
                 {
                     txid: Buffer.from(utxo.txid, 'hex').reverse().toString('hex'),
                     vout: utxo.vout,
@@ -55,7 +57,7 @@ export default class AlkanesAPI {
                 id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
                 name: alkane.token.name,
                 symbol: alkane.token.symbol,
-                value: alkane.value, // 固定8位精度
+                value: new BigNumber(alkane.value).toNumber(), // 固定8位精度
             }))
         } catch (err) {
             console.log(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err);
@@ -72,17 +74,14 @@ export default class AlkanesAPI {
             }
 
             const alkaneList = [];
-            for await (const result of asyncPool(config.concurrencyLimit, utxos, AlkanesAPI.getAlkanesByUtxo)) {
+            for await (const result of asyncPool(config.concurrencyLimit, utxos, AlkanesService.getAlkanesByUtxo)) {
                 if (result !== null && result.length > 0) {
                     alkaneList.push(...result);
                 }
             }
 
-            if (id) {
-                return alkaneList.filter(alkanes => alkanes.id === id);
-            }
-
-            const result = alkaneList.reduce((acc, {id, name, symbol, value}) => {
+            const filteredList = id ? alkaneList.filter(alkane => alkane.id === id) : alkaneList;
+            const result = filteredList.reduce((acc, {id, name, symbol, value}) => {
                 const key = id;
                 if (!acc[key]) {
                     acc[key] = {id, name, symbol, value: '0'};
@@ -99,7 +98,7 @@ export default class AlkanesAPI {
 
     static async getAlkanesByTarget(address, id, amount) {
         try {
-            const utxoList = await UnisatAPI.getAllUtxo(address);
+            const utxoList = await UnisatAPI.getAllUtxo(address, true);
 
             if (!utxoList || utxoList.length === 0) {
                 throw new Error('Insufficient alkanes balance');
@@ -108,7 +107,7 @@ export default class AlkanesAPI {
             const alkaneList = [];
             let totalBalance = new BigNumber(0);
             for (const utxo of utxoList) {
-                const alkanes = await AlkanesAPI.getAlkanesByUtxo(utxo);
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo);
                 for (const alkane of alkanes) {
                     if (alkane.id !== id) {
                         continue;
@@ -143,7 +142,7 @@ export default class AlkanesAPI {
             const opcodeResults = await Promise.all(
                 opcodes.map(async (opcode, opcodeIndex) => {
                     try {
-                        const result = await AlkanesAPI.simulate({
+                        const result = await AlkanesService.simulate({
                             target: {block: id.split(':')[0], tx: id.split(':')[1]},
                             inputs: [opcode],
                         });
@@ -218,7 +217,7 @@ export default class AlkanesAPI {
     }
 
     static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
-        const protostone = AlkanesAPI.getMintProtostone(id);
+        const protostone = AlkanesService.getMintProtostone(id);
 
         const outputList = [];
         outputList.push({
@@ -230,9 +229,9 @@ export default class AlkanesAPI {
             value: 0
         });
 
-        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
+        const privateKey = AlkanesService.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
-        const mintSize = UnisatAPI.estTxSize([{address: mintAddress}], outputList);
+        const mintSize = FeeUtil.estTxSize([{address: mintAddress}], outputList);
         const mintFee = Math.ceil(mintSize * feerate) + postage;
 
         const fundOutputList = [];
@@ -248,20 +247,20 @@ export default class AlkanesAPI {
             address: config.platformAddress,
             value: serviceFee
         });
-        let transferFee = Math.ceil(UnisatAPI.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
+        let transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
 
         const totalFee = mints * mintFee + transferFee + serviceFee;
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalFee, feerate, true);
         utxoList.map(utxo =>  utxo.pubkey = fundPublicKey);
 
-        return UnisatAPI.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
     static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
         const ret = await UnisatAPI.unisatPush(psbt);
         const txid = ret.data;
 
-        const protostone = AlkanesAPI.getMintProtostone(id);
+        const protostone = AlkanesService.getMintProtostone(id);
 
         const outputList = [];
         outputList.push({
@@ -274,9 +273,9 @@ export default class AlkanesAPI {
         });
 
         const txidList = [];
-        const privateKey = AlkanesAPI.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
+        const privateKey = AlkanesService.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
-        const mintFee = Math.ceil(UnisatAPI.estTxSize([{address: mintAddress}], outputList) * feerate) + postage;
+        const mintFee = Math.ceil(FeeUtil.estTxSize([{address: mintAddress}], outputList) * feerate) + postage;
 
         for (let i = 0; i < mints; i++) {
             const inputList = [{
@@ -341,59 +340,47 @@ export default class AlkanesAPI {
             value: 3000
         });
 
-        const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
+        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
-        return UnisatAPI.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
     static async transferToken(fundAddress, fundPublicKey, assetAddress, toAddress, id, amount, feerate, alkanesList) {
         if (!alkanesList || alkanesList.length === 0) {
-            alkanesList = await AlkanesAPI.getAlkanesByTarget(assetAddress, id, amount);
+            alkanesList = await AlkanesService.getAlkanesByTarget(assetAddress, id, amount);
         }
 
-        const protostone = encodeRunestoneProtostone({
-            protostones: [
-                ProtoStone.message({
-                    protocolTag: 1n,
-                    edicts: [
-                        {
-                            id: new ProtoruneRuneId(
-                                u128(BigInt(id.split(':')[0])),
-                                u128(BigInt(id.split(':')[1]))
-                            ),
-                            amount: u128(BigInt(amount)),
-                            output: u32(BigInt(1)),
-                        },
-                    ],
-                    pointer: 0,
-                    refundPointer: 0,
-                    calldata: Buffer.from([]),
-                }),
-            ],
-        }).encodedRunestone;
-
         const outputList = [];
-        outputList.push({
-            address: assetAddress,
-            value: 330
-        });
         outputList.push({
             address: toAddress,
             value: 330
         });
+
+        const totalInputAmount = alkanesList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
+        const changeAmount = totalInputAmount - amount;
+        const transferList = [{amount: amount, output: 0}];
+        if (changeAmount > 0) {
+            transferList.push({amount: changeAmount, output: 1});
+            outputList.push({
+                address: assetAddress,
+                value: 330
+            });
+        }
+        const protostone = AlkanesService.getTransferProtostone(id, transferList);
         outputList.push({
             script: protostone,
             value: 0
         });
+
         outputList.push({
             address: config.platformAddress,
             value: 3000
         });
 
-        const txSize = UnisatAPI.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
+        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
@@ -404,7 +391,7 @@ export default class AlkanesAPI {
         }
         inputList.push(...utxoList);
 
-        return UnisatAPI.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
     static async simulate(request, decoder) {
@@ -426,13 +413,13 @@ export default class AlkanesAPI {
             const operationType = Number(request.inputs[0])
             return decoder(ret, operationType)
         }
-        return AlkanesAPI.parseSimulateReturn(data);
+        return AlkanesService.parseSimulateReturn(data);
     }
 
-    static async metashrewHeight() {
+    static async metashrewHeight(alkanesUrl = config.alkanesPublicUrl) {
         for (let i = 0; i < 3; i++) {
             try {
-                let blockHeight = await AlkanesAPI._call('metashrew_height', [], config.alkanesUrl);
+                let blockHeight = await AlkanesService._call('metashrew_height', [], alkanesUrl);
                 if (blockHeight) {
                     return parseInt(blockHeight) - 1;
                 }
@@ -516,22 +503,36 @@ export default class AlkanesAPI {
         }).encodedRunestone;
     }
 
+    static getTransferProtostone(id, transferList) {
+        const edicts = [];
+        for (const transfer of transferList) {
+            edicts.push({
+                id: new ProtoruneRuneId(
+                    u128(BigInt(id.split(':')[0])),
+                    u128(BigInt(id.split(':')[1]))
+                ),
+                amount: u128(BigInt(transfer.amount)),
+                output: u32(BigInt(transfer.output)),
+            });
+        }
+
+        return encodeRunestoneProtostone({
+            protostones: [
+                ProtoStone.message({
+                    protocolTag: 1n,
+                    edicts: edicts,
+                    pointer: 0,
+                    refundPointer: 0,
+                    calldata: Buffer.from([]),
+                }),
+            ],
+        }).encodedRunestone;
+    }
+
     static generatePrivateKeyFromString(inputString) {
         const hash = createHash("sha256").update(inputString).digest("hex");
         const privateKey = Buffer.from(hash, "hex");
         return privateKey.toString("hex");
-    }
-
-    static stringToU128(name) {
-        const utf8Bytes = Buffer.from(name, 'utf8');
-        const reversedBytes = Array.from(utf8Bytes).reverse();
-        let hexStr = Buffer.from(reversedBytes).toString('hex');
-        if (hexStr.length > 32) {
-            hexStr = hexStr.substring(0, 32);
-        } else {
-            hexStr = hexStr.padStart(32, '0');
-        }
-        return BigInt('0x' + hexStr);
     }
 
 }

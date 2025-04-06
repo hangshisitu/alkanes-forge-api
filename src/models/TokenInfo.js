@@ -47,9 +47,19 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.INTEGER,
         comment: '最后更新区块号'
     },
+    createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        comment: '创建时间'
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        comment: '更新时间'
+    }
 }, {
     tableName: 'token_info',
-    timestamps: true, // 自动生成 createdAt 和 updatedAt
+    timestamps: false, // 禁用自动时间戳
     underscored: true, // 将驼峰式字段转换为下划线风格
     comment: '代币信息'
 });

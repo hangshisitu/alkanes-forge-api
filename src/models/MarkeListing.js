@@ -1,0 +1,85 @@
+import sequelize from '../lib/SequelizeHelper.js';
+import { DataTypes } from 'sequelize';
+
+const MarketListing = sequelize.define('MarketListing', {
+    id: {
+        type: DataTypes.STRING(16),
+        primaryKey: true,
+        comment: '主键'
+    },
+    alkaneId: {
+        type: DataTypes.STRING(16),
+        comment: '资产唯一标识'
+    },
+    tokenAmount: {
+        type: DataTypes.DECIMAL(36, 0),
+        comment: '代币数量(支持小数)'
+    },
+    listingPrice: {
+        type: DataTypes.DECIMAL(36, 0),
+        comment: '单价(单位: satoshi)'
+    },
+    listingOutput: {
+        type: DataTypes.STRING(70),
+        comment: '挂单的output(txid:vout)'
+    },
+    psbtData: {
+        type: DataTypes.TEXT,
+        comment: 'PSBT原始数据'
+    },
+    sellerAddress: {
+        type: DataTypes.STRING(128),
+        comment: '卖家地址'
+    },
+    buyerAddress: {
+        type: DataTypes.STRING(128),
+        defaultValue: '',
+        comment: '买家地址'
+    },
+    txHash: {
+        type: DataTypes.STRING(64),
+        defaultValue: '',
+        comment: '链上交易哈希'
+    },
+    platformFee: {
+        type: DataTypes.DECIMAL(36, 0),
+        defaultValue: 0,
+        comment: '平台手续费'
+    },
+    status: {
+        type: DataTypes.TINYINT,
+        defaultValue: 1,
+        comment: '1:已上架 2:已售出 3:已下架'
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        comment: '创建时间'
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        comment: '更新时间'
+    }
+}, {
+    tableName: 'market_listing',
+    timestamps: false, // 禁用自动时间戳
+    underscored: true, // 字段名下划线风格
+    comment: '交易市场挂单表',
+    indexes: [
+        {
+            name: 'idx_asset_status',
+            fields: ['alkane_id', 'status']
+        },
+        {
+            name: 'idx_seller',
+            fields: ['seller_address']
+        },
+        {
+            name: 'idx_buyer',
+            fields: ['buyer_address']
+        }
+    ]
+});
+
+export default MarketListing;

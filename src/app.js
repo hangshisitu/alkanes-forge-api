@@ -3,9 +3,10 @@ import cors from 'koa2-cors';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
 import * as util from 'util'
-import AlkanesAPI from "./lib/AlkanesAPI.js";
+import AlkanesService from "./service/AlkanesService.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
 import {jobs} from "./job/index.js";
+import MarketService from "./service/MarketService.js";
 
 const app = new Koa();
 const router = new Router();
@@ -45,7 +46,7 @@ app.use(async (ctx, next) => {
 router
     .post('/tokens', async ctx => {
         try {
-            const alkanesList = await AlkanesAPI.getAllAlkanes();
+            const alkanesList = await AlkanesService.getAllAlkanes();
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -62,17 +63,13 @@ router
     .post('/deploy', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name,
+            const psbt = await AlkanesService.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name,
                 params.symbol, params.cap, params.perMint, params.premine, params.feerate);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
                 'data': psbt
             }
-            // ctx.body = {
-            //     'code': 1,
-            //     'msg': 'Index maintenance'
-            // }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
@@ -84,7 +81,7 @@ router
     .post('/alkanesBalance', async ctx => {
         try {
             const params = ctx.request.body;
-            const alkanesList = await AlkanesAPI.getAlkanesByAddress(params.address);
+            const alkanesList = await AlkanesService.getAlkanesByAddress(params.address);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -101,7 +98,7 @@ router
     .post('/transfer', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
+            const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
                 params.id, params.amount, params.feerate);
             ctx.body = {
                 'code': 0,
@@ -119,7 +116,7 @@ router
     .post('/createMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesAPI.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
+            const psbt = await AlkanesService.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
                 params.id, params.mints, params.postage, params.feerate);
             ctx.body = {
                 'code': 0,
@@ -137,7 +134,7 @@ router
     .post('/startMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const txidList = await AlkanesAPI.startMint(params.fundAddress, params.toAddress,
+            const txidList = await AlkanesService.startMint(params.fundAddress, params.toAddress,
                 params.id, params.mints, params.postage, params.feerate, params.psbt);
             ctx.body = {
                 'code': 0,
@@ -155,7 +152,7 @@ router
     .post('/getAlkanesByUtxo', async ctx => {
         try {
             const params = ctx.request.body;
-            const alkaneList = await AlkanesAPI.getAlkanesByUtxo(params.utxo);
+            const alkaneList = await AlkanesService.getAlkanesByUtxo(params.utxo);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -188,12 +185,90 @@ router
     })
     .post('/metashrewHeight', async ctx => {
         try {
-            const height = await AlkanesAPI.metashrewHeight();
+            const height = await AlkanesService.metashrewHeight();
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
                 'data': height
             }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/assets', async ctx => {
+        try {
+            const params = ctx.request.body;
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/createUnsignedListing', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await MarketService.createUnsignedListing(params.assetAddress, params.assetPublicKey, params.fundAddress, params.listingList);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/putSignedListing', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const id = await MarketService.putSignedListing(params.signedPsbt);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': id
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/createUnsignedBuying', async ctx => {
+        try {
+            const params = ctx.request.body;
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/putSignedBuying', async ctx => {
+        try {
+            const params = ctx.request.body;
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/delist', async ctx => {
+        try {
+            const params = ctx.request.body;
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
