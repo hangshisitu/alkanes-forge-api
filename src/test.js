@@ -28,8 +28,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // console.log(psbt);
 
 //100000000+550000000
-const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pnydp9t3epqe2ljtmy4m6n6wa6nzcxcfr25nc656xkgc2x82kufgq8mwgsr', '2:28');
-console.log(alkanesList);
+// const alkanesList = await AlkanesService.getAlkanesByAddress('bc1q2rtajjjpjqnaawac3vaknn7xnp9assrayndulz');
+// console.log(alkanesList);
 
 // const alkanes = await AlkanesService.getAlkanesByUtxo({
 //     txid: 'd60814e0d3b337bbe8d5d92aebac5509eec4a84e7d17a69dcfcef85bc7cd9453',
@@ -40,3 +40,7 @@ console.log(alkanesList);
 // console.log(Buffer.from('d60814e0d3b337bbe8d5d92aebac5509eec4a84e7d17a69dcfcef85bc7cd9453', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0xd529ae7dbdaa80').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
+
+// 查询代币信息
+// const alkanes = await AlkanesService.getAlkanesById('2:110');
+// console.log(alkanes);

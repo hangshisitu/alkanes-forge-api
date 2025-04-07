@@ -511,8 +511,8 @@ export default class AlkanesService {
                     u128(BigInt(id.split(':')[0])),
                     u128(BigInt(id.split(':')[1]))
                 ),
-                amount: u128(BigInt(transfer.amount)),
-                output: u32(BigInt(transfer.output)),
+                amount: u128(BigInt(transfer.amount)), // 如果是0或者大于输入数量，则得到输入的全部数量；如果小于
+                output: u32(BigInt(transfer.output)), // 指向接收的output index
             });
         }
 
