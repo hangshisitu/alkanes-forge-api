@@ -7,6 +7,7 @@ import AlkanesService from "./service/AlkanesService.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
 import {jobs} from "./job/index.js";
 import MarketService from "./service/MarketService.js";
+import MarketListingMapper from "./mapper/MarketListingMapper.js";
 
 const app = new Koa();
 const router = new Router();
@@ -199,9 +200,15 @@ router
             }
         }
     })
-    .post('/market/assets', async ctx => {
+    .post('/market/listing', async ctx => {
         try {
             const params = ctx.request.body;
+            const listingPage = await MarketListingMapper.getAllListing(params.alkanesId, params.page, params.size, params.orderType);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': listingPage
+            }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
@@ -230,11 +237,62 @@ router
     .post('/market/putSignedListing', async ctx => {
         try {
             const params = ctx.request.body;
-            const id = await MarketService.putSignedListing(params.signedPsbt);
+            // TODO
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
-                'data': id
+                'data': ''
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/createUnsignedDelisting', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await MarketService.createUnsignedDelisting(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.assetPublicKey, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/putSignedDelisting', async ctx => {
+        try {
+            const params = ctx.request.body;
+            // TODO
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/checkDummy', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MarketService.checkDummy(params.fundAddress, params.fundPublicKey, params.dummyCount, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
@@ -247,6 +305,12 @@ router
     .post('/market/createUnsignedBuying', async ctx => {
         try {
             const params = ctx.request.body;
+            const result = await MarketService.createUnsignedBuying(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
@@ -258,17 +322,12 @@ router
     .post('/market/putSignedBuying', async ctx => {
         try {
             const params = ctx.request.body;
-        } catch (e) {
-            console.error(`${util.inspect(e)}`)
+            // TODO
             ctx.body = {
-                'code': 1,
-                'msg': e.message
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
             }
-        }
-    })
-    .post('/market/delist', async ctx => {
-        try {
-            const params = ctx.request.body;
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {

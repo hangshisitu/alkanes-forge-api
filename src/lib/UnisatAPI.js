@@ -153,19 +153,16 @@ export default class UnisatAPI {
         return inputList;
     }
 
-    static pickDummyList(utxoList) {
+    static pickDummyList(utxoList, dummyCount) {
         const dummyList = []
         utxoList.sort((a, b) => a.value - b.value);
         for (const utxo of utxoList) {
             if (utxo.value === 600) {
                 dummyList.push(utxo);
             }
-            if (dummyList.length === 2) {
+            if (dummyList.length === dummyCount) {
                 break;
             }
-        }
-        if (dummyList < 2) {
-            throw new Error('Not enough Dummy')
         }
         return dummyList;
     }

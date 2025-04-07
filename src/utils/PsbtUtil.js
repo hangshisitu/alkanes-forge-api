@@ -96,7 +96,7 @@ export default class PsbtUtil {
             const {address} = bitcoin.payments.p2pk({network, output})
             return address;
         }
-        throw new BaseError("unknow script")
+        throw new Error("unknow script")
     }
 
     static async utxo2PsbtInputEx(utxo) {
@@ -158,7 +158,7 @@ export default class PsbtUtil {
             txid: txid,
             vout: vout,
             value: value,
-            address: PsbtUtil.script2Address(script)
+            address: PsbtUtil.script2Address(Buffer.from(script, 'hex'))
         };
     }
 

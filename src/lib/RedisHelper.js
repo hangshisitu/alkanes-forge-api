@@ -21,4 +21,3 @@ export async function setEx(key, ttl, value) {
 function genKey(key) {
     return KEY_PREFIX + key;
 }
-

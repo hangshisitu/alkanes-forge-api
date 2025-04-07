@@ -8,8 +8,6 @@ const assetAddress = 'bc1pnydp9t3epqe2ljtmy4m6n6wa6nzcxcfr25nc656xkgc2x82kufgq8m
 const assetPublicKey = '034fee79e4f2401b558727527b6e3ac8753772c184e1fd05a9948a93412af552ad';
 const fundAddress = 'bc1qa0n0vfqzxmyjj5wyw4qhmu5q9nvc54sstg2wmq';
 const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c70ead7ed1c';
-// const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);
-// console.log(alkanesList);
 
 // const assetUtxo = {
 //     txid: '0c58a7a3b88ff2ca7043c092373437923822a536dd0346f11b27c426ec8356c7',
@@ -44,3 +42,7 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // 查询代币信息
 // const alkanes = await AlkanesService.getAlkanesById('2:110');
 // console.log(alkanes);
+
+// 查询持有代币的utxo列表
+// const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);
+// console.log(alkanesList);

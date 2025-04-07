@@ -7,7 +7,7 @@ const MarketListing = sequelize.define('MarketListing', {
         primaryKey: true,
         comment: '主键'
     },
-    alkaneId: {
+    alkanesId: {
         type: DataTypes.STRING(16),
         comment: '资产唯一标识'
     },
@@ -16,8 +16,24 @@ const MarketListing = sequelize.define('MarketListing', {
         comment: '代币数量(支持小数)'
     },
     listingPrice: {
-        type: DataTypes.DECIMAL(36, 0),
+        type: DataTypes.DECIMAL(36, 18),
         comment: '单价(单位: satoshi)'
+    },
+    listingAmount: {
+        type: DataTypes.DECIMAL(36, 0),
+        comment: '总价(单位: satoshi)',
+        get() {
+            const value = this.getDataValue('listingAmount');
+            return value ? Number(value) : 0;
+        }
+    },
+    sellerAmount: {
+        type: DataTypes.DECIMAL(36, 0),
+        comment: '卖家实收金额(单位: satoshi)',
+        get() {
+            const value = this.getDataValue('sellerAmount');
+            return value ? Number(value) : 0;
+        }
     },
     listingOutput: {
         type: DataTypes.STRING(70),
@@ -29,7 +45,11 @@ const MarketListing = sequelize.define('MarketListing', {
     },
     sellerAddress: {
         type: DataTypes.STRING(128),
-        comment: '卖家地址'
+        comment: '卖家出售地址'
+    },
+    sellerRecipient: {
+        type: DataTypes.STRING(128),
+        comment: '卖家收款地址'
     },
     buyerAddress: {
         type: DataTypes.STRING(128),
@@ -65,21 +85,7 @@ const MarketListing = sequelize.define('MarketListing', {
     tableName: 'market_listing',
     timestamps: false, // 禁用自动时间戳
     underscored: true, // 字段名下划线风格
-    comment: '交易市场挂单表',
-    indexes: [
-        {
-            name: 'idx_asset_status',
-            fields: ['alkane_id', 'status']
-        },
-        {
-            name: 'idx_seller',
-            fields: ['seller_address']
-        },
-        {
-            name: 'idx_buyer',
-            fields: ['buyer_address']
-        }
-    ]
+    comment: '交易市场挂单表'
 });
 
 export default MarketListing;

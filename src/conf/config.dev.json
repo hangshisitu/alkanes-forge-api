@@ -1,7 +1,7 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@127.0.0.1:6379",
-  "alkanesUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
+  "alkanesUrl": "https://alkanes-rpc.idclub.io",
   "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
@@ -12,5 +12,13 @@
     "username": "root",
     "password": "Idclub&bicords@2088^",
     "database": "alkanes"
+  },
+  "market": {
+    "dummyValue": 600,
+    "makerFee": 10,
+    "takerFee": 20,
+    "minimumFee": 333,
+    "postage": 546,
+    "platformAddress": "bc1qsjese9368gnlg6jfuvzujyc5pl7mn87qk4hwsn"
   }
 }

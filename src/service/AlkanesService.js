@@ -521,7 +521,7 @@ export default class AlkanesService {
                 ProtoStone.message({
                     protocolTag: 1n,
                     edicts: edicts,
-                    pointer: 0,
+                    pointer: 0, // 如果存在剩余的代币数量，会转到这里指定的output index
                     refundPointer: 0,
                     calldata: Buffer.from([]),
                 }),
