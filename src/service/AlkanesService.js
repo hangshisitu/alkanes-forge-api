@@ -132,6 +132,37 @@ export default class AlkanesService {
         }
     }
 
+    static async getAlkanesUtxoById(address, id) {
+        try {
+            const utxoList = await UnisatAPI.getAllUtxo(address, true);
+            if (!utxoList || utxoList.length === 0) {
+                return [];
+            }
+
+            const alkaneList = [];
+            for (const utxo of utxoList) {
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo);
+                for (const alkane of alkanes) {
+                    if (alkane.id !== id) {
+                        continue;
+                    }
+                    alkane.utxo = utxo;
+                    alkaneList.push({
+                        txid: utxo.txid,
+                        vout: utxo.vout,
+                        value: utxo.value,
+                        tokenAmount: new BigNumber(alkane.value).dividedBy(10**8).toFixed()
+                    });
+                }
+            }
+
+            return alkaneList;
+        } catch (error) {
+            console.error('getAlkanesUtxoById error:', error);
+            throw new Error('Get alkanes balance error');
+        }
+    }
+
     static async getAlkanesById(id) {
         const tokenInfo = {
             id: id
@@ -257,8 +288,7 @@ export default class AlkanesService {
     }
 
     static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
-        const ret = await UnisatAPI.unisatPush(psbt);
-        const txid = ret.data;
+        const txid = await UnisatAPI.unisatPush(psbt);
 
         const protostone = AlkanesService.getMintProtostone(id);
 
@@ -284,9 +314,9 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const ret = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, bitcoin.networks.bitcoin, false, false);
-            console.log(`mint index ${i} tx: ${ret.data}`);
-            txidList.push(ret.data);
+            const txid = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, bitcoin.networks.bitcoin, false, false);
+            console.log(`mint index ${i} tx: ${txid}`);
+            txidList.push(txid);
         }
         return txidList;
     }

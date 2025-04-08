@@ -150,31 +150,14 @@ router
             }
         }
     })
-    .post('/getAlkanesByUtxo', async ctx => {
-        try {
-            const params = ctx.request.body;
-            const alkaneList = await AlkanesService.getAlkanesByUtxo(params.utxo);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': alkaneList
-            }
-        } catch (e) {
-            console.error(`${util.inspect(e)}`)
-            ctx.body = {
-                'code': 1,
-                'msg': e.message
-            }
-        }
-    })
     .post('/broadcast', async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await UnisatAPI.unisatPush(params.psbt);
+            const txid = await UnisatAPI.unisatPush(params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
-                'data': result.data
+                'data': txid
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
@@ -200,10 +183,27 @@ router
             }
         }
     })
+    .post('/market/assets', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const assetsList = await MarketService.assets(params.alkanesId, params.assetAddress);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': assetsList
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post('/market/listing', async ctx => {
         try {
             const params = ctx.request.body;
-            const listingPage = await MarketListingMapper.getAllListing(params.alkanesId, params.page, params.size, params.orderType);
+            const listingPage = await MarketListingMapper.getAllListing(params.alkanesId, params.sellerAddress, params.page, params.size, params.orderType);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -237,7 +237,41 @@ router
     .post('/market/putSignedListing', async ctx => {
         try {
             const params = ctx.request.body;
-            // TODO
+            await MarketService.putSignedListing(params.signedPsbt, false);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/createUnsignedUpdate', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await MarketService.createUnsignedUpdate(params.alkanesId, params.listingIds, params.assetAddress, params.assetPublicKey, params.fundAddress);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/putSignedUpdate', async ctx => {
+        try {
+            const params = ctx.request.body;
+            await MarketService.putSignedListing(params.signedPsbt, true);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -271,7 +305,7 @@ router
     .post('/market/putSignedDelisting', async ctx => {
         try {
             const params = ctx.request.body;
-            // TODO
+            await MarketService.putSignedDelisting(params.signedPsbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -322,7 +356,7 @@ router
     .post('/market/putSignedBuying', async ctx => {
         try {
             const params = ctx.request.body;
-            // TODO
+            await MarketService.putSignedBuying(params.signedPsbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

@@ -1,19 +1,25 @@
 import MarketListing from "../models/MarkeListing.js";
+import {Constants} from "../conf/constants.js";
 
 export default class MarketListingMapper {
 
     /**
      * 分页查询交易数据
      * @param alkanesId
+     * @param sellerAddress
      * @param page      页码
      * @param size      每页数量
      * @param orderType 排序：1:根据价格升序，2:根据价格倒序，3:根据总价升序，4:根据总价倒序
      * @returns {Promise<{total: *, pages: number, size, records: *, page}>}
      */
-    static async getAllListing(alkanesId, page, size, orderType) {
+    static async getAllListing(alkanesId, sellerAddress, page, size, orderType) {
         const whereClause = {
             alkanesId: alkanesId
         };
+
+        if (sellerAddress) {
+            whereClause.sellerAddress = sellerAddress;
+        }
 
         let order = ["listingPrice", "ASC"];
         if (orderType === 2) {
@@ -25,7 +31,7 @@ export default class MarketListingMapper {
         }
 
         const { count, rows } = await MarketListing.findAndCountAll({
-            attributes: ['id', 'tokenAmount', 'listingPrice', 'listingAmount'],
+            attributes: ['id', 'sellerAddress', 'tokenAmount', 'listingPrice', 'listingAmount', 'updatedAt'],
             where: whereClause,
             order: [order, ["updatedAt", "DESC"]],
             limit: size,
@@ -41,7 +47,27 @@ export default class MarketListingMapper {
         };
     }
 
-    static async getByIds(alkanesId, ids, status = 1) {
+    static async getUserListing(sellerAddress, alkanesId) {
+        return await MarketListing.findAll({
+            attributes: ["listingOutput"],
+            where: {
+                alkanesId: alkanesId,
+                sellerAddress: sellerAddress,
+                status: Constants.LISTING_STATUS.LIST,
+            }
+        });
+    }
+
+    static async getByOutputs(listingOutputList) {
+        return await MarketListing.findAll({
+            attributes: ["alkanesId", "tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
+            where: {
+                listingOutput: listingOutputList
+            }
+        });
+    }
+
+    static async getByIds(alkanesId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await MarketListing.findAll({
             attributes: ["tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
             where: {
@@ -52,16 +78,19 @@ export default class MarketListingMapper {
         });
     }
 
-    static async getByOutput(listingOutput) {
-        return await MarketListing.findOne({
-            where: {
-                listingOutput: listingOutput
+    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash) {
+        await MarketListing.update(
+            {
+                status: status,
+                buyerAddress: buyerAddress,
+                txHash: txHash
             },
-        });
-    }
-
-    static async upsertListing(marketListing) {
-        return await MarketListing.upsert(marketListing);
+            {
+                where: {
+                    listingOutput: listingOutputList
+                }
+            }
+        );
     }
 
     static async bulkUpsertListing(listingList) {

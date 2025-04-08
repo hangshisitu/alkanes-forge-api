@@ -265,7 +265,7 @@ export default class UnisatAPI {
                 if (result.code !== 0) {
                     throw new Error(result.msg);
                 }
-                return result;
+                return result.data;
             } catch (err) {
                 console.error(`tx push error, hex: ${hex_data}`, err.message);
                 await new Promise((resolve) => setTimeout(resolve, 500))

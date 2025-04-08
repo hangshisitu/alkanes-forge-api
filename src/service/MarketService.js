@@ -7,8 +7,20 @@ import AlkanesService from "./AlkanesService.js";
 import {nanoid} from "nanoid";
 import MarketListingMapper from "../mapper/MarketListingMapper.js";
 import BigNumber from "bignumber.js";
+import {Constants} from "../conf/constants.js";
+import MarketEventMapper from "../mapper/MarketEventMapper.js";
 
 export default class MarketService {
+
+    static async assets(alkanesId, assetAddress) {
+        const alkanesList = await AlkanesService.getAlkanesUtxoById(assetAddress, alkanesId);
+        const listingList = await MarketListingMapper.getUserListing(assetAddress, alkanesId);
+
+        const listingOutputs = new Set(listingList.map(listing => listing.listingOutput));
+        return alkanesList.filter(utxo => {
+            return !listingOutputs.has(`${utxo.txid}:${utxo.vout}`);
+        });
+    }
 
     static async createUnsignedListing(assetAddress, assetPublicKey, fundAddress, listingList) {
         const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
@@ -22,8 +34,8 @@ export default class MarketService {
                 address: assetAddress,
                 pubkey: assetPublicKey
             }
-            const vin = await PsbtUtil.utxo2PsbtInputEx(utxo);
 
+            const vin = await PsbtUtil.utxo2PsbtInputEx(utxo);
             vin.sighashType = bitcoin.Transaction.SIGHASH_SINGLE | bitcoin.Transaction.SIGHASH_ANYONECANPAY;
             vin.sequence = 0xffffffff;
             psbt.addInput(vin);
@@ -51,10 +63,11 @@ export default class MarketService {
         };
     }
 
-    static async putSignedListing(signedPsbt) {
+    static async putSignedListing(signedPsbt, isUpdate = false) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         const listingList = [];
+        const eventList = [];
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
             const sellerAmount = originalPsbt.txOutputs[i].value;
@@ -89,12 +102,66 @@ export default class MarketService {
                 psbtData: psbt.toHex(),
                 sellerAddress: sellerInput.address,
                 sellerRecipient: originalPsbt.txOutputs[i].address,
-                status: 1
+                status: Constants.LISTING_STATUS.LIST
             }
             listingList.push(marketListing);
+
+            const marketEvent = {
+                id: nanoid(),
+                type: isUpdate ? Constants.MARKET_EVENT.UPDATE : Constants.MARKET_EVENT.LIST,
+                alkanesId: alkanes.id,
+                tokenAmount: tokenAmount,
+                listingPrice: listingPrice,
+                listingAmount: listingAmount,
+                listingOutput: `${sellerInput.txid}:${sellerInput.vout}`,
+                sellerAddress: sellerInput.address
+            };
+            eventList.push(marketEvent);
         }
 
         await MarketListingMapper.bulkUpsertListing(listingList);
+        await MarketEventMapper.bulkUpsertEvent(eventList);
+    }
+
+    static async createUnsignedUpdate(alkanesId, listingIds, assetAddress, assetPublicKey, fundAddress) {
+        const listingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
+        if (listingList === null || listingList.length === 0) {
+            throw new Error('Not found listing, Please refresh and retry.');
+        }
+
+        const signingIndexes = [];
+        const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
+        for (const [index, listing] of listingList.entries()) {
+            const originalPsbt = PsbtUtil.fromPsbt(listing.psbtData);
+            const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
+            sellerInput.pubkey = assetPublicKey;
+
+            const vin = await PsbtUtil.utxo2PsbtInputEx(sellerInput);
+            vin.sighashType = bitcoin.Transaction.SIGHASH_SINGLE | bitcoin.Transaction.SIGHASH_ANYONECANPAY;
+            vin.sequence = 0xffffffff;
+            psbt.addInput(vin);
+
+            const makerFee = MarketService.getMakerFee(listing.listingAmount);
+            const sellAmount = listing.listingAmount - makerFee;
+            psbt.addOutput({
+                address: fundAddress,
+                value: sellAmount
+            });
+
+            if (listing.listingAmount < 2000) {
+                throw new Error('Below the minimum sale amount: 2000 sats');
+            }
+            signingIndexes.push(index);
+        }
+
+        return {
+            hex: psbt.toHex(),
+            base64: psbt.toBase64(),
+            signingIndexes: [{
+                address: assetAddress,
+                signingIndexes: signingIndexes
+            }]
+        };
     }
 
     static async createUnsignedDelisting(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate) {
@@ -130,6 +197,37 @@ export default class MarketService {
         inputList.push(...utxoList);
 
         return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+    }
+
+    static async putSignedDelisting(signedPsbt) {
+        const txid = await UnisatAPI.unisatPush(signedPsbt);
+        const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
+
+        const listingOutputList = [];
+        for (let i = 0; i < originalPsbt.inputCount; i++) {
+            const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
+            listingOutputList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+        }
+
+        const listingList = await MarketListingMapper.getByOutputs(listingOutputList);
+        const eventList = [];
+        for (const listing of listingList) {
+            const marketEvent = {
+                id: nanoid(),
+                type: Constants.MARKET_EVENT.DELIST,
+                alkanesId: listing.alkanesId,
+                tokenAmount: listing.tokenAmount,
+                listingPrice: listing.listingPrice,
+                listingAmount: listing.listingAmount,
+                listingOutput: listing.listingOutput,
+                sellerAddress: listing.sellerAddress,
+                txHash: txid
+            };
+            eventList.push(marketEvent);
+        }
+
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid);
+        await MarketEventMapper.bulkUpsertEvent(eventList);
     }
 
     static async createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate) {
@@ -282,6 +380,41 @@ export default class MarketService {
                 signingIndexes: signingIndexes
             }]
         };
+    }
+
+    static async putSignedBuying(signedPsbt) {
+        const txid = await UnisatAPI.unisatPush(signedPsbt);
+        const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
+
+        let buyerAddress = '';
+        const listingOutputList = [];
+        for (let i = 0; i < originalPsbt.inputCount; i++) {
+            const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
+            listingOutputList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+
+            buyerAddress = sellerInput.address;
+        }
+
+        const listingList = await MarketListingMapper.getByOutputs(listingOutputList);
+        const eventList = [];
+        for (const listing of listingList) {
+            const marketEvent = {
+                id: nanoid(),
+                type: Constants.MARKET_EVENT.SOLD,
+                alkanesId: listing.alkanesId,
+                tokenAmount: listing.tokenAmount,
+                listingPrice: listing.listingPrice,
+                listingAmount: listing.listingAmount,
+                listingOutput: listing.listingOutput,
+                sellerAddress: listing.sellerAddress,
+                buyerAddress: buyerAddress,
+                txHash: txid
+            };
+            eventList.push(marketEvent);
+        }
+
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid);
+        await MarketEventMapper.bulkUpsertEvent(eventList);
     }
 
     static async checkDummy(fundAddress, fundPublicKey, dummyCount, feerate) {

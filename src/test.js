@@ -35,14 +35,18 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('d60814e0d3b337bbe8d5d92aebac5509eec4a84e7d17a69dcfcef85bc7cd9453', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('af41abd1c8be9ace281675017bbdabd06c4686963ccbd9036d2530f9c418b4e1', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0xd529ae7dbdaa80').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
 
 // 查询代币信息
-// const alkanes = await AlkanesService.getAlkanesById('2:110');
+// const alkanes = await AlkanesService.getAlkanesById('2:69');
 // console.log(alkanes);
 
 // 查询持有代币的utxo列表
 // const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);
+// console.log(alkanesList);
+
+// 查询单个utxo的余额信息
+// const alkanesList = await AlkanesService.getAlkanesByUtxo({txid: '6bdd6060d193a5cc00167b9b2350425027918f891d246f39d8b5c6b1cbf4d98c', vout: 1});
 // console.log(alkanesList);

@@ -5,8 +5,23 @@ import asyncPool from "tiny-async-pool";
 import config from "../conf/config.js";
 import AlkanesService from "../service/AlkanesService.js";
 
-let isRefreshToken = false;
+// 添加重试请求的辅助函数
+async function retryRequest(requestFn, maxRetries = 3, delayMs = 1000) {
+    let lastError;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await requestFn();
+        } catch (error) {
+            lastError = error;
+            if (i < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, delayMs * (i + 1)));
+            }
+        }
+    }
+    return lastError;
+}
 
+let isRefreshToken = false;
 function refreshToken() {
     schedule.scheduleJob('*/30 * * * * *', async () => {
         if (isRefreshToken) {
@@ -18,43 +33,81 @@ function refreshToken() {
             isRefreshToken = true;
             const startTime = Date.now();
 
+            // 1. 获取区块链高度并检查是否需要更新
             const updateHeight = await RedisHelper.get(updateRedisKey);
-            const blockHeight = await AlkanesService.metashrewHeight(config.alkanesUrl);
+            const blockHeight = await retryRequest(
+                () => AlkanesService.metashrewHeight(config.alkanesUrl),
+                3, 500
+            );
+
+            if (!blockHeight) {
+                console.log('failed to get block height');
+                return;
+            }
 
             if (updateHeight && parseInt(updateHeight) === blockHeight) {
                 return;
             }
             console.log(`refresh token start, update height: ${updateHeight} block height: ${blockHeight}`);
 
-            // 1. 获取所有现有token
+            // 2. 获取所有现有token
             const tokenList = await TokenInfoMapper.getAllTokens();
             console.log(`found existing tokens: ${tokenList.length}`);
 
-            // 2. 获取需要更新的活跃token
+            if (!tokenList) {
+                console.log('Failed to get existing tokens');
+                return;
+            }
+
+            // 3. 获取需要更新的活跃token
             const activeTokens = tokenList.filter(token => token.mintActive);
             console.log(`found active tokens: ${activeTokens.length}`);
 
-            // 3. 并行获取活跃token的最新数据
+            // 4. 并行获取活跃token的最新数据（带重试）
             const alkaneList = [];
+            const failedTokens = [];
+
             for await (const result of asyncPool(
                 config.concurrencyLimit,
                 activeTokens.map(t => t.id),
-                AlkanesService.getAlkanesById
+                async (tokenId) => {
+                    try {
+                        const data = await retryRequest(
+                            () => AlkanesService.getAlkanesById(tokenId),
+                            3, 500
+                        );
+                        if (data === null) {
+                            failedTokens.push(tokenId);
+                        }
+                        return data;
+                    } catch (error) {
+                        console.error(`Failed to fetch token ${tokenId}:`, error.message);
+                        failedTokens.push(tokenId);
+                        return null;
+                    }
+                }
             )) {
                 if (result !== null) {
                     alkaneList.push(result);
                 }
             }
+
+            if (failedTokens.length > 0) {
+                console.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
+            }
             console.log(`updated active tokens: ${alkaneList.length}`);
 
-            // 4. 确定新token的搜索范围
+            // 5. 确定新token的搜索范围
             let lastIndex = 0;
             if (tokenList.length > 0) {
                 const lastToken = tokenList[tokenList.length - 1];
-                lastIndex = parseInt(lastToken.id.split(':')[1]) + 1;
+                const parts = lastToken.id.split(':');
+                if (parts.length === 2 && !isNaN(parts[1])) {
+                    lastIndex = parseInt(parts[1]) + 1;
+                }
             }
 
-            // 5. 查找真正的新token
+            // 6. 查找新token
             const newAlkaneList = [];
             const maxNewTokensToCheck = 1000;
             const existingIds = new Set(tokenList.map(t => t.id));
@@ -63,60 +116,54 @@ function refreshToken() {
             for (let i = lastIndex; i < lastIndex + maxNewTokensToCheck; i++) {
                 const tokenId = `2:${i}`;
 
-                // 跳过已存在的token（包括活跃token）
                 if (existingIds.has(tokenId) || activeIds.has(tokenId)) {
                     continue;
                 }
 
-                const alkanes = await AlkanesService.getAlkanesById(tokenId);
-                if (alkanes === null) {
-                    // 遇到null表示后面没有更多token了
-                    break;
-                }
+                try {
+                    const alkanes = await retryRequest(
+                        () => AlkanesService.getAlkanesById(tokenId),
+                        2, 500
+                    );
 
-                if (alkanes.cap < 1e36) {
-                    newAlkaneList.push(alkanes);
-                    // 避免重复查询
-                    existingIds.add(tokenId);
+                    if (alkanes === null) {
+                        break;
+                    }
+
+                    if (alkanes.cap < 1e36) {
+                        newAlkaneList.push(alkanes);
+                        existingIds.add(tokenId);
+                    }
+                } catch (error) {
+                    console.error(`Error checking new token ${tokenId}:`, error.message);
+                    break; // 遇到错误停止检查新token
                 }
             }
             console.log(`found new tokens: ${newAlkaneList.length}`);
 
-            // 6. 合并所有token（优先级：活跃更新 > 新token > 现有token）
+            // 7. 合并所有token数据
             const tokenMap = new Map();
-
-            // 首先放入所有现有token（保持非活跃token状态）
             tokenList.forEach(token => tokenMap.set(token.id, token));
-
-            // 然后用活跃token的更新数据覆盖（保留原有非活跃字段）
             alkaneList.forEach(token => {
                 tokenMap.set(token.id, {
-                    ...tokenMap.get(token.id), // 保留可能存在的额外字段
-                    ...token                   // 用新数据覆盖
+                    ...tokenMap.get(token.id),
+                    ...token
                 });
             });
-
-            // 最后添加真正的新token
             newAlkaneList.forEach(token => {
                 if (!tokenMap.has(token.id)) {
                     tokenMap.set(token.id, token);
                 }
             });
 
-            // 7. 转换为数组并排序
+            // 8. 数据验证和处理
             const allTokens = Array.from(tokenMap.values()).sort((a, b) => {
-                const aNum = parseInt(a.id.split(':')[1]);
-                const bNum = parseInt(b.id.split(':')[1]);
+                const aParts = a.id.split(':');
+                const bParts = b.id.split(':');
+                const aNum = aParts.length === 2 ? parseInt(aParts[1]) : 0;
+                const bNum = bParts.length === 2 ? parseInt(bParts[1]) : 0;
                 return aNum - bNum;
             });
-
-            // 8. 验证无重复
-            const idSet = new Set(allTokens.map(t => t.id));
-            if (idSet.size !== allTokens.length) {
-                const duplicates = allTokens.filter(t => !idSet.delete(t.id)).map(t => t.id);
-                console.error(`发现重复ID: ${duplicates.join(', ')}`);
-                throw new Error('数据去重失败');
-            }
 
             // 9. 更新数据库和缓存
             await TokenInfoMapper.bulkUpsertTokens(allTokens);
@@ -131,6 +178,7 @@ function refreshToken() {
         }
     });
 }
+
 
 export function jobs() {
     refreshToken();
