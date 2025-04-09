@@ -3,7 +3,7 @@ import { DataTypes } from 'sequelize';
 
 const MarketEvent = sequelize.define('MarketEvent', {
     id: {
-        type: DataTypes.STRING(16),
+        type: DataTypes.STRING(32),
         primaryKey: true,
         comment: '主键'
     },
@@ -18,11 +18,19 @@ const MarketEvent = sequelize.define('MarketEvent', {
     },
     tokenAmount: {
         type: DataTypes.DECIMAL(36, 0),
-        comment: '代币数量(支持小数)'
+        comment: '代币数量(支持小数)',
+        get() {
+            const value = this.getDataValue('tokenAmount');
+            return value ? Number(value) : 0;
+        }
     },
     listingPrice: {
         type: DataTypes.DECIMAL(36, 18),
-        comment: '单价(单位: satoshi)'
+        comment: '单价(单位: satoshi)',
+        get() {
+            const value = this.getDataValue('listingPrice');
+            return value ? Number(value) : 0;
+        }
     },
     listingAmount: {
         type: DataTypes.DECIMAL(36, 0),

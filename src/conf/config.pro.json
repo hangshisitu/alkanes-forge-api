@@ -12,5 +12,13 @@
     "username": "admin",
     "password": "Bitcoin$2088",
     "database": "alkanes"
+  },
+  "market": {
+    "dummyValue": 600,
+    "makerFee": 10,
+    "takerFee": 20,
+    "minimumFee": 333,
+    "postage": 546,
+    "platformAddress": "bc1qsjese9368gnlg6jfuvzujyc5pl7mn87qk4hwsn"
   }
 }

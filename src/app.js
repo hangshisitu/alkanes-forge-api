@@ -8,6 +8,8 @@ import UnisatAPI from "./lib/UnisatAPI.js";
 import {jobs} from "./job/index.js";
 import MarketService from "./service/MarketService.js";
 import MarketListingMapper from "./mapper/MarketListingMapper.js";
+import TokenStatsService from "./service/TokenStatsService.js";
+import MarketEventMapper from "./mapper/MarketEventMapper.js";
 
 const app = new Koa();
 const router = new Router();
@@ -322,7 +324,7 @@ router
     .post('/market/checkDummy', async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await MarketService.checkDummy(params.fundAddress, params.fundPublicKey, params.dummyCount, params.feerate);
+            const result = await MarketService.checkDummy(params.fundAddress, params.fundPublicKey, params.feerate);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -361,6 +363,40 @@ router
                 'code': 0,
                 'msg': 'ok',
                 'data': ''
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/events', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const eventPage = await MarketEventMapper.getAllEvents(params.alkanesId, params.type, params.address, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': eventPage
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/market/tokenStats', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const tokenStats = await TokenStatsService.queryTokenStats(params.alkanesId, params.type);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': tokenStats
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

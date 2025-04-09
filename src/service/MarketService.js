@@ -417,8 +417,9 @@ export default class MarketService {
         await MarketEventMapper.bulkUpsertEvent(eventList);
     }
 
-    static async checkDummy(fundAddress, fundPublicKey, dummyCount, feerate) {
+    static async checkDummy(fundAddress, fundPublicKey, feerate) {
         const utxoList = await UnisatAPI.getUtxoList(fundAddress);
+        const dummyCount = 2;
         const dummyUtxoList = UnisatAPI.pickDummyList(utxoList, dummyCount);
         if (dummyUtxoList.length >= dummyCount) {
             return {

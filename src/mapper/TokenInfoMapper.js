@@ -17,20 +17,30 @@ export default class TokenInfoMapper {
         });
     }
 
-    static async upsertToken(tokenInfo) {
-        return await TokenInfo.upsert(tokenInfo);
-    }
-
     static async bulkUpsertTokens(tokenInfos) {
         if (!tokenInfos || tokenInfos.length === 0) {
             return [];
         }
 
-        const uniqueKey = 'id';
-        return await TokenInfo.bulkCreate(tokenInfos, {
-            updateOnDuplicate: Object.keys(tokenInfos[0]).filter(key => key !== uniqueKey),
-            returning: false
-        });
+        for (const tokenInfo of tokenInfos) {
+            try {
+                await TokenInfo.upsert(tokenInfo);
+            } catch (err) {
+                console.log(`bulkUpsertToken error, tokenInfo: ${JSON.stringify(tokenInfo)}`, err.message);
+                throw new Error(`Update tokens error: ${err.message}`);
+            }
+        }
+
+        // const uniqueKey = 'id';
+        // try {
+        //     return await TokenInfo.bulkCreate(tokenInfos, {
+        //         updateOnDuplicate: Object.keys(tokenInfos[0]).filter(key => key !== uniqueKey),
+        //         returning: false
+        //     });
+        // } catch (err) {
+        //     console.log(`bulkUpsertTokens error, tokenInfos: ${JSON.stringify(tokenInfos)}`, err.message);
+        //     throw new Error(`Update tokens error: ${err.message}`);
+        // }
     }
 
 }

@@ -22,11 +22,11 @@ export default class MarketListingMapper {
         }
 
         let order = ["listingPrice", "ASC"];
-        if (orderType === 2) {
+        if (orderType === Constants.LISTING_ORDER_TYPE.PRICE_DESC) {
             order = ["listingPrice", "DESC"];
-        } else if (orderType === 3) {
+        } else if (orderType === Constants.LISTING_ORDER_TYPE.TOTAL_AMOUNT_ASC) {
             order = ["listingAmount", "ASC"];
-        } else if (orderType === 4) {
+        } else if (orderType === Constants.LISTING_ORDER_TYPE.TOTAL_AMOUNT_DESC) {
             order = ["listingAmount", "DESC"];
         }
 
