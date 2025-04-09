@@ -316,8 +316,8 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const txid = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, bitcoin.networks.bitcoin, false, false);
-            console.log(`mint index ${i} tx: ${txid}`);
+            const mintTxid = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, bitcoin.networks.bitcoin, false, false);
+            console.log(`mint index ${i} tx: ${mintTxid}`);
             txidList.push(txid);
         }
         return txidList;

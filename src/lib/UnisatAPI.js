@@ -239,15 +239,20 @@ export default class UnisatAPI {
     }
 
     static async unisatPush(hex_data) {
+        let txid;
         if (hex_data.startsWith('cH')) {
             const psbt = bitcoin.Psbt.fromBase64(hex_data);
             psbt.finalizeAllInputs();
             hex_data = psbt.toHex();
+
+            txid = psbt.extractTransaction().getId();
         }
         if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
             const tx = psbt.extractTransaction();
             hex_data = tx.toHex();
+
+            txid = psbt.extractTransaction().getId();
         }
 
         for (let i = 0; i < 3; i++) {
@@ -267,6 +272,10 @@ export default class UnisatAPI {
                 }
                 return result.data;
             } catch (err) {
+                if (err.message.includes('Transaction already in block chain')) {
+                    return txid;
+                }
+
                 console.error(`tx push error, hex: ${hex_data}`, err.message);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
