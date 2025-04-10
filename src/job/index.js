@@ -153,9 +153,9 @@ export function jobs() {
     refreshTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
-    refreshHistoricalStats('2025-07-17T16:00:00.000Z', '2026-01-15T00:00:00Z').then(() => {
-        console.log("Refresh historical stats finished.");
-    }).catch(error => {
-        console.error("Error in refreshHistoricalStats:", error);
-    });
+    // refreshHistoricalStats('2025-07-17T16:00:00.000Z', '2026-01-15T00:00:00Z').then(() => {
+    //     console.log("Refresh historical stats finished.");
+    // }).catch(error => {
+    //     console.error("Error in refreshHistoricalStats:", error);
+    // });
 }

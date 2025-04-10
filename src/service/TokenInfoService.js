@@ -9,6 +9,7 @@ import config from "../conf/config.js";
 import BaseUtil from "../utils/BaseUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
+import AlkanesService from "./AlkanesService.js";
 
 export default class TokenInfoService {
 
@@ -133,7 +134,7 @@ export default class TokenInfoService {
         // 8. 更新数据库和缓存
         await TokenInfoMapper.bulkUpsertTokensInBatches(allTokens);
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
-        await RedisHelper.set('alkanesList', JSON.stringify(allTokens));
+        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_LIST, JSON.stringify(allTokens));
 
         return allTokens.length;
     }
@@ -199,6 +200,9 @@ export default class TokenInfoService {
                     // 存回 Map
                     updateMap.set(alkanesId, existingUpdate);
                 }
+            }
+            if (updateMap.size < 1) {
+                return;
             }
 
             const updateBatch = Array.from(updateMap.values());

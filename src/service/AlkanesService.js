@@ -12,6 +12,7 @@ import AddressUtil from "../lib/AddressUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import FeeUtil from "../utils/FeeUtil.js";
+import {Constants} from "../conf/constants.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -221,7 +222,7 @@ export default class AlkanesService {
                     tokenInfo.premine = tokenInfo.totalSupply - tokenInfo.minted * tokenInfo.mintAmount;
                 }
 
-                tokenInfo.progress = AlkanesService.calculateProgress(tokenInfo.minted, tokenInfo.cap);
+                tokenInfo.progress = AlkanesService.calculateProgress(tokenInfo.id, tokenInfo.minted, tokenInfo.cap);
                 tokenInfo.mintActive = tokenInfo.progress >= 100;
                 return tokenInfo;
             }
@@ -232,9 +233,9 @@ export default class AlkanesService {
     }
 
     static async getAllAlkanes() {
-        const cachedData = await RedisHelper.get('alkanesList');
+        const cachedData = await RedisHelper.get(Constants.REDIS_KEY.TOKEN_INFO_LIST);
         if (cachedData) {
-            const updateHeight = await RedisHelper.get(`token-update-height`);
+            const updateHeight = await RedisHelper.get(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT);
             const alkanesList = JSON.parse(cachedData);
             if (alkanesList && alkanesList.length > 0) {
                 return {
@@ -480,10 +481,10 @@ export default class AlkanesService {
             return response.data.result
         } catch (error) {
             if (error.name === 'AbortError') {
-                console.error('Request Timeout:', error.message)
+                console.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error.message)
                 throw new Error('Request timed out')
             } else {
-                console.error('Request Error:', error.message)
+                console.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error.message)
                 throw error
             }
         }

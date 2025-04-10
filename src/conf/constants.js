@@ -69,6 +69,7 @@ export const Constants = Object.freeze({
     },
 
     REDIS_KEY: {
-        TOKEN_INFO_UPDATED_HEIGHT: 'token_info_updated_height'
+        TOKEN_INFO_LIST: 'token_info_list',
+        TOKEN_INFO_UPDATED_HEIGHT: 'token_info_updated_height',
     }
 });
