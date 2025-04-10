@@ -12,9 +12,6 @@ import AddressUtil from "../lib/AddressUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import FeeUtil from "../utils/FeeUtil.js";
-import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
-import BaseUtil from "../utils/BaseUtil.js";
-import {Constants} from "../conf/constants.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -224,12 +221,12 @@ export default class AlkanesService {
                     tokenInfo.premine = tokenInfo.totalSupply - tokenInfo.minted * tokenInfo.mintAmount;
                 }
 
-                tokenInfo.mintActive = Number(tokenInfo.minted || 0) < Number(tokenInfo.cap || 0) ? 1 : 0;
-                tokenInfo.progress = (Math.ceil((tokenInfo.minted || 0) / (tokenInfo.cap || 1) * 10000) / 100).toFixed(2);
+                tokenInfo.progress = AlkanesService.calculateProgress(tokenInfo.minted, tokenInfo.cap);
+                tokenInfo.mintActive = tokenInfo.progress >= 100;
                 return tokenInfo;
             }
         } catch (error) {
-            console.log(`Error processing alkane at index ${index}:`, error);
+            console.log(`Get alkanes ${id} error:`, error.message);
         }
         return null;
     }
@@ -426,132 +423,6 @@ export default class AlkanesService {
         return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
-    static async refreshTokenInfo(blockHeight) {
-        // 1. 获取所有现有token
-        const tokenList = await TokenInfoMapper.getAllTokens();
-        console.log(`found existing tokens: ${tokenList.length}`);
-
-        if (!tokenList) {
-            console.log('Failed to get existing tokens');
-            return;
-        }
-
-        // 2. 获取需要更新的活跃token
-        const activeTokens = tokenList.filter(token => token.mintActive);
-        console.log(`found active tokens: ${activeTokens.length}`);
-
-        // 3. 并行获取活跃token的最新数据
-        const alkaneList = [];
-        const failedTokens = [];
-
-        for await (const result of asyncPool(
-            config.concurrencyLimit,
-            activeTokens.map(t => t.id),
-            async (tokenId) => {
-                try {
-                    const data = await BaseUtil.retryRequest(
-                        () => AlkanesService.getAlkanesById(tokenId),
-                        3, 500
-                    );
-                    if (data === null) {
-                        failedTokens.push(tokenId);
-                    }
-                    return data;
-                } catch (error) {
-                    console.error(`Failed to fetch token ${tokenId}:`, error.message);
-                    failedTokens.push(tokenId);
-                    return null;
-                }
-            }
-        )) {
-            if (result !== null) {
-                alkaneList.push(result);
-            }
-        }
-
-        if (failedTokens.length > 0) {
-            console.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
-        }
-        console.log(`updated active tokens: ${alkaneList.length}`);
-
-        // 4. 确定新token的搜索范围
-        let lastIndex = 0;
-        if (tokenList.length > 0) {
-            const lastToken = tokenList[tokenList.length - 1];
-            const parts = lastToken.id.split(':');
-            if (parts.length === 2 && !isNaN(parts[1])) {
-                lastIndex = parseInt(parts[1]) + 1;
-            }
-        }
-
-        // 5. 查找新token
-        const newAlkaneList = [];
-        const maxNewTokensToCheck = 1000;
-        const existingIds = new Set(tokenList.map(t => t.id));
-        const activeIds = new Set(alkaneList.map(t => t.id));
-
-        for (let i = lastIndex; i < lastIndex + maxNewTokensToCheck; i++) {
-            const tokenId = `2:${i}`;
-
-            if (existingIds.has(tokenId) || activeIds.has(tokenId)) {
-                continue;
-            }
-
-            try {
-                const alkanes = await BaseUtil.retryRequest(
-                    () => AlkanesService.getAlkanesById(tokenId),
-                    2, 500
-                );
-
-                if (alkanes === null) {
-                    break;
-                }
-
-                if (alkanes.cap < 1e36) {
-                    newAlkaneList.push(alkanes);
-                    existingIds.add(tokenId);
-                }
-            } catch (error) {
-                console.error(`Error checking new token ${tokenId}:`, error.message);
-                break; // 遇到错误停止检查新token
-            }
-        }
-        console.log(`found new tokens: ${newAlkaneList.length}`);
-
-        // 6. 合并所有token数据
-        const tokenMap = new Map();
-        tokenList.forEach(token => tokenMap.set(token.id, token));
-        alkaneList.forEach(token => {
-            tokenMap.set(token.id, {
-                ...tokenMap.get(token.id),
-                ...token
-            });
-        });
-        newAlkaneList.forEach(token => {
-            if (!tokenMap.has(token.id)) {
-                tokenMap.set(token.id, token);
-            }
-        });
-
-        // 7. 数据验证和处理
-        const allTokens = Array.from(tokenMap.values()).sort((a, b) => {
-            const aParts = a.id.split(':');
-            const bParts = b.id.split(':');
-            const aNum = aParts.length === 2 ? parseInt(aParts[1]) : 0;
-            const bNum = bParts.length === 2 ? parseInt(bParts[1]) : 0;
-            return aNum - bNum;
-        });
-
-        allTokens.forEach(token => token.updateHeight = blockHeight);
-
-        // 8. 更新数据库和缓存
-        await TokenInfoMapper.bulkUpsertTokens(allTokens);
-        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
-        await RedisHelper.set('alkanesList', JSON.stringify(allTokens));
-
-        return allTokens.length;
-    }
-
     static async simulate(request, decoder) {
         const params = {
             alkanes: [],
@@ -693,6 +564,16 @@ export default class AlkanesService {
         const hash = createHash("sha256").update(inputString).digest("hex");
         const privateKey = Buffer.from(hash, "hex");
         return privateKey.toString("hex");
+    }
+
+    static calculateProgress(id, minted, cap) {
+        if (!cap || cap === 0) return 0;
+        const progress = Math.min((minted / cap) * 100, 100);
+        if (progress > 100) {
+            console.log(`calculate ${id} progress invalid, cap: ${cap} minted: ${minted} error`);
+            throw new Error(`Progress calculate error`);
+        }
+        return Number(progress.toFixed(2));
     }
 
 }

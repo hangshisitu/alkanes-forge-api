@@ -19,6 +19,9 @@ export default class MarketEventMapper {
                 { buyerAddress: address }
             ];
         }
+        whereClause.createdAt = {
+            [Op.lt]: new Date(),
+        };
 
         const { count, rows } = await MarketEvent.findAndCountAll({
             attributes: ['type', 'tokenAmount', 'listingPrice', 'listingAmount', 'sellerAddress', 'buyerAddress', 'txHash', 'updatedAt'],

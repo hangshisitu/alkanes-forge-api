@@ -14,7 +14,8 @@ export default class MarketListingMapper {
      */
     static async getAllListing(alkanesId, sellerAddress, page, size, orderType) {
         const whereClause = {
-            alkanesId: alkanesId
+            alkanesId: alkanesId,
+            status: Constants.LISTING_STATUS.LIST
         };
 
         if (sellerAddress) {
@@ -69,13 +70,25 @@ export default class MarketListingMapper {
 
     static async getByIds(alkanesId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await MarketListing.findAll({
-            attributes: ["tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
+            attributes: ["id", "tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
             where: {
                 id: ids,
                 alkanesId: alkanesId,
                 status: status,
             }
         });
+    }
+
+    static async getFloorPriceByAlkanesId(alkanesId) {
+        return await MarketListing.findOne({
+            attributes: ['listingPrice'],
+            where: {
+                alkanesId: alkanesId,
+                status: Constants.LISTING_STATUS.LIST
+            },
+            order: [['listingPrice', 'ASC']],
+            raw: true
+        })
     }
 
     static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash) {

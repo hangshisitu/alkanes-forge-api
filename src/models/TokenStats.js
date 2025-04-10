@@ -23,11 +23,11 @@ const TokenStats = sequelize.define('TokenStats', {
     },
     totalAmount: {
         type: DataTypes.DECIMAL(36, 6),
-        comment: '交易额(单位: satoshi)'
+        comment: '交易量(代币数量)'
     },
     totalVolume: {
         type: DataTypes.DECIMAL(36, 8),
-        comment: '交易量(代币数量)'
+        comment: '交易额(单位: satoshi)'
     },
     tradeCount: {
         type: DataTypes.INTEGER,

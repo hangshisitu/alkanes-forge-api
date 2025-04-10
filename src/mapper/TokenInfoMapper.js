@@ -1,5 +1,7 @@
 import TokenInfo from '../models/TokenInfo.js';
-import {Op} from "sequelize";
+import Sequelize, {Op, QueryTypes} from "sequelize";
+import sequelize from "../lib/SequelizeHelper.js";
+import {Constants} from "../conf/constants.js";
 
 export default class TokenInfoMapper {
 
@@ -17,30 +19,305 @@ export default class TokenInfoMapper {
         });
     }
 
+    static async findTokenPage(name, mintActive, oderType, page, size) {
+        const whereClause = {};
+
+        if (name) {
+            whereClause[Op.or] = [
+                { id: { [Op.like]: `%${name}%` } },
+                { name: { [Op.like]: `%${name}%` } }
+            ];
+        }
+
+        if (mintActive) {
+            whereClause.mintActive = mintActive;
+        }
+
+        const order = [];
+
+        // 获取常量对象的实际值进行比较
+        const ORDER_TYPE = Constants.TOKEN_INFO_ORDER_TYPE;
+
+        // ID 排序逻辑
+        const addIdAscOrder = () => {
+            order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'ASC']);
+            order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'ASC']);
+        };
+
+        // 根据不同的排序类型设置排序条件
+        switch (oderType) {
+            // 进度排序
+            case ORDER_TYPE.PROGRESS_DESC:
+                order.push(['progress', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.PROGRESS_ASC:
+                order.push(['progress', 'ASC']);
+                addIdAscOrder();
+                break;
+
+            // ID 排序 - 这里不需要追加 ID 排序
+            case ORDER_TYPE.ID_ASC:
+                order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'ASC']);
+                order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'ASC']);
+                break;
+            case ORDER_TYPE.ID_DESC:
+                order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'DESC']);
+                order.push([Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'DESC']);
+                break;
+
+            // 交易量排序 - 升序
+            case ORDER_TYPE.VOLUME_24H_ASC:
+                order.push(['tradingVolume24h', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_7D_ASC:
+                order.push(['tradingVolume7d', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_30D_ASC:
+                order.push(['tradingVolume30d', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_TOTAL_ASC:
+                order.push(['totalTradingVolume', 'ASC']);
+                addIdAscOrder();
+                break;
+
+            // 交易量排序 - 降序
+            case ORDER_TYPE.VOLUME_24H_DESC:
+                order.push(['tradingVolume24h', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_7D_DESC:
+                order.push(['tradingVolume7d', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_30D_DESC:
+                order.push(['tradingVolume30d', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.VOLUME_TOTAL_DESC:
+                order.push(['totalTradingVolume', 'DESC']);
+                addIdAscOrder();
+                break;
+
+            // 涨跌幅排序 - 升序
+            case ORDER_TYPE.PRICE_CHANGE_24H_ASC:
+                order.push(['priceChange24h', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_7D_ASC:
+                order.push(['priceChange7d', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_30D_ASC:
+                order.push(['priceChange30d', 'ASC']);
+                addIdAscOrder();
+                break;
+
+            // 涨跌幅排序 - 降序
+            case ORDER_TYPE.PRICE_CHANGE_24H_DESC:
+                order.push(['priceChange24h', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_7D_DESC:
+                order.push(['priceChange7d', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_30D_DESC:
+                order.push(['priceChange30d', 'DESC']);
+                addIdAscOrder();
+                break;
+
+            // 交易笔数排序 - 升序
+            case ORDER_TYPE.TRADES_COUNT_24H_ASC:
+                order.push(['tradingCount24h', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_7D_ASC:
+                order.push(['tradingCount7d', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_30D_ASC:
+                order.push(['tradingCount30d', 'ASC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_TOTAL_ASC:
+                order.push(['totalTradingCount', 'ASC']);
+                addIdAscOrder();
+                break;
+
+            // 交易笔数排序 - 降序
+            case ORDER_TYPE.TRADES_COUNT_24H_DESC:
+                order.push(['tradingCount24h', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_7D_DESC:
+                order.push(['tradingCount7d', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_30D_DESC:
+                order.push(['tradingCount30d', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.TRADES_COUNT_TOTAL_DESC:
+                order.push(['totalTradingCount', 'DESC']);
+                addIdAscOrder();
+                break;
+
+            // 默认排序 - 进度降序
+            default:
+                order.push(['progress', 'DESC']);
+                addIdAscOrder();
+                break;
+        }
+
+        const { count, rows } = await TokenInfo.findAndCountAll({
+            attributes: {
+                exclude: ['updateHeight', 'createdAt', 'updatedAt']
+            },
+            where: whereClause,
+            order: order,
+            limit: size,
+            offset: (page - 1) * size
+        });
+
+        return {
+            page,
+            size,
+            total: count,
+            pages: Math.ceil(count / size),
+            records: rows,
+        };
+    }
+
+    static async getById(id) {
+        return TokenInfo.findByPk(id, {
+            attributes: {
+                exclude: ['updateHeight', 'createdAt', 'updatedAt']
+            }
+        });
+    }
+
+    static async updateFPAndMCap(id, floorPrice, marketCap) {
+        await TokenInfo.update(
+            {
+                floorPrice: floorPrice,
+                marketCap: marketCap
+            },
+            {
+                where: {
+                    id: id
+                }
+            }
+        );
+    }
+
     static async bulkUpsertTokens(tokenInfos) {
         if (!tokenInfos || tokenInfos.length === 0) {
             return [];
         }
 
-        for (const tokenInfo of tokenInfos) {
-            try {
-                await TokenInfo.upsert(tokenInfo);
-            } catch (err) {
-                console.log(`bulkUpsertToken error, tokenInfo: ${JSON.stringify(tokenInfo)}`, err.message);
-                throw new Error(`Update tokens error: ${err.message}`);
-            }
-        }
+        try {
+            const upsertQuery = `
+            INSERT INTO token_info 
+            (id, name, symbol, cap, premine, minted, mint_amount, 
+             total_supply, progress, mint_active, update_height) 
+            VALUES 
+            ${tokenInfos.map(token => `(
+                '${token.id}', 
+                ${token.name ? `'${token.name}'` : "''"}, 
+                ${token.symbol ? `'${token.symbol}'` : "''"},
+                ${token.cap || 0}, 
+                ${token.premine || 0}, 
+                ${token.minted || 0}, 
+                ${token.mintAmount || 0}, 
+                ${token.totalSupply || 0}, 
+                ${token.progress || 0}, 
+                ${token.mintActive || 0}, 
+                ${token.updateHeight || 0}
+            )`).join(',')}
+            ON DUPLICATE KEY UPDATE 
+                name = VALUES(name),
+                symbol = VALUES(symbol),
+                cap = VALUES(cap),
+                premine = VALUES(premine),
+                minted = VALUES(minted),
+                mint_amount = VALUES(mint_amount),
+                total_supply = VALUES(total_supply),
+                progress = VALUES(progress),
+                mint_active = VALUES(mint_active),
+                update_height = VALUES(update_height)
+            `;
 
-        // const uniqueKey = 'id';
-        // try {
-        //     return await TokenInfo.bulkCreate(tokenInfos, {
-        //         updateOnDuplicate: Object.keys(tokenInfos[0]).filter(key => key !== uniqueKey),
-        //         returning: false
-        //     });
-        // } catch (err) {
-        //     console.log(`bulkUpsertTokens error, tokenInfos: ${JSON.stringify(tokenInfos)}`, err.message);
-        //     throw new Error(`Update tokens error: ${err.message}`);
-        // }
+            await sequelize.query(upsertQuery, {
+                type: QueryTypes.INSERT
+            });
+        } catch (err) {
+            console.error('Batch update tokenInfo error:', err);
+            throw new Error(`Batch update tokenInfo error: ${err.message}`);
+        }
+    }
+
+    static async bulkUpsertTokensInBatches(tokenInfos, batchSize = 100) {
+        for (let i = 0; i < tokenInfos.length; i += batchSize) {
+            const batch = tokenInfos.slice(i, i + batchSize);
+            await this.bulkUpsertTokens(batch);
+        }
+        return tokenInfos;
+    }
+
+    static async batchUpdateTokenStats(tokenStatsList) {
+        try {
+            const upsertQuery = `
+                INSERT INTO token_info
+                (id, price_change_24h, price_change_7d, price_change_30d,
+                 trading_volume_24h, trading_volume_7d, trading_volume_30d,
+                 total_trading_volume, trading_count_24h, trading_count_7d,
+                 trading_count_30d, total_trading_count)
+                VALUES ${tokenStatsList.map(data => `(
+                    '${data.id}', 
+                    ${data.priceChange24h || 0}, 
+                    ${data.priceChange7d || 0}, 
+                    ${data.priceChange30d || 0}, 
+                    ${data.tradingVolume24h || 0}, 
+                    ${data.tradingVolume7d || 0}, 
+                    ${data.tradingVolume30d || 0}, 
+                    ${data.totalTradingVolume || 0}, 
+                    ${data.tradingCount24h || 0}, 
+                    ${data.tradingCount7d || 0}, 
+                    ${data.tradingCount30d || 0}, 
+                    ${data.totalTradingCount || 0}
+            )`).join(',')}
+                ON DUPLICATE KEY UPDATE
+                    price_change_24h = VALUES(price_change_24h),
+                    price_change_7d = VALUES(price_change_7d),
+                    price_change_30d = VALUES(price_change_30d),
+                    trading_volume_24h = VALUES(trading_volume_24h),
+                    trading_volume_7d = VALUES(trading_volume_7d),
+                    trading_volume_30d = VALUES(trading_volume_30d),
+                    total_trading_volume = VALUES(total_trading_volume),
+                    trading_count_24h = VALUES(trading_count_24h),
+                    trading_count_7d = VALUES(trading_count_7d),
+                    trading_count_30d = VALUES(trading_count_30d),
+                    total_trading_count = VALUES(total_trading_count)
+            `;
+
+            await sequelize.query(upsertQuery, {
+                type: QueryTypes.INSERT
+            });
+        } catch (error) {
+            console.error('Batch update tokenStats error:', error);
+            throw new Error('Batch update tokenStats error');
+        }
+    }
+
+    static async batchUpdateTokenStatsInBatches(tokenStatsList, batchSize = 100) {
+        for (let i = 0; i < tokenStatsList.length; i += batchSize) {
+            const batch = tokenStatsList.slice(i, i + batchSize);
+            await this.batchUpdateTokenStats(batch);
+        }
     }
 
 }

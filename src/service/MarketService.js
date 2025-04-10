@@ -9,6 +9,7 @@ import MarketListingMapper from "../mapper/MarketListingMapper.js";
 import BigNumber from "bignumber.js";
 import {Constants} from "../conf/constants.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
+import TokenInfoService from "./TokenInfoService.js";
 
 export default class MarketService {
 
@@ -121,17 +122,29 @@ export default class MarketService {
 
         await MarketListingMapper.bulkUpsertListing(listingList);
         await MarketEventMapper.bulkUpsertEvent(eventList);
+
+        setImmediate(() => {
+            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
+                .catch(err => console.error('Floor price update failed:', err));
+        });
     }
 
-    static async createUnsignedUpdate(alkanesId, listingIds, assetAddress, assetPublicKey, fundAddress) {
-        const listingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
-        if (listingList === null || listingList.length === 0) {
+    static async createUnsignedUpdate(alkanesId, listingList, assetAddress, assetPublicKey, fundAddress) {
+        const listingIds = [];
+        const listingMap = new Map();
+        for (const listing of listingList) {
+            listingIds.push(listing.id);
+            listingMap.set(listing.id, listing.amount);
+        }
+
+        const existListingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
+        if (existListingList === null || existListingList.length === 0) {
             throw new Error('Not found listing, Please refresh and retry.');
         }
 
         const signingIndexes = [];
         const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
-        for (const [index, listing] of listingList.entries()) {
+        for (const [index, listing] of existListingList.entries()) {
             const originalPsbt = PsbtUtil.fromPsbt(listing.psbtData);
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
             sellerInput.pubkey = assetPublicKey;
@@ -141,8 +154,9 @@ export default class MarketService {
             vin.sequence = 0xffffffff;
             psbt.addInput(vin);
 
-            const makerFee = MarketService.getMakerFee(listing.listingAmount);
-            const sellAmount = listing.listingAmount - makerFee;
+            const listingAmount = listingMap.get(listing.id);
+            const makerFee = MarketService.getMakerFee(listingAmount);
+            const sellAmount = listingAmount - makerFee;
             psbt.addOutput({
                 address: fundAddress,
                 value: sellAmount
@@ -228,6 +242,11 @@ export default class MarketService {
 
         await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid);
         await MarketEventMapper.bulkUpsertEvent(eventList);
+
+        setImmediate(() => {
+            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
+                .catch(err => console.error('Floor price update failed:', err));
+        });
     }
 
     static async createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate) {
@@ -415,6 +434,11 @@ export default class MarketService {
 
         await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid);
         await MarketEventMapper.bulkUpsertEvent(eventList);
+
+        setImmediate(() => {
+            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
+                .catch(err => console.error('Floor price update failed:', err));
+        });
     }
 
     static async checkDummy(fundAddress, fundPublicKey, feerate) {

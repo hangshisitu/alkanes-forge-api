@@ -40,8 +40,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // console.log(new BigNumber('0x20c85580').toNumber());
 
 // 查询代币信息
-// const alkanes = await AlkanesService.getAlkanesById('2:69');
-// console.log(alkanes);
+const alkanes = await AlkanesService.getAlkanesById('2:102');
+console.log(alkanes);
 
 // 查询持有代币的utxo列表
 // const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);

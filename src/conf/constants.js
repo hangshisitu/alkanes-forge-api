@@ -21,6 +21,47 @@ export const Constants = Object.freeze({
         TOTAL_AMOUNT_DESC: 4// 根据总价倒序
     },
 
+    TOKEN_INFO_ORDER_TYPE: {
+        PROGRESS_DESC: 'progressDesc',  // 根据进度倒序
+        PROGRESS_ASC: 'progressAsc',    // 根据进度升序
+        ID_ASC: 'idAsc',                // 根据ID升序
+        ID_DESC: 'idDesc',              // 根据ID倒序
+
+        // 交易量排序字段 - 升序
+        VOLUME_24H_ASC: 'volume24hAsc',
+        VOLUME_7D_ASC: 'volume7dAsc',
+        VOLUME_30D_ASC: 'volume30dAsc',
+        VOLUME_TOTAL_ASC: 'volumeTotalAsc',
+
+        // 交易量排序字段 - 降序
+        VOLUME_24H_DESC: 'volume24hDesc',
+        VOLUME_7D_DESC: 'volume7dDesc',
+        VOLUME_30D_DESC: 'volume30dDesc',
+        VOLUME_TOTAL_DESC: 'volumeTotalDesc',
+
+        // 涨跌幅排序字段 - 升序
+        PRICE_CHANGE_24H_ASC: 'priceChange24hAsc',
+        PRICE_CHANGE_7D_ASC: 'priceChange7dAsc',
+        PRICE_CHANGE_30D_ASC: 'priceChange30dAsc',
+
+        // 涨跌幅排序字段 - 降序
+        PRICE_CHANGE_24H_DESC: 'priceChange24hDesc',
+        PRICE_CHANGE_7D_DESC: 'priceChange7dDesc',
+        PRICE_CHANGE_30D_DESC: 'priceChange30dDesc',
+
+        // 交易笔数排序字段 - 升序
+        TRADES_COUNT_24H_ASC: 'tradesCount24hAsc',
+        TRADES_COUNT_7D_ASC: 'tradesCount7dAsc',
+        TRADES_COUNT_30D_ASC: 'tradesCount30dAsc',
+        TRADES_COUNT_TOTAL_ASC: 'tradesCountTotalAsc',
+
+        // 交易笔数排序字段 - 降序
+        TRADES_COUNT_24H_DESC: 'tradesCount24hDesc',
+        TRADES_COUNT_7D_DESC: 'tradesCount7dDesc',
+        TRADES_COUNT_30D_DESC: 'tradesCount30dDesc',
+        TRADES_COUNT_TOTAL_DESC: 'tradesCountTotalDesc',
+    },
+
     TOKEN_STATS_TIME_FRAME: {
         HOUR: 1,    // 24小时
         DAY7: 2,    // 7天

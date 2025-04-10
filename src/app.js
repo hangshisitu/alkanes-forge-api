@@ -10,6 +10,7 @@ import MarketService from "./service/MarketService.js";
 import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
+import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 
 const app = new Koa();
 const router = new Router();
@@ -185,6 +186,42 @@ router
             }
         }
     })
+
+    .post('/token/page', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const tokenList = await TokenInfoMapper.findTokenPage(params.name, params.mintActive, params.orderType, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': tokenList
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/token/info', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const tokenInfo = await TokenInfoMapper.getById(params.id);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': tokenInfo
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+
     .post('/market/assets', async ctx => {
         try {
             const params = ctx.request.body;
@@ -256,7 +293,7 @@ router
     .post('/market/createUnsignedUpdate', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await MarketService.createUnsignedUpdate(params.alkanesId, params.listingIds, params.assetAddress, params.assetPublicKey, params.fundAddress);
+            const psbt = await MarketService.createUnsignedUpdate(params.alkanesId, params.listingList, params.assetAddress, params.assetPublicKey, params.fundAddress);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

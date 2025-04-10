@@ -6,6 +6,7 @@ import BaseUtil from "../utils/BaseUtil.js";
 import DateUtil from "../utils/DateUtil.js";
 import TokenStatsService from "../service/TokenStatsService.js";
 import {Constants} from "../conf/constants.js";
+import TokenInfoService from "../service/TokenInfoService.js";
 
 
 let isRefreshTokenInfo = false;
@@ -35,11 +36,11 @@ function refreshTokenInfo() {
                 return;
             }
 
-            console.log(`refresh token info start, update height: ${updateHeight} block height: ${blockHeight}`);
-            const allTokens = await AlkanesService.refreshTokenInfo(blockHeight);
-            console.log(`refresh token info finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
+            console.log(`refreshTokenInfo start, update height: ${updateHeight} block height: ${blockHeight}`);
+            const allTokens = await TokenInfoService.refreshTokenInfo(blockHeight);
+            console.log(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            console.error('refresh token info error:', err);
+            console.error('refreshTokenInfo error:', err);
         } finally {
             isRefreshTokenInfo = false;
         }
@@ -47,15 +48,15 @@ function refreshTokenInfo() {
 }
 
 
-let isRefreshTokenStats = false;
-function refreshTokenStats() {
+let isRefreshStatsForTimeRange = false;
+function refreshStatsForTimeRange() {
     schedule.scheduleJob('0 * * * *', async () => {
-        if (isRefreshTokenStats) {
+        if (isRefreshStatsForTimeRange) {
             return;
         }
 
         try {
-            isRefreshTokenStats = true;
+            isRefreshStatsForTimeRange = true;
             const execStartTime = Date.now();
 
             const now = new Date();
@@ -65,37 +66,36 @@ function refreshTokenStats() {
             const endTime = new Date(lastHour);
             endTime.setMinutes(59, 59, 999); // 上一个小时的结束
 
-            console.log(`refresh token stats start, startTime: ${DateUtil.formatDate(startTime)}, endTime: ${DateUtil.formatDate(endTime)}`);
+            console.log(`refreshStatsForTimeRange start, startTime: ${DateUtil.formatDate(startTime)}, endTime: ${DateUtil.formatDate(endTime)}`);
             await TokenStatsService.refreshStatsForTimeRange(startTime, endTime);
-            console.log(`refresh token stats finish, cost ${Date.now() - execStartTime}ms.`);
+            console.log(`refreshStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refresh token stats error:', err);
+            console.error('refreshStatsForTimeRange error:', err);
         } finally {
-            isRefreshTokenStats = false;
+            isRefreshStatsForTimeRange = false;
         }
     });
 }
 
 
-let isRefreshTokenPriceChange = false;
-function refreshTokenPriceChange() {
-    // */5 * * * *
-    schedule.scheduleJob('*/30 * * * * *', async () => {
-        if (isRefreshTokenPriceChange) {
+let isRefreshTokenStats = false;
+function refreshTokenStats() {
+    schedule.scheduleJob('*/5 * * * *', async () => {
+        if (isRefreshTokenStats) {
             return;
         }
 
         try {
-            isRefreshTokenPriceChange = true;
+            isRefreshTokenStats = true;
             const execStartTime = Date.now();
 
-            console.log(`refresh token price change start`);
-            await TokenStatsService.refreshPriceChanges();
-            console.log(`refresh token price change finish, cost ${Date.now() - execStartTime}ms.`);
+            console.log(`refreshTokenStats start`);
+            await TokenInfoService.refreshTokenStats();
+            console.log(`refreshTokenStats finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refresh token price chang error:', err);
+            console.error('refreshTokenStats error:', err);
         } finally {
-            isRefreshTokenPriceChange = false;
+            isRefreshTokenStats = false;
         }
     });
 }
@@ -125,35 +125,37 @@ async function refreshHistoricalStats(startDate, endDate) {
         nextHour.setUTCHours(nextHour.getUTCHours() + 1);
 
         // 创建处理当前时间段的任务，并加入到任务列表中
-        tasks.push(async () => {
-            await TokenStatsService.refreshStatsForTimeRange(startTime, nextHour);
-        });
+        // tasks.push(async () => {
+        //     await TokenStatsService.refreshStatsForTimeRange(startTime, nextHour);
+        // });
+
+        await TokenStatsService.refreshStatsForTimeRange(startTime, nextHour);
 
         // 跳到下一小时
         currentTime = nextHour;
     }
 
-    const subLists = BaseUtil.splitArray(tasks, 24);
-    for (const subList of subLists) {
-        await Promise.all(subList.map(async (task) => {
-            try {
-                await task();
-            } catch (error) {
-                console.error("Error executing task:", error);
-            }
-        }));
-    }
+    // const subLists = BaseUtil.splitArray(tasks, 24);
+    // for (const subList of subLists) {
+    //     await Promise.all(subList.map(async (task) => {
+    //         try {
+    //             await task();
+    //         } catch (error) {
+    //             console.error("Error executing task:", error);
+    //         }
+    //     }));
+    // }
 
     console.log("Finished refreshing historical stats.");
 }
 
 export function jobs() {
     refreshTokenInfo();
+    refreshStatsForTimeRange();
     refreshTokenStats();
-    refreshTokenPriceChange();
-    // refreshHistoricalStats('2025-08-09T07:00:00.000Z', '2026-01-15T00:00:00Z').then(() => {
-    //     console.log("Refresh historical stats finished.");
-    // }).catch(error => {
-    //     console.error("Error in refreshHistoricalStats:", error);
-    // });
+    refreshHistoricalStats('2025-07-17T16:00:00.000Z', '2026-01-15T00:00:00Z').then(() => {
+        console.log("Refresh historical stats finished.");
+    }).catch(error => {
+        console.error("Error in refreshHistoricalStats:", error);
+    });
 }
