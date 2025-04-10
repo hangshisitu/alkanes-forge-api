@@ -223,7 +223,7 @@ export default class AlkanesService {
                 }
 
                 tokenInfo.progress = AlkanesService.calculateProgress(tokenInfo.id, tokenInfo.minted, tokenInfo.cap);
-                tokenInfo.mintActive = tokenInfo.progress >= 100;
+                tokenInfo.mintActive = tokenInfo.progress >= 100 ? 1 : 0;
                 return tokenInfo;
             }
         } catch (error) {
