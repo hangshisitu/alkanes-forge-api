@@ -204,18 +204,13 @@ export default class TokenInfoService {
                     const historicalPrice = parseFloat(row.historicalPrice);
                     const recentPrice = parseFloat(latestPriceMap[alkanesId] || 0);
 
-                    // 涨跌幅计算逻辑
-                    let priceChange = 0;
-                    if (historicalPrice > 0 && recentPrice > 0) {
-                        priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
-                    }
-
                     // 获取或创建更新对象
                     const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
 
-                    // 只有在有涨跌幅时才添加相应字段
-                    if (priceChange !== 0) {
-                        existingUpdate[`priceChange${timeframe.label}`] = priceChange;
+                    // 涨跌幅计算逻辑
+                    if (historicalPrice > 0 && recentPrice > 0) {
+                        const priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
+                        existingUpdate[`priceChange${timeframe.label}`] = priceChange; // 添加涨跌幅
                     }
 
                     // 存入更新 Map
@@ -223,23 +218,33 @@ export default class TokenInfoService {
                 });
             }
 
-            // Step 4: 合并统计结果，包含总交易量和总交易次数
+            // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
             const statsMap7d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 7);
             const statsMap30d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 30);
             const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds); // 总统计（不限制时间范围）
 
-            // 构建完整的更新数据
-            const tokenStatsList = Array.from(updateMap.values()).map(item => ({
-                ...item,
-                tradingVolume24h: statsMap24h[item.id]?.totalVolume || 0,
-                tradingCount24h: statsMap24h[item.id]?.tradeCount || 0,
-                tradingVolume7d: statsMap7d[item.id]?.totalVolume || 0,
-                tradingCount7d: statsMap7d[item.id]?.tradeCount || 0,
-                tradingVolume30d: statsMap30d[item.id]?.totalVolume || 0,
-                tradingCount30d: statsMap30d[item.id]?.tradeCount || 0,
-                totalTradingVolume: statsMapTotal[item.id]?.totalVolume || 0,
-                totalTradingCount: statsMapTotal[item.id]?.tradeCount || 0,
-            }));
+            // 构建完整的更新数据基于 statsMap24h
+            const tokenStatsList = Object.keys(statsMap24h).map(alkanesId => {
+                const item = {
+                    id: alkanesId,
+                    tradingVolume24h: statsMap24h[alkanesId].totalVolume,
+                    tradingCount24h: statsMap24h[alkanesId].tradeCount,
+                    tradingVolume7d: statsMap7d[alkanesId]?.totalVolume || 0,
+                    tradingCount7d: statsMap7d[alkanesId]?.tradeCount || 0,
+                    tradingVolume30d: statsMap30d[alkanesId]?.totalVolume || 0,
+                    tradingCount30d: statsMap30d[alkanesId]?.tradeCount || 0,
+                    totalTradingVolume: statsMapTotal[alkanesId]?.totalVolume || 0,
+                    totalTradingCount: statsMapTotal[alkanesId]?.tradeCount || 0
+                };
+
+                // 添加涨跌幅信息
+                const existingUpdate = updateMap.get(alkanesId);
+                if (existingUpdate) {
+                    Object.assign(item, existingUpdate); // 合并涨跌幅信息
+                }
+
+                return item;
+            });
 
             // Step 5: 批量更新代币的统计信息，包含交易量和交易次数
             if (tokenStatsList.length > 0) {
