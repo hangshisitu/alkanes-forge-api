@@ -387,13 +387,11 @@ export default class MarketService {
         }
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
-        let buyerAddress = '';
+        let buyerAddress = originalPsbt.txOutputs[0].address;
         const listingOutputList = [];
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
             listingOutputList.push(`${sellerInput.txid}:${sellerInput.vout}`);
-
-            buyerAddress = sellerInput.address;
         }
 
         const listingList = await MarketListingMapper.getByOutputs(listingOutputList);
