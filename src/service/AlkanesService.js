@@ -1,7 +1,6 @@
 import config from "../conf/config.js";
 import UnisatAPI from "../lib/UnisatAPI.js";
 import axios from "axios";
-import asyncPool from 'tiny-async-pool';
 import {encipher, encodeRunestoneProtostone, ProtoStone} from "alkanes";
 import * as bitcoin from "bitcoinjs-lib";
 import {createHash} from "crypto";
@@ -41,8 +40,11 @@ const opcodesHRV = [
 
 export default class AlkanesService {
 
-    static async getAlkanesByUtxo(utxo) {
+    static async getAlkanesByUtxo(utxo, maxHeight = 0) {
         if (utxo.height < 880000) {
+            return [];
+        }
+        if (maxHeight > 0 && utxo.height > maxHeight) {
             return [];
         }
         try {
@@ -61,40 +63,53 @@ export default class AlkanesService {
                 value: new BigNumber(alkane.value).toNumber(), // 固定8位精度
             }))
         } catch (err) {
-            console.log(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err);
+            console.log(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err.message);
             throw new Error('Get Alkane Balance Error');
         }
     }
 
-    static async getAlkanesByAddress(address, id) {
-        try {
-            const utxos = await UnisatAPI.getAllUtxo(address);
+    static async getAlkanesByAddress(address) {
+        const result = await AlkanesService._call('alkanes_protorunesbyaddress', [
+            {
+                address: address,
+                protocolTag: '1'
+            }
+        ], config.alkanesPublicUrl);
 
-            if (!utxos || utxos.length === 0) {
-                return [];
+        const outpoints = result.outpoints;
+
+        // 过滤 balance > 0 的记录
+        const filtered = outpoints
+            .filter(outpoint =>
+                outpoint.runes.some(rune => new BigNumber(rune.balance).gt(0))
+            )
+            .map(outpoint => outpoint.runes)
+            .flat();
+
+        // 按 id.block:id.tx 分组
+        const grouped = filtered.reduce((acc, entry) => {
+            const id = `${new BigNumber(entry.rune.id.block).toNumber()}:${new BigNumber(entry.rune.id.tx).toNumber()}`;
+            const balance = new BigNumber(entry.balance);
+
+            if (!acc[id]) {
+                acc[id] = {
+                    id: id,
+                    name: entry.rune.name,
+                    symbol: entry.rune.symbol,
+                    balance: new BigNumber(0), // 初始化为 BigNumber
+                };
             }
 
-            const alkaneList = [];
-            for await (const result of asyncPool(config.concurrencyLimit, utxos, AlkanesService.getAlkanesByUtxo)) {
-                if (result !== null && result.length > 0) {
-                    alkaneList.push(...result);
-                }
-            }
+            acc[id].balance = acc[id].balance.plus(balance);
+            return acc;
+        }, {});
 
-            const filteredList = id ? alkaneList.filter(alkane => alkane.id === id) : alkaneList;
-            const result = filteredList.reduce((acc, {id, name, symbol, value}) => {
-                const key = id;
-                if (!acc[key]) {
-                    acc[key] = {id, name, symbol, value: '0'};
-                }
-                acc[key].value = (BigInt(acc[key].value) + BigInt(value)).toString();
-                return acc;
-            }, {});
-            return Object.values(result);
-        } catch (error) {
-            console.error('Error in getAlkanesByAddress:', error);
-            throw error;
-        }
+        return Object.values(grouped).map(item => ({
+            id: item.id,
+            name: item.name,
+            symbol: item.symbol,
+            balance: new BigNumber(item.balance).dividedBy(10**8).toFixed()
+        }));
     }
 
     static async getAlkanesByTarget(address, id, amount) {
@@ -106,8 +121,9 @@ export default class AlkanesService {
         const alkaneList = [];
         let totalBalance = new BigNumber(0);
         try {
+            const maxHeight = await AlkanesService.getMaxHeight();
             for (const utxo of utxoList) {
-                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo);
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
                 for (const alkane of alkanes) {
                     if (alkane.id !== id) {
                         continue;
@@ -132,7 +148,7 @@ export default class AlkanesService {
         return alkaneList;
     }
 
-    static async getAlkanesUtxoById(address, id) {
+    static async getAlkanesUtxoById(address, id, maxHeight) {
         try {
             const utxoList = await UnisatAPI.getAllUtxo(address, true);
             if (!utxoList || utxoList.length === 0) {
@@ -141,7 +157,7 @@ export default class AlkanesService {
 
             const alkaneList = [];
             for (const utxo of utxoList) {
-                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo);
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
                 for (const alkane of alkanes) {
                     if (alkane.id !== id) {
                         continue;
@@ -575,6 +591,11 @@ export default class AlkanesService {
             throw new Error(`Progress calculate error`);
         }
         return Number(progress.toFixed(2));
+    }
+
+    static async getMaxHeight() {
+        const height = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        return height - config.maxHeightGap;
     }
 
 }

@@ -1,8 +1,9 @@
 import TokenStatsMapper from '../mapper/TokenStatsMapper.js';
-import AlkanesService from "./AlkanesService.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import {nanoid} from "nanoid";
 import {Constants} from "../conf/constants.js";
+import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
+import BigNumber from "bignumber.js";
 
 export default class TokenStatsService {
 
@@ -28,9 +29,9 @@ export default class TokenStatsService {
     };
 
     static async refreshStatsForTimeRange(startTime, endTime) {
-        const { alkanesList } = await AlkanesService.getAllAlkanes();
-        for (const alkanes of alkanesList) {
-            const trades = await MarketEventMapper.queryTradesInLastHour(alkanes.id, startTime, endTime);
+        const tokenList = await TokenInfoMapper.getAllTokens();
+        for (const token of tokenList) {
+            const trades = await MarketEventMapper.queryTradesInLastHour(token.id, startTime, endTime);
             if (trades.length === 0) {
                 continue;
             }
@@ -42,7 +43,7 @@ export default class TokenStatsService {
 
             const stats = {
                 id: nanoid(),
-                alkanesId: alkanes.id,
+                alkanesId: token.id,
                 statsDate: startTime,
                 averagePrice,
                 totalAmount,
@@ -51,6 +52,14 @@ export default class TokenStatsService {
             };
 
             await TokenStatsMapper.upsertStats(stats);
+
+            const marketCap = new BigNumber(averagePrice)
+                .multipliedBy(token.totalSupply)
+                .dividedBy(10 ** 8)
+                .integerValue(BigNumber.ROUND_CEIL)
+                .toNumber();
+            await TokenInfoMapper.updateMarketCap(token.id, marketCap);
+
             console.log(`UTC startTime: ${startTime.toISOString()}, endTime: ${endTime.toISOString()}, stats: ${JSON.stringify(stats)}`);
         }
     }

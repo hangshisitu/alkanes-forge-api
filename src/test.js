@@ -3,6 +3,7 @@ import MarketService from "./service/MarketService.js";
 import * as bitcoin from "bitcoinjs-lib";
 import PsbtUtil from "./utils/PsbtUtil.js";
 import BigNumber from "bignumber.js";
+import config from "./conf/config.js";
 
 const assetAddress = 'bc1pnydp9t3epqe2ljtmy4m6n6wa6nzcxcfr25nc656xkgc2x82kufgq8mwgsr';
 const assetPublicKey = '034fee79e4f2401b558727527b6e3ac8753772c184e1fd05a9948a93412af552ad';
@@ -35,18 +36,22 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('af41abd1c8be9ace281675017bbdabd06c4686963ccbd9036d2530f9c418b4e1', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('672ee4766d0d543c0e6346c34856c86b5909e9d218747fe7a732f75d0a771fc0', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0xd529ae7dbdaa80').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
 
 // 查询代币信息
-const alkanes = await AlkanesService.getAlkanesById('2:102');
-console.log(alkanes);
+// const alkanes = await AlkanesService.getAlkanesById('2:102');
+// console.log(alkanes);
+
+//查询地址下余额信息
+// const alkanesList = await AlkanesService.getAlkanesByAddress('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf');
+// console.log(alkanesList);
 
 // 查询持有代币的utxo列表
 // const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);
 // console.log(alkanesList);
 
 // 查询单个utxo的余额信息
-// const alkanesList = await AlkanesService.getAlkanesByUtxo({txid: '6bdd6060d193a5cc00167b9b2350425027918f891d246f39d8b5c6b1cbf4d98c', vout: 1});
+// const alkanesList = await AlkanesService.getAlkanesByUtxo({txid: 'b0088ab54452c4f25542cf1bcb33b056ca5d8a04a492ee95b9f0c51c5ce55007', vout: 0});
 // console.log(alkanesList);

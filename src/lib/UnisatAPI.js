@@ -153,20 +153,6 @@ export default class UnisatAPI {
         return inputList;
     }
 
-    static pickDummyList(utxoList, dummyCount) {
-        const dummyList = []
-        utxoList.sort((a, b) => a.value - b.value);
-        for (const utxo of utxoList) {
-            if (utxo.value === 600) {
-                dummyList.push(utxo);
-            }
-            if (dummyList.length === dummyCount) {
-                break;
-            }
-        }
-        return dummyList;
-    }
-
     static async getUtxoList(address, confirmed = false, page = 1, size = 1000) {
         for (let i = 0; i < 3; i++) {
             try {
@@ -238,6 +224,25 @@ export default class UnisatAPI {
         throw new Error(`get tx ${txid} error`);
     }
 
+    static async getUtxoInfo(txid, vout) {
+        for (let i = 0; i < 3; i++) {
+            try {
+                const response = await axios.get(`${this.unisatUrl}/v1/indexer/utxo/${txid}/${vout}`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                });
+                return response.data.data;
+            } catch (err) {
+                console.error(`get utxo info error, txid: ${txid} vout: ${vout} errMsg: ${err.message}`);
+                await new Promise((resolve) => setTimeout(resolve, 500))
+            }
+        }
+        throw new Error(`get utxo info error`);
+    }
+
     static async unisatPush(hex_data) {
         let txid;
         if (hex_data.startsWith('cH')) {
@@ -255,6 +260,7 @@ export default class UnisatAPI {
             txid = psbt.extractTransaction().getId();
         }
 
+        let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
                 const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
@@ -276,11 +282,12 @@ export default class UnisatAPI {
                     return txid;
                 }
 
+                lastError = err.message;
                 console.error(`tx push error, hex: ${hex_data}`, err.message);
-                await new Promise((resolve) => setTimeout(resolve, 500))
+                await new Promise((resolve) => setTimeout(resolve, 500));
             }
         }
-        throw new Error('tx push error');
+        throw new Error(`tx push error: ${lastError}`);
     }
 
 }

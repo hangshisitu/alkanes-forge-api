@@ -166,6 +166,26 @@ export default class TokenInfoMapper {
                 addIdAscOrder();
                 break;
 
+            // 根据市值排序
+            case ORDER_TYPE.MARKET_CAP_DESC:
+                order.push(['marketCap', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.MARKET_CAP_ASC:
+                order.push(['marketCap', 'ASC']);
+                addIdAscOrder();
+                break;
+
+            // 根据地板价排序
+            case ORDER_TYPE.FLOOR_PRICE_DESC:
+                order.push(['floorPrice', 'DESC']);
+                addIdAscOrder();
+                break;
+            case ORDER_TYPE.FLOOR_PRICE_ASC:
+                order.push(['floorPrice', 'ASC']);
+                addIdAscOrder();
+                break;
+
             // 默认排序 - 进度降序
             default:
                 order.push(['progress', 'DESC']);
@@ -175,7 +195,7 @@ export default class TokenInfoMapper {
 
         const { count, rows } = await TokenInfo.findAndCountAll({
             attributes: {
-                exclude: ['updateHeight', 'createdAt', 'updatedAt']
+                exclude: ['originalImage', 'updateHeight', 'createdAt', 'updatedAt']
             },
             where: whereClause,
             order: order,
@@ -200,10 +220,22 @@ export default class TokenInfoMapper {
         });
     }
 
-    static async updateFPAndMCap(id, floorPrice, marketCap) {
+    static async updateFloorPrice(id, floorPrice) {
         await TokenInfo.update(
             {
-                floorPrice: floorPrice,
+                floorPrice: floorPrice
+            },
+            {
+                where: {
+                    id: id
+                }
+            }
+        );
+    }
+
+    static async updateMarketCap(id, marketCap) {
+        await TokenInfo.update(
+            {
                 marketCap: marketCap
             },
             {
@@ -222,12 +254,13 @@ export default class TokenInfoMapper {
         try {
             const upsertQuery = `
             INSERT INTO token_info 
-            (id, name, symbol, cap, premine, minted, mint_amount, 
+            (id, name, image, symbol, cap, premine, minted, mint_amount, 
              total_supply, progress, mint_active, update_height) 
             VALUES 
             ${tokenInfos.map(token => `(
                 '${token.id}', 
                 ${token.name ? `'${token.name}'` : "''"}, 
+                ${token.image ? `'${token.image}'` : "''"}, 
                 ${token.symbol ? `'${token.symbol}'` : "''"},
                 ${token.cap || 0}, 
                 ${token.premine || 0}, 

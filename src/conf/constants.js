@@ -60,6 +60,14 @@ export const Constants = Object.freeze({
         TRADES_COUNT_7D_DESC: 'tradesCount7dDesc',
         TRADES_COUNT_30D_DESC: 'tradesCount30dDesc',
         TRADES_COUNT_TOTAL_DESC: 'tradesCountTotalDesc',
+
+        // 市值排序
+        MARKET_CAP_DESC: 'marketCapDesc',
+        MARKET_CAP_ASC: 'marketCapAsc',
+
+        // 价格排序
+        FLOOR_PRICE_DESC: 'floorPriceDesc',
+        FLOOR_PRICE_ASC: 'floorPriceAsc',
     },
 
     TOKEN_STATS_TIME_FRAME: {
@@ -71,5 +79,7 @@ export const Constants = Object.freeze({
     REDIS_KEY: {
         TOKEN_INFO_LIST: 'token_info_list',
         TOKEN_INFO_UPDATED_HEIGHT: 'token_info_updated_height',
+        MEMPOOL_BLOCK_HEIGHT: 'mempool_block_height',
+        INDEX_BLOCK_HEIGHT: 'index_block_height',
     }
 });

@@ -10,11 +10,13 @@ import BigNumber from "bignumber.js";
 import {Constants} from "../conf/constants.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import TokenInfoService from "./TokenInfoService.js";
+import MempoolUtil from "../utils/MempoolUtil.js";
 
 export default class MarketService {
 
     static async assets(alkanesId, assetAddress) {
-        const alkanesList = await AlkanesService.getAlkanesUtxoById(assetAddress, alkanesId);
+        const maxHeight = await AlkanesService.getMaxHeight();
+        const alkanesList = await AlkanesService.getAlkanesUtxoById(assetAddress, alkanesId, maxHeight);
         const listingList = await MarketListingMapper.getUserListing(assetAddress, alkanesId);
 
         const listingOutputs = new Set(listingList.map(listing => listing.listingOutput));
@@ -69,11 +71,12 @@ export default class MarketService {
 
         const listingList = [];
         const eventList = [];
+        const maxHeight = await AlkanesService.getMaxHeight();
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
             const sellerAmount = originalPsbt.txOutputs[i].value;
 
-            const alkanes = await MarketService.checkAlkanes(sellerInput);
+            const alkanes = await MarketService.checkAlkanes(sellerInput, maxHeight);
             const tokenAmount = new BigNumber(alkanes.value).div(10 ** 8)
                 .decimalPlaces(8, BigNumber.ROUND_DOWN);
 
@@ -123,10 +126,7 @@ export default class MarketService {
         await MarketListingMapper.bulkUpsertListing(listingList);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
-        setImmediate(() => {
-            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
-                .catch(err => console.error('Floor price update failed:', err));
-        });
+        await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
 
     static async createUnsignedUpdate(alkanesId, listingList, assetAddress, assetPublicKey, fundAddress) {
@@ -243,23 +243,13 @@ export default class MarketService {
         await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
-        setImmediate(() => {
-            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
-                .catch(err => console.error('Floor price update failed:', err));
-        });
+        await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
 
     static async createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate) {
-        const utxoList = await UnisatAPI.getUtxoList(fundAddress);
-        const dummyCount = 2;
-        const dummyUtxoList = UnisatAPI.pickDummyList(utxoList, dummyCount);
-        if (dummyUtxoList.length < dummyCount) {
-            throw new Error('Not enough Dummy, Please refresh and retry.');
-        }
-
         const listingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
-        if (listingList === null || listingList.length === 0) {
-            throw new Error('Not found listing, Please refresh and retry.');
+        if (listingList === null || listingList.length !== listingIds.length) {
+            throw new Error('Some items in your order are already purchased or delisted.');
         }
 
         const sellerAddressList = listingList.map(listing => {
@@ -276,14 +266,15 @@ export default class MarketService {
         const totalMakerFee = listingList.reduce((accumulator, currentValue) => accumulator + (currentValue.listingAmount - currentValue.sellerAmount), 0);
         const totalTakerFee = listingList.reduce((accumulator, currentValue) => accumulator + MarketService.getTakerFee(currentValue.listingAmount), 0);
 
-        const protostone = AlkanesService.getTransferProtostone(alkanesId, [{amount: 0, output: 1}]);
+        const protostone = AlkanesService.getTransferProtostone(alkanesId, [{amount: 0, output: 0}]);
 
         // 输入: dummyCount + 出售地址 + 1付款
-        const inputAddresses = [...dummyUtxoList, ...sellerAddressList, {address: fundAddress}];
+        const inputAddresses = [...sellerAddressList, {address: fundAddress}];
         // 输出: 1合并dummy + 1接收地址 + 收款地址 +1转账脚本 +1手续费 + dummyCount + 1找零
-        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.market.platformAddress}, ...dummyUtxoList, {address: fundAddress}];
+        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.market.platformAddress}, {address: fundAddress}];
         let txFee = Math.ceil(FeeUtil.estTxSize(inputAddresses, outputAddresses) * feerate);
 
+        const utxoList = await UnisatAPI.getUtxoList(fundAddress);
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
         const paymentUtxoList = UnisatAPI.pickUtxoByTarget(fundAddress, totalAmount, feerate, utxoList);
 
@@ -300,15 +291,12 @@ export default class MarketService {
         const signingIndexes = [];
         const buyingPsbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
 
-        let inputDummyValue = 0;
-        for (const dummyUtxo of dummyUtxoList) {
-            const vin = await PsbtUtil.utxo2PsbtInputEx(dummyUtxo);
-            buyingPsbt.addInput(vin);
-
-            inputDummyValue += dummyUtxo.value;
-            signingIndexes.push(signingIndexes.length);
-        }
-        totalInputValue += inputDummyValue;
+        // 先添加1个付款的utxo用于占位，让挂单与结算utxo的索引一致
+        const firstPaymentUtxo = paymentUtxoList[0];
+        const vin = await PsbtUtil.utxo2PsbtInputEx(firstPaymentUtxo);
+        buyingPsbt.addInput(vin);
+        totalInputValue += firstPaymentUtxo.value;
+        signingIndexes.push(0);
 
         const recipientOutputList = [];
         const psbtList = listingList.map(listing => listing.psbtData);
@@ -329,20 +317,15 @@ export default class MarketService {
             })
         }
 
-        for (let paymentUtxo of paymentUtxoList) {
+        // 前面已经添加了1个，index从1开始
+        for (let i = 1; i < paymentUtxoList.length; i++) {
+            const paymentUtxo = paymentUtxoList[i];
             const vin = await PsbtUtil.utxo2PsbtInputEx(paymentUtxo);
             buyingPsbt.addInput(vin);
 
             totalInputValue += paymentUtxo.value;
-
             signingIndexes.push(signingIndexes.length + psbtList.length);
         }
-
-        buyingPsbt.addOutput({
-            address: fundAddress,
-            value: inputDummyValue
-        });
-        totalOutputValue += inputDummyValue;
 
         // 接收资产的output
         buyingPsbt.addOutput({
@@ -370,21 +353,11 @@ export default class MarketService {
         });
         totalOutputValue += totalMakerFee + totalTakerFee;
 
-        // 新增dummy输出
-        for (let i = 0; i < dummyCount; i++) {
-            buyingPsbt.addOutput({
-                address: fundAddress,
-                value: config.market.dummyValue
-            });
-
-            totalOutputValue += config.market.dummyValue;
-        }
-
         const changeValue = totalInputValue - totalOutputValue - txFee;
         if (changeValue < 0) {
             throw new Error('Insufficient utxo balance');
         }
-        if (changeValue > config.market.dummyValue) {
+        if (changeValue > 546) {
             buyingPsbt.addOutput({
                 address: fundAddress,
                 value: changeValue
@@ -402,7 +375,16 @@ export default class MarketService {
     }
 
     static async putSignedBuying(signedPsbt) {
-        const txid = await UnisatAPI.unisatPush(signedPsbt);
+        let txid;
+        try {
+            txid = await UnisatAPI.unisatPush(signedPsbt);
+        } catch (err) {
+            if (err.message.includes('bad-txns-inputs-missingorspent')) {
+                await MarketService.checkListingSpent(signedPsbt);
+                throw new Error('Some items in your order are already purchased or delisted.');
+            }
+            throw err;
+        }
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         let buyerAddress = '';
@@ -435,44 +417,32 @@ export default class MarketService {
         await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
-        setImmediate(() => {
-            TokenInfoService.refreshTokenFPAndMCap(listingList[0].alkanesId)
-                .catch(err => console.error('Floor price update failed:', err));
-        });
+        await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
 
-    static async checkDummy(fundAddress, fundPublicKey, feerate) {
-        const utxoList = await UnisatAPI.getUtxoList(fundAddress);
-        const dummyCount = 2;
-        const dummyUtxoList = UnisatAPI.pickDummyList(utxoList, dummyCount);
-        if (dummyUtxoList.length >= dummyCount) {
-            return {
-                dummyList: dummyUtxoList
-            };
+    static async checkListingSpent(signedPsbt) {
+        const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
+
+        const listingOutputMap = new Map();
+        for (let i = 0; i < originalPsbt.inputCount; i++) {
+            const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
+            const spendInfo = await MempoolUtil.getTxOutspend(sellerInput.txid, sellerInput.vout);
+
+            if (spendInfo.spent) {
+                if (!listingOutputMap.has(spendInfo.txid)) {
+                    listingOutputMap.set(spendInfo.txid, []);
+                }
+                listingOutputMap.get(spendInfo.txid).push(`${sellerInput.txid}:${sellerInput.vout}`);
+            }
         }
 
-        const outputList = [];
-        for (let i = 0; i < (dummyCount - dummyUtxoList.length); i++) {
-            outputList.push({
-                address: fundAddress,
-                value: config.market.dummyValue
-            });
-        }
-
-        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
-        const txFee = Math.floor(txSize * feerate);
-        const totalFee = txFee + outputList.length * config.market.dummyValue;
-
-        const filterUtxoList = UnisatAPI.pickUtxoByTarget(fundAddress, totalFee, feerate, utxoList);
-        const psbt = await PsbtUtil.createUnSignPsbt(filterUtxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
-        return {
-            dummyList: [],
-            ...psbt
+        for (const [txid, outputList] of listingOutputMap.entries()) {
+            await MarketListingMapper.bulkUpdateListing(outputList, Constants.LISTING_STATUS.DELIST, '', txid);
         }
     }
 
-    static async checkAlkanes(utxo) {
-        const alkanesList = await AlkanesService.getAlkanesByUtxo(utxo);
+    static async checkAlkanes(utxo, maxHeight) {
+        const alkanesList = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
         if (alkanesList === null || alkanesList.length < 1) {
             throw new Error('No Alkanes assets found');
         }

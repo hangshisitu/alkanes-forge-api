@@ -2,10 +2,11 @@
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@127.0.0.1:6379",
   "alkanesUrl": "https://alkanes-rpc.idclub.io",
-  "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
+  "alkanesPublicUrl": "https://alkanes-rpc.idclub.io",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
   "network": "mainnet",
+  "maxHeightGap": 2,
   "database": {
     "host": "149.28.90.24",
     "port": 3306,
@@ -14,7 +15,6 @@
     "database": "alkanes"
   },
   "market": {
-    "dummyValue": 600,
     "makerFee": 10,
     "takerFee": 20,
     "minimumFee": 333,

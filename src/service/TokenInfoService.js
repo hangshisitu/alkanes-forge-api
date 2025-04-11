@@ -3,7 +3,6 @@ import {QueryTypes} from "sequelize";
 import TokenStatsMapper from "../mapper/TokenStatsMapper.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import MarketListingMapper from "../mapper/MarketListingMapper.js";
-import BigNumber from "bignumber.js";
 import asyncPool from "tiny-async-pool";
 import config from "../conf/config.js";
 import BaseUtil from "../utils/BaseUtil.js";
@@ -129,9 +128,13 @@ export default class TokenInfoService {
             return aNum - bNum;
         });
 
-        allTokens.forEach(token => token.updateHeight = blockHeight);
+        // 设置更新区块与默认图片
+        allTokens.forEach(token => {
+            token.updateHeight = blockHeight;
+            token.image = TokenInfoService.getDefaultTokenImage(token.name);
+        });
 
-        // 8. 更新数据库和缓存
+        // 9. 更新数据库和缓存
         await TokenInfoMapper.bulkUpsertTokensInBatches(allTokens);
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_LIST, JSON.stringify(allTokens));
@@ -172,11 +175,15 @@ export default class TokenInfoService {
                 // 获取历史价格
                 const historicalPrices = await sequelize.query(`
                     SELECT ts1.alkanes_id AS alkanesId, 
-                           MAX(ts1.average_price) AS historicalPrice
+                           ts1.average_price AS historicalPrice
                     FROM token_stats ts1
-                    WHERE ts1.stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit})
-                      AND ts1.stats_date < NOW()
-                    GROUP BY ts1.alkanes_id;
+                    INNER JOIN (
+                        SELECT alkanes_id, MAX(stats_date) AS latestStatsTime
+                        FROM token_stats
+                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval + 1} ${timeframe.unit}) 
+                              AND stats_date < DATE_SUB(NOW(), INTERVAL ${timeframe.interval - 1} ${timeframe.unit})
+                        GROUP BY alkanes_id
+                    ) ts2 ON ts1.alkanes_id = ts2.alkanes_id AND ts1.stats_date = ts2.latestStatsTime;
                 `, { type: QueryTypes.SELECT });
 
                 // 处理每个代币的统计
@@ -235,7 +242,7 @@ export default class TokenInfoService {
         }
     }
 
-    static async refreshTokenFPAndMCap(alkanesId) {
+    static async refreshTokenFloorPrice(alkanesId) {
         try {
             const floorListing = await MarketListingMapper.getFloorPriceByAlkanesId(alkanesId);
             if (!floorListing) {
@@ -243,27 +250,23 @@ export default class TokenInfoService {
             }
             const newFloorPrice = floorListing.listingPrice;
 
-            // 查询对应的 Token 信息
-            const tokenInfo = await TokenInfoMapper.getById(alkanesId);
-            if (!tokenInfo) {
-                return;
-            }
-            const existFloorPrice = tokenInfo.floorPrice;
-
-            if (existFloorPrice > 0 && existFloorPrice <= newFloorPrice) {
-                return;
-            }
-
-            if (!tokenInfo) {
-                console.log(`No token found for alkanesId: ${alkanesId}`);
-                return null;
-            }
-
-            const marketCap = new BigNumber(newFloorPrice).multipliedBy(tokenInfo.totalSupply);
-            await TokenInfoMapper.updateFPAndMCap(alkanesId, newFloorPrice, marketCap);
+            await TokenInfoMapper.updateFloorPrice(alkanesId, newFloorPrice);
         } catch (error) {
-            console.error(`Error updating floor price and market cap for ${alkanesId}:`, error.message);
+            console.error(`Error updating floor price for ${alkanesId}:`, error.message);
         }
     }
 
+    static getDefaultTokenImage(tokenName) {
+        // 确保代币名称为字符串并去除多余空格
+        const trimmedName = tokenName.trim();
+
+        // 检查代币名称的首字母
+        if (/^[A-Za-z]/.test(trimmedName)) {
+            // 如果以字母开头，返回带字母的默认图片路径
+            const firstLetter = trimmedName.charAt(0).toUpperCase(); // 获取首字母，大写
+            return `https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_default_${firstLetter}.png`;
+        }
+        // 否则，返回未知代币的默认图片路径
+        return 'https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_unknown.png';
+    }
 }

@@ -11,6 +11,8 @@ import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
+import * as RedisHelper from "./lib/RedisHelper.js";
+import {Constants} from "./conf/constants.js";
 
 const app = new Koa();
 const router = new Router();
@@ -170,9 +172,9 @@ router
             }
         }
     })
-    .post('/metashrewHeight', async ctx => {
+    .post('/indexHeight', async ctx => {
         try {
-            const height = await AlkanesService.metashrewHeight();
+            const height = await RedisHelper.get(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -349,23 +351,6 @@ router
                 'code': 0,
                 'msg': 'ok',
                 'data': ''
-            }
-        } catch (e) {
-            console.error(`${util.inspect(e)}`)
-            ctx.body = {
-                'code': 1,
-                'msg': e.message
-            }
-        }
-    })
-    .post('/market/checkDummy', async ctx => {
-        try {
-            const params = ctx.request.body;
-            const result = await MarketService.checkDummy(params.fundAddress, params.fundPublicKey, params.feerate);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': result
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

@@ -61,11 +61,6 @@ const MarketListing = sequelize.define('MarketListing', {
         defaultValue: '',
         comment: '链上交易哈希'
     },
-    platformFee: {
-        type: DataTypes.DECIMAL(36, 0),
-        defaultValue: 0,
-        comment: '平台手续费'
-    },
     status: {
         type: DataTypes.TINYINT,
         defaultValue: 1,

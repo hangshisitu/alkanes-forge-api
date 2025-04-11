@@ -156,7 +156,7 @@ export default class MempoolUtil {
         return await mempool.getMempoolTxids()
     }
 
-    static async getBlocksTipHeight(txid){
+    static async getBlocksTipHeight(){
         return await blocks.getBlocksTipHeight()
     }
 }

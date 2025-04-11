@@ -61,7 +61,7 @@ export default class MarketListingMapper {
 
     static async getByOutputs(listingOutputList) {
         return await MarketListing.findAll({
-            attributes: ["alkanesId", "tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
+            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
             where: {
                 listingOutput: listingOutputList
             }
@@ -70,7 +70,7 @@ export default class MarketListingMapper {
 
     static async getByIds(alkanesId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await MarketListing.findAll({
-            attributes: ["id", "tokenAmount", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
+            attributes: ["id", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
             where: {
                 id: ids,
                 alkanesId: alkanesId,
@@ -100,7 +100,8 @@ export default class MarketListingMapper {
             },
             {
                 where: {
-                    listingOutput: listingOutputList
+                    listingOutput: listingOutputList,
+                    status: Constants.LISTING_STATUS.LIST
                 }
             }
         );

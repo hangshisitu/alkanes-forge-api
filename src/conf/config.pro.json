@@ -1,11 +1,12 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@10.5.96.26:6379",
-  "alkanesUrl": "https://alkanes-rpc.idclub.io",
-  "alkanesPublicUrl": "https://mainnet.sandshrew.io/v2/lasereyes",
+  "alkanesUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
+  "alkanesPublicUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "concurrencyLimit": 100,
   "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
   "network": "mainnet",
+  "maxHeightGap": 2,
   "database": {
     "host": "vultr-prod-9bc43166-b60e-449c-b39f-8124ccdc85a4-vultr-prod-2d32.vultrdb.com",
     "port": 16751,
@@ -14,11 +15,10 @@
     "database": "alkanes"
   },
   "market": {
-    "dummyValue": 600,
     "makerFee": 10,
     "takerFee": 20,
     "minimumFee": 333,
     "postage": 546,
-    "platformAddress": "bc1qsjese9368gnlg6jfuvzujyc5pl7mn87qk4hwsn"
+    "platformAddress": "bc1qj33vexl9gujueg40efh7s27df32thnxnw9pdc2"
   }
 }

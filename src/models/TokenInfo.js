@@ -11,6 +11,14 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.STRING,
         comment: '名称'
     },
+    image: {
+        type: DataTypes.STRING,
+        comment: '代币图片',
+    },
+    originalImage: {
+        type: DataTypes.STRING,
+        comment: '部署的图片',
+    },
     symbol: {
         type: DataTypes.STRING,
         comment: '符号',
@@ -42,6 +50,10 @@ const TokenInfo = sequelize.define('TokenInfo', {
     mintActive: {
         type: DataTypes.INTEGER,
         comment: 'Mint状态(0:否,1:是)'
+    },
+    holders: {
+        type: DataTypes.INTEGER,
+        comment: '持有人'
     },
     floorPrice: {
         type: DataTypes.DECIMAL(36, 18),
