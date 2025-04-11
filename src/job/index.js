@@ -27,7 +27,7 @@ function refreshBlockHeight() {
                 3, 500
             );
             await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT, mempoolHeight);
-            await RedisHelper.set(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT, indexHeight - 1);
+            await RedisHelper.set(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT, indexHeight);
 
             console.log(`refreshBlockHeight finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} cost ${Date.now() - startTime}ms.`);
         } catch (err) {
