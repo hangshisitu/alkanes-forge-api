@@ -213,22 +213,15 @@ export default class TokenInfoService {
                     // 获取或创建更新对象
                     const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
 
-                    // 设置涨跌幅到对应时间段的字段
-                    existingUpdate[`priceChange${timeframe.label}`] = priceChange;
+                    // 只有在有涨跌幅时才添加相应字段
+                    if (priceChange !== 0) {
+                        existingUpdate[`priceChange${timeframe.label}`] = priceChange;
+                    }
 
                     // 存入更新 Map
                     updateMap.set(alkanesId, existingUpdate);
                 });
             }
-
-            // 如果没有需要更新的数据，直接返回
-            if (updateMap.size === 0) {
-                console.log('No price changes calculated. Skipping updates.');
-                return;
-            }
-
-            // 将 Map 转换为数组用于后续批量更新
-            const updateBatch = Array.from(updateMap.values());
 
             // Step 4: 合并统计结果，包含总交易量和总交易次数
             const statsMap7d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 7);
@@ -236,7 +229,7 @@ export default class TokenInfoService {
             const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds); // 总统计（不限制时间范围）
 
             // 构建完整的更新数据
-            const tokenStatsList = updateBatch.map(item => ({
+            const tokenStatsList = Array.from(updateMap.values()).map(item => ({
                 ...item,
                 tradingVolume24h: statsMap24h[item.id]?.totalVolume || 0,
                 tradingCount24h: statsMap24h[item.id]?.tradeCount || 0,
@@ -248,10 +241,13 @@ export default class TokenInfoService {
                 totalTradingCount: statsMapTotal[item.id]?.tradeCount || 0,
             }));
 
-            // Step 5: 批量更新代币的统计信息
-            await TokenInfoMapper.batchUpdateTokenStatsInBatches(tokenStatsList);
-
-            console.log('Token stats updated successfully.');
+            // Step 5: 批量更新代币的统计信息，包含交易量和交易次数
+            if (tokenStatsList.length > 0) {
+                await TokenInfoMapper.batchUpdateTokenStatsInBatches(tokenStatsList);
+                console.log('Token stats updated successfully.');
+            } else {
+                console.log('No updates required for token stats.');
+            }
 
         } catch (error) {
             console.error('Error refreshing token stats:', error);
