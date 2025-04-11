@@ -100,7 +100,7 @@ function refreshStatsForTimeRange() {
 
 let isRefreshTokenStats = false;
 function refreshTokenStats() {
-    schedule.scheduleJob('*/5 * * * *', async () => {
+    schedule.scheduleJob('*/3 * * * *', async () => {
         if (isRefreshTokenStats) {
             return;
         }

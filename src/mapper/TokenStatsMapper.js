@@ -1,5 +1,5 @@
 import TokenStats from '../models/TokenStats.js';
-import Sequelize, {Op, QueryTypes} from 'sequelize';
+import {Op, QueryTypes} from 'sequelize';
 import sequelize from "../lib/SequelizeHelper.js";
 
 export default class TokenStatsMapper {
@@ -42,6 +42,44 @@ export default class TokenStatsMapper {
             },
             type: QueryTypes.SELECT
         });
+    }
+
+    /**
+     * 查询 24 小时内所有代币的交易统计
+     *
+     * @returns {Promise<Map>} { alkanesId => { totalVolume, tradeCount } }
+     */
+    static async getStatsMapFor24Hours() {
+        try {
+            const date = new Date();
+            date.setHours(date.getHours() - 24); // 计算 24 小时前的时间
+
+            const stats = await sequelize.query(`
+                SELECT 
+                    alkanes_id AS alkanesId,
+                    SUM(total_volume) AS totalVolume, 
+                    SUM(trade_count) AS tradeCount
+                FROM token_stats
+                WHERE stats_date >= :startDate
+                GROUP BY alkanes_id;
+            `, {
+                replacements: { startDate: date },
+                type: QueryTypes.SELECT,
+                raw: true
+            });
+
+            // 处理查询结果，将其转换为 Map 格式
+            return stats.reduce((acc, item) => {
+                acc[item.alkanesId] = {
+                    totalVolume: item.totalVolume || 0,
+                    tradeCount: item.tradeCount || 0
+                };
+                return acc;
+            }, {});
+        } catch (error) {
+            console.error('Error in getStatsMapFor24Hours:', error);
+            throw error;
+        }
     }
 
     /**

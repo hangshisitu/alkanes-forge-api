@@ -143,21 +143,32 @@ export default class TokenInfoService {
     }
 
     static async refreshTokenStats() {
+        // 定义时间范围的标签和单位，用于遍历处理各时间段的价格变化
         const timeframes = [
-            { label: '24h', interval: 24, unit: 'HOUR' },
             { label: '7d', interval: 7, unit: 'DAY' },
             { label: '30d', interval: 30, unit: 'DAY' }
         ];
 
         try {
-            // 获取每个 alkanes_id 的最新成交价
+            // Step 1: 查询 24 小时内所有 Token 的交易统计数据
+            const statsMap24h = await TokenStatsMapper.getStatsMapFor24Hours();
+
+            if (Object.keys(statsMap24h).length === 0) {
+                console.log('No 24-hour trading data found. Skipping updates.');
+                return; // 如果没有 24 小时的交易数据，直接跳过更新流程
+            }
+
+            // 获取代币 ID 列表（从 24 小时的统计数据中提取）
+            const alkanesIds = Object.keys(statsMap24h);
+
+            // Step 2: 查询每个代币的最新成交价格（listing_price）
             const latestPrices = await sequelize.query(`
                 SELECT me1.alkanes_id AS alkanesId, me1.listing_price AS latestPrice
                 FROM market_event me1
                 INNER JOIN (
                     SELECT alkanes_id, MAX(created_at) as latest_time
                     FROM market_event
-                    WHERE type = 2 and created_at < now()
+                    WHERE type = 2 AND created_at < NOW()
                     GROUP BY alkanes_id
                 ) me2 ON me1.alkanes_id = me2.alkanes_id AND me1.created_at = me2.latest_time
                 WHERE me1.type = 2;
@@ -165,14 +176,15 @@ export default class TokenInfoService {
 
             const latestPriceMap = {};
             latestPrices.forEach(row => {
-                latestPriceMap[row.alkanesId] = row.latestPrice;
+                latestPriceMap[row.alkanesId] = parseFloat(row.latestPrice); // 转换价格为浮点数
             });
 
-            // 使用 Map 来合并更新数据
+            // 使用 Map 保存更新数据
             const updateMap = new Map();
-            // 遍历每个时间段
+
+            // Step 3: 遍历其他时间段（7 天、30 天）
             for (const timeframe of timeframes) {
-                // 获取历史价格
+                // 查询历史价格
                 const historicalPrices = await sequelize.query(`
                     SELECT ts1.alkanes_id AS alkanesId, 
                            ts1.average_price AS historicalPrice
@@ -186,13 +198,13 @@ export default class TokenInfoService {
                     ) ts2 ON ts1.alkanes_id = ts2.alkanes_id AND ts1.stats_date = ts2.latestStatsTime;
                 `, { type: QueryTypes.SELECT });
 
-                // 处理每个代币的统计
-                for (const row of historicalPrices) {
+                // 计算每个代币的涨跌幅
+                historicalPrices.forEach(row => {
                     const alkanesId = row.alkanesId;
                     const historicalPrice = parseFloat(row.historicalPrice);
                     const recentPrice = parseFloat(latestPriceMap[alkanesId] || 0);
 
-                    // 计算价格变化
+                    // 涨跌幅计算逻辑
                     let priceChange = 0;
                     if (historicalPrice > 0 && recentPrice > 0) {
                         priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
@@ -201,42 +213,46 @@ export default class TokenInfoService {
                     // 获取或创建更新对象
                     const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
 
-                    // 更新价格变化
+                    // 设置涨跌幅到对应时间段的字段
                     existingUpdate[`priceChange${timeframe.label}`] = priceChange;
 
-                    // 存回 Map
+                    // 存入更新 Map
                     updateMap.set(alkanesId, existingUpdate);
-                }
+                });
             }
-            if (updateMap.size < 1) {
+
+            // 如果没有需要更新的数据，直接返回
+            if (updateMap.size === 0) {
+                console.log('No price changes calculated. Skipping updates.');
                 return;
             }
 
+            // 将 Map 转换为数组用于后续批量更新
             const updateBatch = Array.from(updateMap.values());
-            const alkanesIds = updateBatch.map(item => item.id);
 
-            // 查询24小时数据
-            const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds);
-            const statsMap24h = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24);
+            // Step 4: 合并统计结果，包含总交易量和总交易次数
             const statsMap7d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 7);
             const statsMap30d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 30);
+            const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds); // 总统计（不限制时间范围）
 
-            // 合并总交易统计
-            const tokenStatsList = updateBatch.map(item => {
-                return {
-                    ...item,
-                    tradingVolume24h: statsMap24h[item.id]?.totalVolume || 0,
-                    tradingCount24h: statsMap24h[item.id]?.tradeCount || 0,
-                    tradingVolume7d: statsMap7d[item.id]?.totalVolume || 0,
-                    tradingCount7d: statsMap7d[item.id]?.tradeCount || 0,
-                    tradingVolume30d: statsMap30d[item.id]?.totalVolume || 0,
-                    tradingCount30d: statsMap30d[item.id]?.tradeCount || 0,
-                    totalTradingVolume: statsMapTotal[item.id]?.totalVolume || 0,
-                    totalTradingCount: statsMapTotal[item.id]?.tradeCount || 0,
-                };
-            });
+            // 构建完整的更新数据
+            const tokenStatsList = updateBatch.map(item => ({
+                ...item,
+                tradingVolume24h: statsMap24h[item.id]?.totalVolume || 0,
+                tradingCount24h: statsMap24h[item.id]?.tradeCount || 0,
+                tradingVolume7d: statsMap7d[item.id]?.totalVolume || 0,
+                tradingCount7d: statsMap7d[item.id]?.tradeCount || 0,
+                tradingVolume30d: statsMap30d[item.id]?.totalVolume || 0,
+                tradingCount30d: statsMap30d[item.id]?.tradeCount || 0,
+                totalTradingVolume: statsMapTotal[item.id]?.totalVolume || 0,
+                totalTradingCount: statsMapTotal[item.id]?.tradeCount || 0,
+            }));
 
+            // Step 5: 批量更新代币的统计信息
             await TokenInfoMapper.batchUpdateTokenStatsInBatches(tokenStatsList);
+
+            console.log('Token stats updated successfully.');
+
         } catch (error) {
             console.error('Error refreshing token stats:', error);
         }
