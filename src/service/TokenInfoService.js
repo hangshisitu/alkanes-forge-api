@@ -9,6 +9,7 @@ import BaseUtil from "../utils/BaseUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import AlkanesService from "./AlkanesService.js";
+import MarketEventMapper from "../mapper/MarketEventMapper.js";
 
 export default class TokenInfoService {
 
@@ -151,7 +152,7 @@ export default class TokenInfoService {
 
         try {
             // Step 1: 查询 24 小时内所有 Token 的交易统计数据
-            const statsMap24h = await TokenStatsMapper.getStatsMapFor24Hours();
+            const statsMap24h = await MarketEventMapper.getStatsMapFor24Hours();
 
             if (Object.keys(statsMap24h).length === 0) {
                 console.log('No 24-hour trading data found. Skipping updates.');

@@ -1,6 +1,7 @@
 import MarketEvent from "../models/MarkeEvent.js";
-import {Op} from "sequelize";
+import {Op, QueryTypes} from "sequelize";
 import {Constants} from "../conf/constants.js";
+import sequelize from "../lib/SequelizeHelper.js";
 
 export default class MarketEventMapper {
 
@@ -38,6 +39,45 @@ export default class MarketEventMapper {
             pages: Math.ceil(count / size),
             records: rows,
         };
+    }
+
+    /**
+     * 查询 24 小时内所有代币的交易统计
+     *
+     * @returns {Promise<Map>} { alkanesId => { totalVolume, tradeCount } }
+     */
+    static async getStatsMapFor24Hours() {
+        try {
+            const date = new Date();
+            date.setHours(date.getHours() - 24); // 计算 24 小时前的时间
+
+            const stats = await sequelize.query(`
+                SELECT 
+                    alkanes_id AS alkanesId,
+                    SUM(listing_amount) AS totalVolume,
+                    COUNT(*) AS tradeCount
+                FROM market_event
+                WHERE created_at >= :startDate
+                    AND type = 2
+                GROUP BY alkanes_id;
+            `, {
+                replacements: { startDate: date },
+                type: QueryTypes.SELECT,
+                raw: true
+            });
+
+            // 将查询结果转化为 Map 格式
+            return stats.reduce((acc, item) => {
+                acc[item.alkanesId] = {
+                    totalVolume: item.totalVolume || 0,
+                    tradeCount: item.tradeCount || 0
+                };
+                return acc;
+            }, {});
+        } catch (error) {
+            console.error('Error in getStatsMapFor24Hours:', error);
+            throw error;
+        }
     }
 
     static async queryTradesInLastHour(alkanesId, startTime, endTime) {
