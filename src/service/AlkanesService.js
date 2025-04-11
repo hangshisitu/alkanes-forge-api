@@ -1,6 +1,7 @@
 import config from "../conf/config.js";
 import UnisatAPI from "../lib/UnisatAPI.js";
 import axios from "axios";
+import asyncPool from "tiny-async-pool";
 import {encipher, encodeRunestoneProtostone, ProtoStone} from "alkanes";
 import * as bitcoin from "bitcoinjs-lib";
 import {createHash} from "crypto";
@@ -150,25 +151,41 @@ export default class AlkanesService {
 
     static async getAlkanesUtxoById(address, id, maxHeight) {
         try {
-            const utxoList = await UnisatAPI.getAllUtxo(address, true);
+            const utxoList = await UnisatAPI.getUtxoList(address, true, 1, 1000);
             if (!utxoList || utxoList.length === 0) {
                 return [];
             }
 
             const alkaneList = [];
-            for (const utxo of utxoList) {
-                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
-                for (const alkane of alkanes) {
-                    if (alkane.id !== id) {
-                        continue;
+            // 使用 asyncPool 对 utxoList 进行并发处理
+            for await (const result of asyncPool(
+                config.concurrencyLimit, // 并发限制
+                utxoList,         // 需要处理的 UTXO 列表
+                async (utxo) => {
+                    try {
+                        const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight)
+                        if (!alkanes?.length) {
+                            return null;
+                        }
+
+                        return alkanes
+                            .filter((alkane) => alkane.id === id)
+                            .map((alkane) => ({
+                                txid: utxo.txid,
+                                vout: utxo.vout,
+                                value: utxo.value,
+                                tokenAmount: new BigNumber(alkane.value)
+                                    .dividedBy(10 ** 8)
+                                    .toFixed(),
+                            }));
+                    } catch (error) {
+                        console.error(`Failed to process utxo ${utxo.txid}:`, error.message);
+                        return null;
                     }
-                    alkane.utxo = utxo;
-                    alkaneList.push({
-                        txid: utxo.txid,
-                        vout: utxo.vout,
-                        value: utxo.value,
-                        tokenAmount: new BigNumber(alkane.value).dividedBy(10**8).toFixed()
-                    });
+                }
+            )) {
+                if (result !== null) {
+                    alkaneList.push(...result);
                 }
             }
 
