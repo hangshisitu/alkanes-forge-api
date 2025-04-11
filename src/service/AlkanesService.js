@@ -122,9 +122,8 @@ export default class AlkanesService {
         const alkaneList = [];
         let totalBalance = new BigNumber(0);
         try {
-            const maxHeight = await AlkanesService.getMaxHeight();
             for (const utxo of utxoList) {
-                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, 0);
                 for (const alkane of alkanes) {
                     if (alkane.id !== id) {
                         continue;
@@ -144,7 +143,7 @@ export default class AlkanesService {
         }
 
         if (totalBalance.lt(amount)) {
-            throw new Error(`Insufficient alkanes balance: ${totalBalance.dividedBy(1e8).toString(8)} target: ${amount.dividedBy(1e8).toString(8)}`);
+            throw new Error(`Insufficient alkanes balance: ${totalBalance.dividedBy(1e8).toString(8)} target: ${new BigNumber(amount).dividedBy(10**8).toString(8)}`);
         }
         return alkaneList;
     }
