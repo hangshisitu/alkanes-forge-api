@@ -206,6 +206,23 @@ router
             }
         }
     })
+    .post('/balance', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const balance = await BaseService.getBalance(params.address);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': balance
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
 
     .post('/token/page', async ctx => {
         try {

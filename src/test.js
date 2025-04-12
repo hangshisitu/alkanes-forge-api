@@ -5,6 +5,7 @@ import PsbtUtil from "./utils/PsbtUtil.js";
 import BigNumber from "bignumber.js";
 import config from "./conf/config.js";
 import MempoolUtil from "./utils/MempoolUtil.js";
+import BaseService from "./service/BaseService.js";
 
 const assetAddress = 'bc1pnydp9t3epqe2ljtmy4m6n6wa6nzcxcfr25nc656xkgc2x82kufgq8mwgsr';
 const assetPublicKey = '034fee79e4f2401b558727527b6e3ac8753772c184e1fd05a9948a93412af552ad';

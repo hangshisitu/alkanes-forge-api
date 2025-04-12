@@ -32,6 +32,14 @@ const {bitcoin: {blocks}} = mempoolJS({
 });
     
 export default class MempoolUtil {
+    static async getAddress(address) {
+        const start = new Date().getTime()
+        const balanceInfo = await addresses.getAddress({address});
+        const end = new Date().getTime()
+        console.info(`getAddress address: ${address} cost: ${end - start}ms`)
+        return balanceInfo;
+    }
+
     static async getUtxoByAddress(address) {
         const start = new Date().getTime()
         const utxoList = await addresses.getAddressTxsUtxo({address});

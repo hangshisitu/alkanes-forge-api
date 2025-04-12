@@ -1,5 +1,6 @@
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
+import MempoolUtil from "../utils/MempoolUtil.js";
 
 export default class BaseService {
 
@@ -17,6 +18,15 @@ export default class BaseService {
             indexHeight,
             btcPrice,
             fees: JSON.parse(fees)
+        }
+    }
+
+    static async getBalance(address) {
+        const balanceInfo = await MempoolUtil.getAddress(address);
+        return {
+            confirmed: balanceInfo.chain_stats.funded_txo_sum,
+            pending: balanceInfo.mempool_stats.funded_txo_sum,
+            total: balanceInfo.chain_stats.funded_txo_sum + balanceInfo.mempool_stats.funded_txo_sum,
         }
     }
 }
