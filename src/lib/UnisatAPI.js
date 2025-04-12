@@ -153,6 +153,25 @@ export default class UnisatAPI {
         return inputList;
     }
 
+    static async getBalance(address) {
+        for (let i = 0; i < 3; i++) {
+            try {
+                const response = await axios.get(`${this.unisatUrl}/v1/indexer/address/${address}/balance`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                });
+                return response.data.data;
+            } catch (err) {
+                console.error(`get balance ${address} error, errMsg: ${err.message}`);
+                await new Promise((resolve) => setTimeout(resolve, 500))
+            }
+        }
+        throw new Error(`get balance ${address} error`);
+    }
+
     static async getUtxoList(address, confirmed = false, page = 1, size = 1000) {
         for (let i = 0; i < 3; i++) {
             try {

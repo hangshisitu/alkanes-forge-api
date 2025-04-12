@@ -57,3 +57,6 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // 查询单个utxo的余额信息
 // const alkanesList = await AlkanesService.getAlkanesByUtxo({txid: 'b0088ab54452c4f25542cf1bcb33b056ca5d8a04a492ee95b9f0c51c5ce55007', vout: 0});
 // console.log(alkanesList);
+
+// const balanceInfo = await BaseService.getBalance('bc1qj33vexl9gujueg40efh7s27df32thnxnw9pdc2');
+// console.log(balanceInfo);

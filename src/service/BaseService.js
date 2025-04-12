@@ -1,6 +1,7 @@
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import UnisatAPI from "../lib/UnisatAPI.js";
 
 export default class BaseService {
 
@@ -22,6 +23,15 @@ export default class BaseService {
     }
 
     static async getBalance(address) {
+        const balanceInfo = await UnisatAPI.getBalance(address);
+        return {
+            confirmed: balanceInfo.btcSatoshi,
+            pending: balanceInfo.btcPendingSatoshi,
+            total: balanceInfo.btcSatoshi + balanceInfo.btcPendingSatoshi,
+        }
+    }
+
+    static async getBalanceByMempool(address) {
         const balanceInfo = await MempoolUtil.getAddress(address);
         return {
             confirmed: balanceInfo.chain_stats.funded_txo_sum,
