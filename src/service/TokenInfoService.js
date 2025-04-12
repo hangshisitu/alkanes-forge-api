@@ -210,8 +210,7 @@ export default class TokenInfoService {
 
                     // 涨跌幅计算逻辑
                     if (historicalPrice > 0 && recentPrice > 0) {
-                        const priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
-                        existingUpdate[`priceChange${timeframe.label}`] = priceChange; // 添加涨跌幅
+                        existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - historicalPrice) / historicalPrice) * 100; // 添加涨跌幅
                     }
 
                     // 存入更新 Map
@@ -220,7 +219,6 @@ export default class TokenInfoService {
             }
 
             // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
-            const statsMap1h = await MarketEventMapper.getStatsMapForHours(1);
             const statsMap7d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 7);
             const statsMap30d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 30);
             const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds);
@@ -235,9 +233,15 @@ export default class TokenInfoService {
                     tradingCount7d: statsMap7d[alkanesId]?.tradeCount || 0,
                     tradingVolume30d: statsMap30d[alkanesId]?.totalVolume || 0,
                     tradingCount30d: statsMap30d[alkanesId]?.tradeCount || 0,
-                    totalTradingVolume: (statsMapTotal[alkanesId]?.totalVolume || 0) + (statsMap1h[alkanesId]?.totalVolume || 0),
-                    totalTradingCount: (statsMapTotal[alkanesId]?.tradeCount || 0) + (statsMap1h[alkanesId]?.tradeCount || 0)
+                    totalTradingVolume: statsMapTotal[alkanesId]?.totalVolume || 0,
+                    totalTradingCount: statsMapTotal[alkanesId]?.tradeCount || 0
                 };
+                item.tradingVolume7d = Math.max(item.tradingVolume7d, item.tradingVolume24h);
+                item.tradingCount7d = Math.max(item.tradingCount7d, item.tradingCount24h);
+                item.tradingVolume30d = Math.max(item.tradingVolume30d, item.tradingVolume24h);
+                item.tradingCount30d = Math.max(item.tradingCount30d, item.tradingCount24h);
+                item.totalTradingVolume = Math.max(item.totalTradingVolume, item.tradingVolume24h);
+                item.totalTradingCount = Math.max(item.totalTradingCount, item.tradingCount24h);
 
                 // 添加涨跌幅信息
                 const existingUpdate = updateMap.get(alkanesId);
