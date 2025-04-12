@@ -9,31 +9,38 @@ import {Constants} from "../conf/constants.js";
 import TokenInfoService from "../service/TokenInfoService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 
-let isRefreshBlockHeight = false;
+let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
     schedule.scheduleJob('*/30 * * * * *', async () => {
-        if (isRefreshBlockHeight) {
+        if (isRefreshBlockConfig) {
             return;
         }
 
         try {
-            isRefreshBlockHeight = true;
+            isRefreshBlockConfig = true;
             const startTime = Date.now();
-            console.log(`refreshBlockHeight start ...`);
+            console.log(`isRefreshBlockConfig start ...`);
 
             const mempoolHeight = await MempoolUtil.getBlocksTipHeight();
+            await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT, mempoolHeight);
+
             const indexHeight = await BaseUtil.retryRequest(
                 () => AlkanesService.metashrewHeight(config.alkanesUrl),
                 3, 500
             );
-            await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT, mempoolHeight);
             await RedisHelper.set(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT, indexHeight);
 
-            console.log(`refreshBlockHeight finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} cost ${Date.now() - startTime}ms.`);
+            const fees = await MempoolUtil.getFeesRecommended();
+            await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_FEES_RECOMMENDED, JSON.stringify(fees));
+
+            const btcPrice = await MempoolUtil.getBtcPrice();
+            await RedisHelper.set(Constants.REDIS_KEY.BTC_PRICE_USD, btcPrice);
+
+            console.log(`isRefreshBlockConfig finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} btcPrice: ${btcPrice} fees: ${JSON.stringify(fees)} cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            console.error('refreshBlockHeight error:', err);
+            console.error('isRefreshBlockConfig error:', err.message);
         } finally {
-            isRefreshBlockHeight = false;
+            isRefreshBlockConfig = false;
         }
     });
 }
@@ -60,7 +67,7 @@ function refreshTokenInfo() {
             const allTokens = await TokenInfoService.refreshTokenInfo(indexHeight);
             console.log(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            console.error('refreshTokenInfo error:', err);
+            console.error('refreshTokenInfo error:', err.message);
         } finally {
             isRefreshTokenInfo = false;
         }
@@ -90,7 +97,7 @@ function refreshStatsForTimeRange() {
             await TokenStatsService.refreshStatsForTimeRange(startTime, endTime);
             console.log(`refreshStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshStatsForTimeRange error:', err);
+            console.error('refreshStatsForTimeRange error:', err.message);
         } finally {
             isRefreshStatsForTimeRange = false;
         }
@@ -113,7 +120,7 @@ function refreshTokenStats() {
             await TokenInfoService.refreshTokenStats();
             console.log(`refreshTokenStats finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshTokenStats error:', err);
+            console.error('refreshTokenStats error:', err.message);
         } finally {
             isRefreshTokenStats = false;
         }

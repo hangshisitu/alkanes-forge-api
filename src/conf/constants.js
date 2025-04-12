@@ -81,5 +81,8 @@ export const Constants = Object.freeze({
         TOKEN_INFO_UPDATED_HEIGHT: 'token_info_updated_height',
         MEMPOOL_BLOCK_HEIGHT: 'mempool_block_height',
         INDEX_BLOCK_HEIGHT: 'index_block_height',
+
+        BTC_PRICE_USD: 'btc_price_usd',
+        MEMPOOL_FEES_RECOMMENDED: 'mempool_fees_recommended'
     }
 });

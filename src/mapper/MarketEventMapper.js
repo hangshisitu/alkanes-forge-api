@@ -43,13 +43,14 @@ export default class MarketEventMapper {
 
     /**
      * 查询 24 小时内所有代币的交易统计
+     * @param {number} [hoursRange] 距离当前时间的小时数（可选）
      *
      * @returns {Promise<Map>} { alkanesId => { totalVolume, tradeCount } }
      */
-    static async getStatsMapFor24Hours() {
+    static async getStatsMapForHours(hoursRange= 24) {
         try {
             const date = new Date();
-            date.setHours(date.getHours() - 24); // 计算 24 小时前的时间
+            date.setHours(date.getHours() - hoursRange); // 计算 24 小时前的时间
 
             const stats = await sequelize.query(`
                 SELECT 

@@ -141,10 +141,10 @@ export default class MempoolUtil {
         return resp.data;
     }
 
-    static async getFeeRate() {
+    static async getFeesRecommended() {
         const start = Date.now()
         const feeRate = await fees.getFeesRecommended();
-        console.info(`getFeeRate  feeRate: ${JSON.stringify(feeRate)} cost: ${Date.now() - start}ms`)
+        console.info(`getFeesRecommended feeRate: ${JSON.stringify(feeRate)} cost: ${Date.now() - start}ms`)
         return feeRate;
     }
 
@@ -158,5 +158,10 @@ export default class MempoolUtil {
 
     static async getBlocksTipHeight(){
         return await blocks.getBlocksTipHeight()
+    }
+
+    static async getBtcPrice(){
+        const response = await axios.get(`https://${mempoolHost}/api/v1/prices`);
+        return response.data['USD'];
     }
 }

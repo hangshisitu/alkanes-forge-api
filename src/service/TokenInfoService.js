@@ -152,7 +152,7 @@ export default class TokenInfoService {
 
         try {
             // Step 1: 查询 24 小时内所有 Token 的交易统计数据
-            const statsMap24h = await MarketEventMapper.getStatsMapFor24Hours();
+            const statsMap24h = await MarketEventMapper.getStatsMapForHours(24);
 
             if (Object.keys(statsMap24h).length === 0) {
                 console.log('No 24-hour trading data found. Skipping updates.');
@@ -220,9 +220,10 @@ export default class TokenInfoService {
             }
 
             // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
+            const statsMap1h = await MarketEventMapper.getStatsMapForHours(1);
             const statsMap7d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 7);
             const statsMap30d = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds, 24 * 30);
-            const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds); // 总统计（不限制时间范围）
+            const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds);
 
             // 构建完整的更新数据基于 statsMap24h
             const tokenStatsList = Object.keys(statsMap24h).map(alkanesId => {
@@ -234,8 +235,8 @@ export default class TokenInfoService {
                     tradingCount7d: statsMap7d[alkanesId]?.tradeCount || 0,
                     tradingVolume30d: statsMap30d[alkanesId]?.totalVolume || 0,
                     tradingCount30d: statsMap30d[alkanesId]?.tradeCount || 0,
-                    totalTradingVolume: statsMapTotal[alkanesId]?.totalVolume || 0,
-                    totalTradingCount: statsMapTotal[alkanesId]?.tradeCount || 0
+                    totalTradingVolume: (statsMapTotal[alkanesId]?.totalVolume || 0) + (statsMap1h[alkanesId]?.totalVolume || 0),
+                    totalTradingCount: (statsMapTotal[alkanesId]?.tradeCount || 0) + (statsMap1h[alkanesId]?.tradeCount || 0)
                 };
 
                 // 添加涨跌幅信息
