@@ -277,6 +277,7 @@ export default class MarketService {
         const utxoList = await UnisatAPI.getUtxoList(fundAddress);
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
         const paymentUtxoList = UnisatAPI.pickUtxoByTarget(fundAddress, totalAmount, feerate, utxoList);
+        paymentUtxoList.forEach(utxo => utxo.pubkey = fundPublicKey);
 
         // 如果付款的utxo大于1个，需要重新计算Gas
         if (paymentUtxoList.length > 1) {

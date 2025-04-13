@@ -11,8 +11,6 @@ import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
-import * as RedisHelper from "./lib/RedisHelper.js";
-import {Constants} from "./conf/constants.js";
 import BaseService from "./service/BaseService.js";
 
 const app = new Koa();
@@ -29,7 +27,7 @@ app.use(
         maxAge: 3600, // OPTIONS 预检请求的缓存时间（秒）
         credentials: false, // 不允许携带 Cookie
         allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // 允许的 HTTP 方法
-        allowHeaders: ["Content-Type", "Authorization", "Accept"], // 允许的请求头
+        allowHeaders: ["Content-Type", "Authorization", "Accept", "wallet_type"], // 允许的请求头
     })
 );
 
@@ -47,7 +45,8 @@ app.use(async (ctx, next) => {
     await next();
     const ms = Date.now() - start;
     const content = JSON.stringify(ctx.response.body) || '';
-    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms  params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
+    const walletType = ctx.request.headers['wallet_type'] || '';
+    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms ${walletType} params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
 });
 
 router
