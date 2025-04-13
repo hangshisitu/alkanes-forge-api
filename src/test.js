@@ -38,7 +38,7 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('672ee4766d0d543c0e6346c34856c86b5909e9d218747fe7a732f75d0a771fc0', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('234f845d50cbdddf9b97498ff69aaa0b5637536e5fff21593d46a7745fb8c351', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0xd529ae7dbdaa80').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
 
@@ -60,3 +60,6 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 
 // const balanceInfo = await BaseService.getBalance('bc1qj33vexl9gujueg40efh7s27df32thnxnw9pdc2');
 // console.log(balanceInfo);
+
+// const script = AlkanesService.getMintProtostone('2:0,2:61');
+// console.log(script.toString('hex'))

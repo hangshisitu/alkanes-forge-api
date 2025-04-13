@@ -34,7 +34,7 @@ export default class MarketListingMapper {
         const { count, rows } = await MarketListing.findAndCountAll({
             attributes: ['id', 'sellerAddress', 'tokenAmount', 'listingPrice', 'listingAmount', 'updatedAt'],
             where: whereClause,
-            order: [order, ["updatedAt", "DESC"]],
+            order: [order, ["updatedAt", "DESC"], ["id", "ASC"]],
             limit: size,
             offset: (page - 1) * size
         });

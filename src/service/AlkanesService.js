@@ -553,17 +553,21 @@ export default class AlkanesService {
         }
     }
 
-    static getMintProtostone(id) {
-        const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(77)];
+    static getMintProtostone(ids) {
+        const idList = ids.split(',');
+        const protostones = [];
+        for (const id of idList) {
+            const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(77)];
+            protostones.push(ProtoStone.message({
+                protocolTag: 1n,
+                pointer: 0,
+                refundPointer: 0,
+                calldata: encipher(calldata),
+            }));
+        }
+
         return encodeRunestoneProtostone({
-            protostones: [
-                ProtoStone.message({
-                    protocolTag: 1n,
-                    pointer: 0,
-                    refundPointer: 0,
-                    calldata: encipher(calldata),
-                }),
-            ],
+            protostones: protostones,
         }).encodedRunestone;
     }
 
