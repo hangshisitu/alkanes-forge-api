@@ -273,7 +273,6 @@ export default class UnisatAPI {
         }
         if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
-            psbt.finalizeAllInputs();
             const tx = psbt.extractTransaction();
             hex_data = tx.toHex();
 
