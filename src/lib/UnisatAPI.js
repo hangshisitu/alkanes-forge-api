@@ -15,7 +15,7 @@ export default class UnisatAPI {
     static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
         const keyPair = AddressUtil.convertKeyPair(privateKey);
         const hex = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
-        return await MempoolUtil.postTx(hex);
+        return await UnisatAPI.unisatPush(hex);
     }
 
     static async createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = false) {

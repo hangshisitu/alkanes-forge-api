@@ -217,7 +217,7 @@ export default class MarketService {
     }
 
     static async putSignedDelisting(signedPsbt) {
-        const txid = await MempoolUtil.postTx(signedPsbt);
+        const txid = await UnisatAPI.unisatPush(signedPsbt);
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         const listingOutputList = [];
@@ -381,7 +381,7 @@ export default class MarketService {
     static async putSignedBuying(signedPsbt) {
         let txid;
         try {
-            txid = await MempoolUtil.postTx(signedPsbt);
+            txid = await UnisatAPI.unisatPush(signedPsbt);
         } catch (err) {
             if (err.message.includes('bad-txns-inputs-missingorspent') || err.message.includes('TX decode failed')) {
                 await MarketService.checkListingSpent(signedPsbt);

@@ -163,7 +163,7 @@ router
     .post('/broadcast', async ctx => {
         try {
             const params = ctx.request.body;
-            const txid = await MempoolUtil.postTx(params.psbt);
+            const txid = await UnisatAPI.unisatPush(params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

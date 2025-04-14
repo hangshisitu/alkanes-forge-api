@@ -321,7 +321,7 @@ export default class AlkanesService {
     }
 
     static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
-        const txid = await MempoolUtil.postTx(psbt);
+        const txid = await UnisatAPI.unisatPush(psbt);
 
         const protostone = AlkanesService.getMintProtostone(id);
 
