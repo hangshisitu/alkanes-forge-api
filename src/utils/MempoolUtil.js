@@ -1,6 +1,7 @@
 import mempoolJS from "@mempool/mempool.js";
 import config, {network} from '../conf/config.js'
 import axios from "axios";
+import PsbtUtil from "./PsbtUtil.js";
 
 const mempoolHost = config['mempoolHost'];
 const strNetwork = network.bech32 === 'tb' ? 'testnet' : 'bitcoin'
@@ -40,12 +41,28 @@ export default class MempoolUtil {
         return balanceInfo;
     }
 
-    static async getUtxoByAddress(address) {
+    static async getUtxoByAddress(address, confirmed = false) {
         const start = new Date().getTime()
         const utxoList = await addresses.getAddressTxsUtxo({address});
         const end = new Date().getTime()
         console.info(`getUtxoByAddress address: ${address} cost: ${end - start}ms`)
-        return utxoList;
+
+        let filteredUtxoList = utxoList;
+        if (confirmed) {
+            filteredUtxoList = utxoList.filter(utxo => utxo.status.confirmed);
+        }
+
+        filteredUtxoList.sort((a, b) => b.value - a.value);
+        return filteredUtxoList.map(utxo => {
+            return {
+                txid: utxo.txid,
+                vout: utxo.vout,
+                value: utxo.value,
+                address: address,
+                height: utxo.status.block_height,
+                status: utxo.status.confirmed
+            }
+        });
     }
 
 
@@ -156,18 +173,25 @@ export default class MempoolUtil {
         return feeRate;
     }
 
-    static async postTx(hex, txid) {
+    static async postTx(hex) {
+        const txInfo = PsbtUtil.convertPsbtHex(hex);
         let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
-                return await transactions.postTx({ txhex: hex });
+                const response = await axios.post(`https://idclub.mempool.space/api/tx`, txInfo.hex, {
+                    headers: {
+                        'Content-Type': 'text/plain',
+                    },
+                    timeout: 10000
+                });
+                return response.data;
             } catch (err) {
                 if (err.message.includes('Transaction already in block chain')) {
-                    return txid;
+                    return txInfo.txid;
                 }
 
                 lastError = err.message;
-                console.error(`tx push error, hex: ${hex}`, err.message);
+                console.error(`tx push error, hex: ${txInfo.hex}`, err.message);
                 await new Promise((resolve) => setTimeout(resolve, 500));
             }
         }

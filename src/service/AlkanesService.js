@@ -151,7 +151,7 @@ export default class AlkanesService {
 
     static async getAlkanesUtxoById(address, id, maxHeight) {
         try {
-            const utxoList = await UnisatAPI.getUtxoList(address, true, 1, 1000);
+            const utxoList = await MempoolUtil.getUtxoByAddress(address, true);
             if (!utxoList || utxoList.length === 0) {
                 return [];
             }
