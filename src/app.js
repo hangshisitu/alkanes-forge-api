@@ -396,17 +396,17 @@ router
     })
     .post('/market/createUnsignedBuying', async ctx => {
         try {
-            // const params = ctx.request.body;
-            // const result = await MarketService.createUnsignedBuying(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.feerate);
-            // ctx.body = {
-            //     'code': 0,
-            //     'msg': 'ok',
-            //     'data': result
-            // }
+            const params = ctx.request.body;
+            const result = await MarketService.createUnsignedBuying(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.feerate);
             ctx.body = {
-                'code': 1,
-                'msg': 'Sandshrew RPC is down, cannot list for now, price overflow, purchase suspended.'
+                'code': 0,
+                'msg': 'ok',
+                'data': result
             }
+            // ctx.body = {
+            //     'code': 1,
+            //     'msg': 'Sandshrew RPC is down, cannot list for now, price overflow, purchase suspended.'
+            // }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
