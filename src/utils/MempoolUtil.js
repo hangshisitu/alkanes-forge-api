@@ -114,7 +114,7 @@ export default class MempoolUtil {
         const start = Date.now()
         const txStatus = await transactions.getTxStatus({txid});
         console.info(`getTxStatus  txId: ${txid} ${JSON.stringify(txStatus)} cost: ${Date.now() - start}ms`)
-        return txStatus;
+        return txStatus.confirmed;
     }
 
     static async getTxStatusEx(txid) {
@@ -154,6 +154,24 @@ export default class MempoolUtil {
         const feeRate = await fees.getFeesRecommended();
         console.info(`getFeesRecommended feeRate: ${JSON.stringify(feeRate)} cost: ${Date.now() - start}ms`)
         return feeRate;
+    }
+
+    static async postTx(hex, txid) {
+        let lastError = '';
+        for (let i = 0; i < 3; i++) {
+            try {
+                return await transactions.postTx({ txhex: hex });
+            } catch (err) {
+                if (err.message.includes('Transaction already in block chain')) {
+                    return txid;
+                }
+
+                lastError = err.message;
+                console.error(`tx push error, hex: ${hex}`, err.message);
+                await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+        }
+        throw new Error(`tx push error: ${lastError}`);
     }
 
     static async getMempoolRecent() {

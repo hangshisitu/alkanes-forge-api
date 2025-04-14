@@ -48,8 +48,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // console.log(alkanes);
 
 //查询地址下余额信息
-const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pv8k5hykqmssuvgq4txp5es4ddvswrcwpaxjzrppalfq44dyndx6s2chkx8');
-console.log(alkanesList);
+// const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pv8k5hykqmssuvgq4txp5es4ddvswrcwpaxjzrppalfq44dyndx6s2chkx8');
+// console.log(alkanesList);
 
 // 查询持有代币的utxo列表
 // const alkanesList = await AlkanesService.getAlkanesByTarget('bc1qxd530rj275mwrh7sdtvqw5zg7kdhjgluv33cqf', '2:28', 5 * 100000000 * 1e8);
@@ -59,8 +59,8 @@ console.log(alkanesList);
 // const alkanesList = await AlkanesService.getAlkanesByUtxo({txid: 'b0088ab54452c4f25542cf1bcb33b056ca5d8a04a492ee95b9f0c51c5ce55007', vout: 0});
 // console.log(alkanesList);
 
-// const balanceInfo = await BaseService.getBalance('bc1qj33vexl9gujueg40efh7s27df32thnxnw9pdc2');
-// console.log(balanceInfo);
+const balanceInfo = await BaseService.getBalanceByMempool('bc1qema49xtppluxx46gx5ufpuajt3h5aagztkayvs');
+console.log(balanceInfo);
 
 // const script = AlkanesService.getMintProtostone('2:0,2:61');
 // console.log(script.toString('hex'))

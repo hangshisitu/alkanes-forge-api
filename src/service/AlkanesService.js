@@ -13,6 +13,7 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import FeeUtil from "../utils/FeeUtil.js";
 import {Constants} from "../conf/constants.js";
+import MempoolUtil from "../utils/MempoolUtil.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -320,7 +321,7 @@ export default class AlkanesService {
     }
 
     static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
-        const txid = await UnisatAPI.unisatPush(psbt);
+        const txid = await MempoolUtil.postTx(psbt);
 
         const protostone = AlkanesService.getMintProtostone(id);
 

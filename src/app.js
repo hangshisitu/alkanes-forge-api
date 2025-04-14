@@ -12,6 +12,7 @@ import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import BaseService from "./service/BaseService.js";
+import MempoolUtil from "./utils/MempoolUtil.js";
 
 const app = new Koa();
 const router = new Router();
@@ -158,7 +159,7 @@ router
     .post('/broadcast', async ctx => {
         try {
             const params = ctx.request.body;
-            const txid = await UnisatAPI.unisatPush(params.psbt);
+            const txid = await MempoolUtil.postTx(params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -208,7 +209,7 @@ router
     .post('/balance', async ctx => {
         try {
             const params = ctx.request.body;
-            const balance = await BaseService.getBalance(params.address);
+            const balance = await BaseService.getBalanceByMempool(params.address);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

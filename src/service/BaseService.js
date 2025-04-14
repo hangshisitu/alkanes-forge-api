@@ -33,10 +33,11 @@ export default class BaseService {
 
     static async getBalanceByMempool(address) {
         const balanceInfo = await MempoolUtil.getAddress(address);
-        return {
-            confirmed: balanceInfo.chain_stats.funded_txo_sum,
-            pending: balanceInfo.mempool_stats.funded_txo_sum,
-            total: balanceInfo.chain_stats.funded_txo_sum + balanceInfo.mempool_stats.funded_txo_sum,
+        const balance =  {
+            confirmed: balanceInfo.chain_stats.funded_txo_sum - balanceInfo.chain_stats.spent_txo_sum,
+            pending: balanceInfo.mempool_stats.funded_txo_sum - balanceInfo.mempool_stats.spent_txo_sum
         }
+        balance.total = balance.confirmed + balance.pending;
+        return balance;
     }
 }

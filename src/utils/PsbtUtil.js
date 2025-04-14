@@ -169,5 +169,26 @@ export default class PsbtUtil {
         return bitcoin.Psbt.fromHex(psbt);
     }
 
+    static convertPsbtHex(hex_data) {
+        let txid;
+        if (hex_data.startsWith('cH')) {
+            const psbt = bitcoin.Psbt.fromBase64(hex_data);
+            psbt.finalizeAllInputs();
+            hex_data = psbt.toHex();
+
+            txid = psbt.extractTransaction().getId();
+        }
+        if (hex_data.startsWith('7073')) {
+            const psbt = bitcoin.Psbt.fromHex(hex_data);
+            const tx = psbt.extractTransaction();
+            hex_data = tx.toHex();
+
+            txid = psbt.extractTransaction().getId();
+        }
+        return {
+            txid,
+            hex: hex_data
+        }
+    }
 }
 

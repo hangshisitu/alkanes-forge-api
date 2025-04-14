@@ -4,6 +4,8 @@ import * as psbtUtils from "bitcoinjs-lib/src/psbt/psbtutils.js";
 import axios from "axios";
 import FeeUtil from "../utils/FeeUtil.js";
 import AddressUtil from "./AddressUtil.js";
+import PsbtUtil from "../utils/PsbtUtil.js";
+import MempoolUtil from "../utils/MempoolUtil.js";
 
 export default class UnisatAPI {
 
@@ -13,7 +15,7 @@ export default class UnisatAPI {
     static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
         const keyPair = AddressUtil.convertKeyPair(privateKey);
         const hex = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
-        return await this.unisatPush(hex);
+        return await MempoolUtil.postTx(hex);
     }
 
     static async createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = false) {
@@ -187,7 +189,7 @@ export default class UnisatAPI {
                 for (const utxo of utxoArray) {
                     let status = true;
                     if (confirmed && utxo.height > 1000000) {
-                        status = await this.checkConfirm(utxo.txid);
+                        status = await MempoolUtil.getTxStatus(utxo.txid);
                         if (!status) {
                             console.log(`${address} utxo ${utxo.txid}:${utxo.vout} is unconfirmed`)
                         }
@@ -263,27 +265,15 @@ export default class UnisatAPI {
     }
 
     static async unisatPush(hex_data) {
-        let txid;
-        if (hex_data.startsWith('cH')) {
-            const psbt = bitcoin.Psbt.fromBase64(hex_data);
-            psbt.finalizeAllInputs();
-            hex_data = psbt.toHex();
-
-            txid = psbt.extractTransaction().getId();
-        }
-        if (hex_data.startsWith('7073')) {
-            const psbt = bitcoin.Psbt.fromHex(hex_data);
-            const tx = psbt.extractTransaction();
-            hex_data = tx.toHex();
-
-            txid = psbt.extractTransaction().getId();
-        }
+        const txInfo = PsbtUtil.convertPsbtHex(hex_data);
+        let txid = txInfo.txid;
+        const hex = txInfo.hex;
 
         let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
                 const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
-                    txHex: hex_data
+                    txHex: hex
                 }, {
                     headers: {
                         'Authorization': `Bearer ${this.unisatToken}`,
