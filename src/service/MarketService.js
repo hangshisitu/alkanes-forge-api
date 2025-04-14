@@ -77,6 +77,9 @@ export default class MarketService {
             const sellerAmount = originalPsbt.txOutputs[i].value;
 
             const alkanes = await MarketService.checkAlkanes(sellerInput, maxHeight);
+            if (alkanes.value < 1) {
+                throw new Error('Not found alkanes value.');
+            }
             const tokenAmount = new BigNumber(alkanes.value).div(10 ** 8)
                 .decimalPlaces(8, BigNumber.ROUND_DOWN);
 
