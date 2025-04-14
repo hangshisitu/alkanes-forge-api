@@ -2,6 +2,7 @@ import mempoolJS from "@mempool/mempool.js";
 import config, {network} from '../conf/config.js'
 import axios from "axios";
 import PsbtUtil from "./PsbtUtil.js";
+import UnisatAPI from "../lib/UnisatAPI.js";
 
 const mempoolHost = config['mempoolHost'];
 const strNetwork = network.bech32 === 'tb' ? 'testnet' : 'bitcoin'
@@ -42,27 +43,31 @@ export default class MempoolUtil {
     }
 
     static async getUtxoByAddress(address, confirmed = false) {
-        const start = new Date().getTime()
-        const utxoList = await addresses.getAddressTxsUtxo({address});
-        const end = new Date().getTime()
-        console.info(`getUtxoByAddress address: ${address} cost: ${end - start}ms`)
+        try {
+            const start = new Date().getTime()
+            const utxoList = await addresses.getAddressTxsUtxo({address});
+            const end = new Date().getTime()
+            console.info(`getUtxoByAddress address: ${address} cost: ${end - start}ms`)
 
-        let filteredUtxoList = utxoList;
-        if (confirmed) {
-            filteredUtxoList = utxoList.filter(utxo => utxo.status.confirmed);
-        }
-
-        filteredUtxoList.sort((a, b) => b.value - a.value);
-        return filteredUtxoList.map(utxo => {
-            return {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.value,
-                address: address,
-                height: utxo.status.block_height,
-                status: utxo.status.confirmed
+            let filteredUtxoList = utxoList;
+            if (confirmed) {
+                filteredUtxoList = utxoList.filter(utxo => utxo.status.confirmed);
             }
-        });
+
+            filteredUtxoList.sort((a, b) => b.value - a.value);
+            return filteredUtxoList.map(utxo => {
+                return {
+                    txid: utxo.txid,
+                    vout: utxo.vout,
+                    value: utxo.value,
+                    address: address,
+                    height: utxo.status.block_height,
+                    status: utxo.status.confirmed
+                }
+            });
+        } catch (err) {
+            return UnisatAPI.getAllUtxo(address, confirmed);
+        }
     }
 
 
