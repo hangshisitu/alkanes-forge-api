@@ -169,6 +169,41 @@ export default class PsbtUtil {
         return bitcoin.Psbt.fromHex(psbt);
     }
 
+    static validatePsbtSignatures(psbt) {
+        for (let i = 0; i < psbt.inputCount; i++) {
+            const input = psbt.data.inputs[i];
+
+            // 检查现存签名数据是否存在
+            let isSigned = false;
+
+            // 1. 检查 partialSig（用于 P2PKH、P2SH-P2PKH）
+            if (input.partialSig && input.partialSig.length > 0) {
+                isSigned = true;
+            }
+
+            // 2. 检查 taproot 签名（单签模式 - tapKeySig）
+            if (input.tapKeySig) {
+                isSigned = true;
+            }
+
+            // 3. 检查 taproot 多签（复杂模式 - tapScriptSig）
+            if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+                isSigned = true;
+            }
+
+            // 4. 检查是否有 witness 数据，用于 SegWit v0 类型（如 P2WPKH 或 P2WSH）
+            if (input.witnessUtxo && input.witnessUtxo.script) {
+                isSigned = true;
+            }
+
+            // 如果以上条件均未匹配到有效签名，则认为此输入未签名
+            if (!isSigned) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static convertPsbtHex(hex_data) {
         let txid;
         if (hex_data.startsWith('cH')) {

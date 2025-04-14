@@ -68,6 +68,10 @@ export default class MarketService {
 
     static async putSignedListing(signedPsbt, isUpdate = false) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
+        const isSigned = PsbtUtil.validatePsbtSignatures(originalPsbt);
+        if (!isSigned) {
+            throw new Error('PSBT not properly signed, please try again.');
+        }
 
         const listingList = [];
         const eventList = [];
@@ -383,7 +387,7 @@ export default class MarketService {
         try {
             txid = await UnisatAPI.unisatPush(signedPsbt);
         } catch (err) {
-            if (err.message.includes('bad-txns-inputs-missingorspent') || err.message.includes('TX decode failed')) {
+            if (err.message.includes('bad-txns-inputs-missingorspent') || err.message.includes('TX decode failed') || err.message.includes('txn-mempool-conflict')) {
                 await MarketService.checkListingSpent(signedPsbt);
                 throw new Error('Some items in your order are already purchased or delisted.');
             }
