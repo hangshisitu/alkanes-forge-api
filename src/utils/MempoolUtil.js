@@ -147,13 +147,6 @@ export default class MempoolUtil {
         return resp.data;
     }
 
-    static async postTx(txHex) {
-        const start = Date.now()
-        const txid = await transactions.postTx({txHex})
-        console.info(`postTx  txId: ${txid} cost: ${Date.now() - start}ms`)
-        return txid
-    }
-
     static async postTxEx(txHex) {
         const start = new Date().getTime()
         const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/tx`
@@ -178,19 +171,20 @@ export default class MempoolUtil {
         let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.post(`https://idclub.mempool.space/api/tx`, txInfo.hex, {
-                    headers: {
-                        'Content-Type': 'text/plain',
-                    },
-                    timeout: 10000
-                });
-                return response.data;
+                // const response = await axios.post(`https://idclub.mempool.space/api/tx`, txInfo.hex, {
+                //     headers: {
+                //         'Content-Type': 'text/plain',
+                //     },
+                //     timeout: 10000
+                // });
+                // return response.data;
+                return await transactions.postTx({txhex: hex});
             } catch (err) {
                 if (err.message.includes('Transaction already in block chain')) {
                     return txInfo.txid;
                 }
 
-                lastError = err.message;
+                lastError = err.response?.data || err.message;
                 console.error(`tx push error, hex: ${txInfo.hex}`, err.message);
                 await new Promise((resolve) => setTimeout(resolve, 500));
             }

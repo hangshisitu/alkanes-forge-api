@@ -383,7 +383,7 @@ export default class MarketService {
         try {
             txid = await MempoolUtil.postTx(signedPsbt);
         } catch (err) {
-            if (err.message.includes('bad-txns-inputs-missingorspent')) {
+            if (err.message.includes('bad-txns-inputs-missingorspent') || err.message.includes('TX decode failed')) {
                 await MarketService.checkListingSpent(signedPsbt);
                 throw new Error('Some items in your order are already purchased or delisted.');
             }
