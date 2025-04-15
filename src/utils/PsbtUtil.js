@@ -126,9 +126,9 @@ export default class PsbtUtil {
                 }
             }
         } else if (psbtUtils.isP2SHScript(outScript)) {
-            input.witnessUtxo = { script: outScript, value: input.value };
+            input.witnessUtxo = {script: outScript, value: input.value};
             if (utxo.pubkey) {
-                input.redeemScript = bitcoin.payments.p2wpkh({ network, pubkey: Buffer.from(utxo.pubkey, 'hex') }).output;
+                input.redeemScript = bitcoin.payments.p2wpkh({network, pubkey: Buffer.from(utxo.pubkey, 'hex')}).output;
             }
         } else {
             if (!txHex) {
@@ -169,7 +169,20 @@ export default class PsbtUtil {
         return bitcoin.Psbt.fromHex(psbt);
     }
 
+
     static validatePsbtSignatures(psbt) {
+        for (const input of psbt.data.inputs) {
+            const {tapInternalKey, finalScriptWitness} = input;
+            if (tapInternalKey) {
+                if (!finalScriptWitness || finalScriptWitness.length === 0) {
+                    throw new Error(`Invalid signature - no finalScriptWitness`);
+                }
+                if (finalScriptWitness.toString('hex') === '0141') {
+                    throw new Error(`Invalid signature - no taproot signature present on the finalScriptWitness`);
+                }
+            }
+        }
+
         for (let i = 0; i < psbt.inputCount; i++) {
             const input = psbt.data.inputs[i];
 
@@ -201,7 +214,36 @@ export default class PsbtUtil {
                 return false;
             }
         }
-        return true;
+    }
+
+    static checkInput(input) {
+        // 检查现存签名数据是否存在
+        let isSigned = false;
+
+        // 1. 检查 partialSig（用于 P2PKH、P2SH-P2PKH）
+        if (input.partialSig && input.partialSig.length > 0) {
+            isSigned = true;
+        }
+
+        // 2. 检查 taproot 签名（单签模式 - tapKeySig）
+        if (input.tapKeySig) {
+            isSigned = true;
+        }
+
+        // 3. 检查 taproot 多签（复杂模式 - tapScriptSig）
+        if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+            isSigned = true;
+        }
+
+        // 4. 检查是否有 witness 数据，用于 SegWit v0 类型（如 P2WPKH 或 P2WSH）
+        if (input.witnessUtxo && input.witnessUtxo.script) {
+            isSigned = true;
+        }
+
+        // 如果以上条件均未匹配到有效签名，则认为此输入未签名
+        if (!isSigned) {
+            throw new Error(`Invalid signature`);
+        }
     }
 
     static convertPsbtHex(hex_data) {

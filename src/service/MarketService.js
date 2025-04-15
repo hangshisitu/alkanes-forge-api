@@ -68,17 +68,18 @@ export default class MarketService {
 
     static async putSignedListing(signedPsbt, isUpdate = false) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
-        const isSigned = PsbtUtil.validatePsbtSignatures(originalPsbt);
-        if (!isSigned) {
-            throw new Error('PSBT not properly signed, please try again.');
-        }
+        PsbtUtil.validatePsbtSignatures(originalPsbt);
 
         const listingList = [];
         const eventList = [];
         const maxHeight = await AlkanesService.getMaxHeight();
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
-            const sellerAmount = originalPsbt.txOutputs[i].value;
+            const sellerAmount = originalPsbt.txOutputs[i].value || 0;
+            if (sellerAmount < (2000 - config.market.minimumFee)) {
+                throw new Error('Below the minimum sale amount: 2000 sats');
+            }
+            PsbtUtil.checkInput(originalPsbt.data.inputs[i]);
 
             const alkanes = await MarketService.checkAlkanes(sellerInput, maxHeight);
             if (alkanes.value < 1) {
