@@ -130,7 +130,7 @@ function refreshTokenStats() {
 
 export function jobs() {
     refreshBlockHeight();
-    // refreshTokenInfo();
+    refreshTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
 }
