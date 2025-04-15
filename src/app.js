@@ -104,18 +104,18 @@ router
     })
     .post('/transfer', async ctx => {
         try {
-            // const params = ctx.request.body;
-            // const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
-            //     params.id, params.amount, params.feerate);
-            // ctx.body = {
-            //     'code': 0,
-            //     'msg': 'ok',
-            //     'data': psbt
-            // }
+            const params = ctx.request.body;
+            const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
+                params.id, params.amount, params.feerate);
             ctx.body = {
-                'code': 1,
-                'msg': 'Not supported at the moment, please try again later.'
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
             }
+            // ctx.body = {
+            //     'code': 1,
+            //     'msg': 'Not supported at the moment, please try again later.'
+            // }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
