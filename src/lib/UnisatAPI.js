@@ -272,20 +272,21 @@ export default class UnisatAPI {
         let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
-                    txHex: hex
-                }, {
-                    headers: {
-                        'Authorization': `Bearer ${this.unisatToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 10000
-                });
-                const result = response.data;
-                if (result.code !== 0) {
-                    throw new Error(result.msg);
-                }
-                return result.data;
+                // const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
+                //     txHex: hex
+                // }, {
+                //     headers: {
+                //         'Authorization': `Bearer ${this.unisatToken}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     timeout: 10000
+                // });
+                // const result = response.data;
+                // if (result.code !== 0) {
+                //     throw new Error(result.msg);
+                // }
+                // return result.data;
+                return MempoolUtil.postTx(hex);
             } catch (err) {
                 if (err.message.includes('Transaction already in block chain')) {
                     return txid;

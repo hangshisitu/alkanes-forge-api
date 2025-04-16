@@ -172,29 +172,13 @@ export default class MempoolUtil {
     }
 
     static async postTx(hex) {
-        const txInfo = PsbtUtil.convertPsbtHex(hex);
-        let lastError = '';
-        for (let i = 0; i < 3; i++) {
-            try {
-                // const response = await axios.post(`https://idclub.mempool.space/api/tx`, txInfo.hex, {
-                //     headers: {
-                //         'Content-Type': 'text/plain',
-                //     },
-                //     timeout: 10000
-                // });
-                // return response.data;
-                return await transactions.postTx({txhex: hex});
-            } catch (err) {
-                if (err.message.includes('Transaction already in block chain')) {
-                    return txInfo.txid;
-                }
-
-                lastError = err.response?.data || err.message;
-                console.error(`tx push error, hex: ${txInfo.hex}`, err.message);
-                await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-        }
-        throw new Error(`tx push error: ${lastError}`);
+        const response = await axios.post(`https://idclub.mempool.space/api/tx`, hex, {
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            timeout: 10000
+        });
+        return response.data;
     }
 
     static async getMempoolRecent() {
