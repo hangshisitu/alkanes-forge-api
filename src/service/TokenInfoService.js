@@ -33,20 +33,22 @@ export default class TokenInfoService {
 
         for await (const result of asyncPool(
             config.concurrencyLimit,
-            activeTokens.map(t => t.id),
-            async (tokenId) => {
+            activeTokens,
+            async (token) => {
+                const fieldsToQuery = ['totalSupply', 'minted'];
                 try {
                     const data = await BaseUtil.retryRequest(
-                        () => AlkanesService.getAlkanesById(tokenId),
+                        () => AlkanesService.getAlkanesById(token.id, fieldsToQuery),
                         3, 500
                     );
                     if (data === null) {
-                        failedTokens.push(tokenId);
+                        failedTokens.push(token.id);
+                        return null;
                     }
-                    return data;
+                    return {...token, ...data};
                 } catch (error) {
-                    console.error(`Failed to fetch token ${tokenId}:`, error.message);
-                    failedTokens.push(tokenId);
+                    console.error(`Failed to fetch token ${token.id}:`, error.message);
+                    failedTokens.push(token.id);
                     return null;
                 }
             }
