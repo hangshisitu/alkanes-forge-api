@@ -55,14 +55,10 @@ export default class TokenInfoService {
                         data.premine = 440000 * 1e8;
                     } else if (
                         data.totalSupply !== undefined &&
-                        data.minted !== undefined &&
-                        data.mintAmount !== undefined
+                        data.minted !== undefined
                     ) {
-                        data.premine = data.totalSupply - data.minted * data.mintAmount;
-                    }
-
-                    if (data.minted !== undefined && data.cap !== undefined) {
-                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
+                        data.premine = data.totalSupply - data.minted * token.mintAmount;
+                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, token.cap);
                         data.mintActive = data.progress >= 100 ? 0 : 1;
                     }
 
