@@ -101,7 +101,7 @@ export default class TokenInfoService {
 
         // 5. 查找新token
         const newAlkaneList = [];
-        const maxNewTokensToCheck = 1000;
+        const maxNewTokensToCheck = 1;
         const existingIds = new Set(tokenList.map(t => t.id));
         const activeIds = new Set(alkaneList.map(t => t.id));
 
