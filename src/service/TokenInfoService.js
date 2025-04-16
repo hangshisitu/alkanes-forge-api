@@ -35,7 +35,7 @@ export default class TokenInfoService {
             config.concurrencyLimit,
             activeTokens,
             async (token) => {
-                const fieldsToQuery = ['totalSupply', 'minted'];
+                const fieldsToQuery = ['101', '103'];
                 try {
                     const data = await BaseUtil.retryRequest(
                         () => AlkanesService.getAlkanesById(token.id, fieldsToQuery),
@@ -45,7 +45,29 @@ export default class TokenInfoService {
                         failedTokens.push(token.id);
                         return null;
                     }
-                    return {...token, ...data};
+
+                    // 外部做业务逻辑
+                    // 这里只是示例，可依业务需要再加
+                    if (token.id === '2:0' && data.totalSupply !== undefined) {
+                        data.mintAmount = 3.125 * 1e8;
+                        data.cap = 500000;
+                        data.minted = Math.ceil(data.totalSupply / data.mintAmount);
+                        data.premine = 440000 * 1e8;
+                    } else if (
+                        data.totalSupply !== undefined &&
+                        data.minted !== undefined &&
+                        data.mintAmount !== undefined
+                    ) {
+                        data.premine = data.totalSupply - data.minted * data.mintAmount;
+                    }
+
+                    if (data.minted !== undefined && data.cap !== undefined) {
+                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
+                        data.mintActive = data.progress >= 100 ? 0 : 1;
+                    }
+
+                    // 合并原有字段
+                    return { ...token, ...data };
                 } catch (error) {
                     console.error(`Failed to fetch token ${token.id}:`, error.message);
                     failedTokens.push(token.id);
@@ -66,11 +88,15 @@ export default class TokenInfoService {
         // 4. 确定新token的搜索范围
         let lastIndex = 0;
         if (tokenList.length > 0) {
-            const lastToken = tokenList[tokenList.length - 1];
-            const parts = lastToken.id.split(':');
-            if (parts.length === 2 && !isNaN(parts[1])) {
-                lastIndex = parseInt(parts[1]) + 1;
-            }
+            lastIndex = Math.max(
+                ...tokenList
+                    .map(token => {
+                        const parts = token.id.split(':');
+                        return (parts.length === 2 && !isNaN(parts[1])) ? parseInt(parts[1]) : -1;
+                    })
+                    .filter(n => n >= 0),
+                0 // 防止tokenList为空时Math.max()为-Infinity
+            ) + 1;
         }
 
         // 5. 查找新token
@@ -97,6 +123,19 @@ export default class TokenInfoService {
                 }
 
                 if (alkanes.cap < 1e36) {
+                    if (
+                        alkanes.totalSupply !== undefined &&
+                        alkanes.minted !== undefined &&
+                        alkanes.mintAmount !== undefined
+                    ) {
+                        alkanes.premine = alkanes.totalSupply - alkanes.minted * alkanes.mintAmount;
+                    }
+
+                    if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
+                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, alkanes.cap);
+                        alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
+                    }
+
                     newAlkaneList.push(alkanes);
                     existingIds.add(tokenId);
                 }

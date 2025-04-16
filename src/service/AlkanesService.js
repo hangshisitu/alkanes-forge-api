@@ -39,14 +39,6 @@ const opcodesHRV = [
     'minted',
     'mintAmount'
 ]
-const opcodeMapping = {
-    name: { opcode: '0x01', hrv: 'name' },
-    symbol: { opcode: '0x02', hrv: 'symbol' },
-    totalSupply: { opcode: '0x03', hrv: 'totalSupply' },
-    cap: { opcode: '0x04', hrv: 'cap' },
-    minted: { opcode: '0x05', hrv: 'minted' },
-    mintAmount: { opcode: '0x06', hrv: 'mintAmount' }
-};
 
 export default class AlkanesService {
 
@@ -204,71 +196,50 @@ export default class AlkanesService {
         }
     }
 
-    static async getAlkanesById(id, fields = opcodesHRV) {
-        const tokenInfo = {
-            id: id
-        };
+    static async getAlkanesById(id, opcodesToQuery = opcodes) {
+        const opcodeToHRV = {};
+        opcodes.forEach((opcode, idx) => opcodeToHRV[opcode] = opcodesHRV[idx]);
+        const tokenInfo = { id };
 
-        let hasValidResult = false;
-
-        // 按字段名选出opcode
-        const fieldOpcodeMap = {};
-        const opcodesToQuery = [];
-        for (const field of fields) {
-            const idx = opcodesHRV.indexOf(field);
-            if (idx >= 0) {
-                opcodesToQuery.push(opcodes[idx]);
-                fieldOpcodeMap[opcodes[idx]] = field;
-            }
-        }
         try {
             const opcodeResults = await Promise.all(
                 opcodesToQuery.map(async (opcode) => {
                     try {
                         const result = await AlkanesService.simulate({
-                            target: {block: id.split(':')[0], tx: id.split(':')[1]},
+                            target: { block: id.split(':')[0], tx: id.split(':')[1] },
                             inputs: [opcode],
                         });
                         if (result) {
-                            return { opcode, result };
+                            return {
+                                opcode,
+                                result,
+                                opcodeHRV: opcodeToHRV[opcode],
+                            };
                         }
-                    } catch (error) {}
+                    } catch (error) {
+                        // 可选：log
+                    }
                     return null;
                 })
             );
 
-            // 分析结果，根据opcode回填字段
-            for (const item of opcodeResults) {
-                if (!item) continue;
-                const field = fieldOpcodeMap[item.opcode];
-                if (!field) continue;
-                if (['name', 'symbol'].includes(field)) {
-                    tokenInfo[field] = item.result.string || '';
-                } else {
-                    tokenInfo[field] = Number(item.result.le || 0);
-                }
-                hasValidResult = true;
-            }
+            // 收集返回结果
+            opcodeResults
+                .filter(item => item && item.opcodeHRV)
+                .forEach(({ result, opcodeHRV }) => {
+                    if (['name', 'symbol'].includes(opcodeHRV)) {
+                        tokenInfo[opcodeHRV] = result.string || '';
+                    } else {
+                        tokenInfo[opcodeHRV] = Number(result.le || 0);
+                    }
+                });
 
-            if (hasValidResult) {
-                // 此处和你原有一致
-                if (tokenInfo.name === 'DIESEL') {
-                    tokenInfo.mintAmount = 3.125 * 1e8;
-                    tokenInfo.cap = 500000;
-                    tokenInfo.minted = Math.ceil(tokenInfo.totalSupply / tokenInfo.mintAmount);
-                    tokenInfo.premine = 440000 * 1e8;
-                } else {
-                    tokenInfo.premine = tokenInfo.totalSupply - tokenInfo.minted * tokenInfo.mintAmount;
-                }
+            return tokenInfo;
 
-                tokenInfo.progress = AlkanesService.calculateProgress(tokenInfo.id, tokenInfo.minted, tokenInfo.cap);
-                tokenInfo.mintActive = tokenInfo.progress >= 100 ? 0 : 1;
-                return tokenInfo;
-            }
         } catch (error) {
             console.log(`Get alkanes ${id} error:`, error.message);
+            return null;
         }
-        return null;
     }
 
     static async getAllAlkanes() {
@@ -621,10 +592,7 @@ export default class AlkanesService {
     }
 
     static calculateProgress(id, minted, cap) {
-        minted = Number(minted);
-        cap = Number(cap);
-        if (isNaN(minted) || isNaN(cap) || !cap || cap === 0) return 0;
-
+        if (!cap || cap === 0) return 0;
         const progress = Math.min((minted / cap) * 100, 100);
         if (progress > 100) {
             console.log(`calculate ${id} progress invalid, cap: ${cap} minted: ${minted} error`);
