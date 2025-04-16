@@ -39,8 +39,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-console.log(Buffer.from('d234c46aa04736138cf2300271d1c25747e9b7d1a818c5ef3c36d3cba803b151', 'hex').reverse().toString('hex'))
-console.log(new BigNumber('0x82f79cd9000').toNumber());
+// console.log(Buffer.from('d234c46aa04736138cf2300271d1c25747e9b7d1a818c5ef3c36d3cba803b151', 'hex').reverse().toString('hex'))
+// console.log(new BigNumber('0x82f79cd9000').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
 
 // 查询代币信息
@@ -80,3 +80,4 @@ console.log(new BigNumber('0x82f79cd9000').toNumber());
 
 // const psbt = PsbtUtil.fromPsbt('70736274ff0100520200000001f90a85727cf7386353384200e087a13bf9b06f3ed6a3504535fae3244869a4780100000000ffffffff010463020000000000160014d2ac861232f02f3da1ef7f8c3e2e48921b19e3a5000000000001012b220200000000000022512047dd285f6110fac291cf790e2050ee30f2bee62fd846da90fecfff914f95701101030483000000011720ca6a9036071e61c5f1c2b806e8425d00292647815f8a04f8d638fa91e733cab40000');
 // console.log(psbt.toBase64())
+

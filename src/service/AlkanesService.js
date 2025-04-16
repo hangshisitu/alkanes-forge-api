@@ -144,7 +144,7 @@ export default class AlkanesService {
         }
 
         if (totalBalance.lt(amount)) {
-            throw new Error(`Insufficient alkanes balance: ${totalBalance.dividedBy(1e8).toString(8)} target: ${new BigNumber(amount).dividedBy(10**8).toString(8)}`);
+            throw new Error(`Insufficient alkanes balance: ${totalBalance.dividedBy(1e8).toString(8)} target: ${new BigNumber(amount).dividedBy(10**8).toNumber()}`);
         }
         return alkaneList;
     }
