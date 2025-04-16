@@ -12,7 +12,6 @@ import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import BaseService from "./service/BaseService.js";
-import MempoolUtil from "./utils/MempoolUtil.js";
 
 const app = new Koa();
 const router = new Router();
@@ -105,8 +104,8 @@ router
     .post('/transfer', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress, params.toAddress,
-                params.id, params.amount, params.feerate);
+            const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress,
+                params.id, params.feerate, params.transferList);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

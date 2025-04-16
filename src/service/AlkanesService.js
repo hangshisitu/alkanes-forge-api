@@ -411,36 +411,46 @@ export default class AlkanesService {
         return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
     }
 
-    static async transferToken(fundAddress, fundPublicKey, assetAddress, toAddress, id, amount, feerate, alkanesList) {
-        if (!alkanesList || alkanesList.length === 0) {
-            alkanesList = await AlkanesService.getAlkanesByTarget(assetAddress, id, amount);
+    static async transferToken(fundAddress, fundPublicKey, assetAddress, id, feerate, transferAmountList) {
+        const outputList = [];
+        const transferList = [];
+        let needAmount = new BigNumber(0);
+        for (const [index, transferInfo] of transferAmountList.entries()) {
+            outputList.push({
+                address: transferInfo.address,
+                value: 330
+            });
+
+            const amount = new BigNumber(transferInfo.amount).multipliedBy(1e8);
+            transferList.push({
+                amount: amount.toNumber(),
+                output: index
+            });
+            needAmount = needAmount.plus(amount);
         }
 
-        const outputList = [];
-        outputList.push({
-            address: toAddress,
-            value: 330
-        });
-
+        const alkanesList = await AlkanesService.getAlkanesByTarget(assetAddress, id, needAmount.toNumber());
         const totalInputAmount = alkanesList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-        const changeAmount = totalInputAmount - amount;
-        const transferList = [{amount: amount, output: 0}];
+        const changeAmount = new BigNumber(totalInputAmount).minus(needAmount).toNumber();
+        // 如果有找零，所有转账的输出后移，找零默认到第一个输出
         if (changeAmount > 0) {
-            transferList.push({amount: changeAmount, output: 1});
-            outputList.push({
+            outputList.unshift({
                 address: assetAddress,
                 value: 330
             });
+            transferList.forEach(out => out.output += 1);
         }
+
         const protostone = AlkanesService.getTransferProtostone(id, transferList);
         outputList.push({
             script: protostone,
             value: 0
         });
 
+        const transferFee = 3000 + 500 * (transferAmountList.length - 1);
         outputList.push({
             address: config.platformAddress,
-            value: 3000
+            value: transferFee
         });
 
         const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
@@ -580,7 +590,7 @@ export default class AlkanesService {
                     u128(BigInt(id.split(':')[0])),
                     u128(BigInt(id.split(':')[1]))
                 ),
-                amount: u128(BigInt(transfer.amount)), // 如果是0或者大于输入数量，则得到输入的全部数量；如果小于
+                amount: u128(BigInt(transfer.amount)), // 如果是0或者大于输入数量，则得到输入的全部数量；如果小于则发送全部可用数量
                 output: u32(BigInt(transfer.output)), // 指向接收的output index
             });
         }
