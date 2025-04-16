@@ -86,12 +86,16 @@ router
     })
     .post('/alkanesBalance', async ctx => {
         try {
-            const params = ctx.request.body;
-            const alkanesList = await AlkanesService.getAlkanesByAddress(params.address);
+            // const params = ctx.request.body;
+            // const alkanesList = await AlkanesService.getAlkanesByAddress(params.address);
+            // ctx.body = {
+            //     'code': 0,
+            //     'msg': 'ok',
+            //     'data': alkanesList
+            // }
             ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': alkanesList
+                'code': 1,
+                'msg': 'Not supported at the moment, please try again later.'
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
@@ -103,18 +107,18 @@ router
     })
     .post('/transfer', async ctx => {
         try {
-            const params = ctx.request.body;
-            const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress,
-                params.id, params.feerate, params.transferList);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': psbt
-            }
+            // const params = ctx.request.body;
+            // const psbt = await AlkanesService.transferToken(params.fundAddress, params.fundPublicKey, params.assetAddress,
+            //     params.id, params.feerate, params.transferList);
             // ctx.body = {
-            //     'code': 1,
-            //     'msg': 'Not supported at the moment, please try again later.'
+            //     'code': 0,
+            //     'msg': 'ok',
+            //     'data': psbt
             // }
+            ctx.body = {
+                'code': 1,
+                'msg': 'Not supported at the moment, please try again later.'
+            }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
