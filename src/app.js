@@ -130,12 +130,19 @@ router
     .post('/createMint', async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await AlkanesService.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
-                params.id, params.mints, params.postage, params.feerate);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': psbt
+            if (params.id === '2:19') {
+                ctx.body = {
+                    'code': 1,
+                    'msg': 'Not supported at the moment, please try again later.'
+                }
+            } else {
+                const psbt = await AlkanesService.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
+                    params.id, params.mints, params.postage, params.feerate);
+                ctx.body = {
+                    'code': 0,
+                    'msg': 'ok',
+                    'data': psbt
+                }
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
