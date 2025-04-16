@@ -387,7 +387,11 @@ export default class MarketService {
         try {
             txid = await UnisatAPI.unisatPush(signedPsbt);
         } catch (err) {
-            if (err.message.includes('bad-txns-inputs-missingorspent') || err.message.includes('TX decode failed') || err.message.includes('txn-mempool-conflict')) {
+            if (err.message.includes('bad-txns-inputs-missingorspent')
+                || err.message.includes('TX decode failed')
+                || err.message.includes('txn-mempool-conflict')
+                || err.response?.data?.includes('bad-txns-inputs-missingorspent')
+                || err.response?.data?.includes('txn-mempool-conflict')) {
                 await MarketService.checkListingSpent(signedPsbt);
                 throw new Error('Some items in your order are already purchased or delisted.');
             }
