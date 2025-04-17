@@ -122,7 +122,7 @@ export default class UnisatAPI {
     }
 
     static async getUtxoByTarget(address, amount, feerate, filterConfirmed = false) {
-        const utxoList = await MempoolUtil.getUtxoByAddress(address, filterConfirmed);
+        const utxoList = await UnisatAPI.getAllUtxo(address, filterConfirmed);
         if (utxoList === null || utxoList.length === 0) {
             throw new Error('Insufficient utxo balance');
         }

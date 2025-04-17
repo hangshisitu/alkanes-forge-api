@@ -115,7 +115,7 @@ export default class AlkanesService {
     }
 
     static async getAlkanesByTarget(address, id, amount) {
-        const utxoList = await UnisatAPI.getAllUtxo(address, true);
+        const utxoList = await MempoolUtil.getUtxoByAddress(address, true);
         if (!utxoList || utxoList.length === 0) {
             throw new Error('Insufficient alkanes balance');
         }
