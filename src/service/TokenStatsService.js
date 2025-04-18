@@ -13,7 +13,7 @@ export default class TokenStatsService {
 
         if (timeFrame === Constants.TOKEN_STATS_TIME_FRAME.DAY7) {
             startDate = new Date();
-            startDate.setHours(now.getDate() - 7);
+            startDate.setDate(now.getDate() - 7);
         } else if (timeFrame === Constants.TOKEN_STATS_TIME_FRAME.DAY30) {
             startDate = new Date();
             startDate.setDate(now.getDate() - 30);
