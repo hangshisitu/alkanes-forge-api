@@ -183,6 +183,7 @@ export default class TokenInfoService {
     static async refreshTokenStats() {
         // 定义时间范围的标签和单位，用于遍历处理各时间段的价格变化
         const timeframes = [
+            { label: '24h', interval: 48, unit: 'HOUR', max_interval: 24 },
             { label: '7d', interval: 7, unit: 'DAY' },
             { label: '30d', interval: 30, unit: 'DAY' }
         ];
@@ -230,8 +231,8 @@ export default class TokenInfoService {
                     INNER JOIN (
                         SELECT alkanes_id, MAX(stats_date) AS latestStatsTime
                         FROM token_stats
-                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval + 1} ${timeframe.unit}) 
-                              AND stats_date < DATE_SUB(NOW(), INTERVAL ${timeframe.interval - 1} ${timeframe.unit})
+                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit}) 
+                              AND stats_date < DATE_SUB(NOW(), INTERVAL ${timeframe.max_interval || 0} ${timeframe.unit})
                         GROUP BY alkanes_id
                     ) ts2 ON ts1.alkanes_id = ts2.alkanes_id AND ts1.stats_date = ts2.latestStatsTime;
                 `, { type: QueryTypes.SELECT });
