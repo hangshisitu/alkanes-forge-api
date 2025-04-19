@@ -39,13 +39,13 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-console.log(Buffer.from('c7614ca86088ec0fe8d12295586204d3f6df71b0633466335a13c18332c617d3', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('c7614ca86088ec0fe8d12295586204d3f6df71b0633466335a13c18332c617d3', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0x82f79cd9000').toNumber());
 // console.log(new BigNumber('0x20c85580').toNumber());
 
 // 查询代币信息
-// const alkanes = await AlkanesService.getAlkanesById('2:19');
-// console.log(alkanes);
+const alkanes = await AlkanesService.getAlkanesById('2:61', ['101', '103']);
+console.log(alkanes);
 
 //查询地址下余额信息
 // const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pg4czeatqpvzyrw5ekw7ryq2a6j7x2y0xz9yxuj4c2dq6gm0j0r7sqaevy9');
