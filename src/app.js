@@ -86,17 +86,17 @@ router
     })
     .post('/alkanesBalance', async ctx => {
         try {
-            const params = ctx.request.body;
-            const alkanesList = await AlkanesService.getAlkanesByAddress(params.address);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': alkanesList
-            }
+            // const params = ctx.request.body;
+            // const alkanesList = await AlkanesService.getAlkanesByAddress(params.address);
             // ctx.body = {
-            //     'code': 1,
-            //     'msg': 'Waiting for RPC to complete synchronization, please be patient.'
+            //     'code': 0,
+            //     'msg': 'ok',
+            //     'data': alkanesList
             // }
+            ctx.body = {
+                'code': 1,
+                'msg': 'Waiting for RPC to complete synchronization, please be patient.'
+            }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
             ctx.body = {
