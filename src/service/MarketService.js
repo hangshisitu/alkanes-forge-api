@@ -452,7 +452,7 @@ export default class MarketService {
     }
 
     static async checkAlkanes(utxo, maxHeight) {
-        const alkanesList = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight);
+        const alkanesList = await AlkanesService.getAlkanesByUtxo(utxo, maxHeight, config.alkanesUrl);
         if (alkanesList === null || alkanesList.length < 1) {
             throw new Error('No Alkanes assets found');
         }

@@ -42,7 +42,7 @@ const opcodesHRV = [
 
 export default class AlkanesService {
 
-    static async getAlkanesByUtxo(utxo, maxHeight = 0) {
+    static async getAlkanesByUtxo(utxo, maxHeight = 0, alkanesUrl = config.alkanesUtxoUrl) {
         if (utxo.height < 880000) {
             return [];
         }
