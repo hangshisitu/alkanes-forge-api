@@ -70,6 +70,55 @@ export default class AlkanesService {
         }
     }
 
+    static async getAlkanesUtxoByAddress(address, alkanesId, maxHeight = 0) {
+        const result = await AlkanesService._call('alkanes_protorunesbyaddress', [
+            {
+                address: address,
+                protocolTag: '1'
+            },
+            maxHeight
+        ], config.alkanesAddressUrl);
+
+        const utxoList = [];
+        for (const outpoint of result.outpoints) {
+            if (outpoint.runes.length > 1) {
+                continue;
+            }
+
+            const rune = outpoint.runes[0];
+            const balance = new BigNumber(rune.balance);
+            if (new BigNumber(rune.balance).lt(0)) {
+                continue;
+            }
+
+            const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
+            if (alkanesId && alkanesId !== id) {
+                continue;
+            }
+
+            const txid = Buffer.from(outpoint.outpoint.txid, 'hex').reverse().toString('hex');
+            const spendInfo = await MempoolUtil.getTxOutspend(txid, outpoint.outpoint.vout);
+            if (spendInfo.spent) {
+                continue;
+            }
+
+            utxoList.push({
+                address: address,
+                txid: txid,
+                vout: outpoint.outpoint.vout,
+                value: outpoint.output.value,
+                alkanesId: id,
+                name: rune.rune.name,
+                symbol: rune.rune.symbol,
+                tokenAmount: balance.dividedBy(10 ** 8).toFixed()
+            })
+        }
+
+
+
+        return utxoList;
+    }
+
     static async getAlkanesByAddress(address) {
         const result = await AlkanesService._call('alkanes_protorunesbyaddress', [
             {

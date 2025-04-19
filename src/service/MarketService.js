@@ -16,7 +16,7 @@ export default class MarketService {
 
     static async assets(alkanesId, assetAddress) {
         const maxHeight = await AlkanesService.getMaxHeight();
-        const alkanesList = await AlkanesService.getAlkanesUtxoById(assetAddress, alkanesId, maxHeight);
+        const alkanesList = await AlkanesService.getAlkanesUtxoByAddress(assetAddress, alkanesId, maxHeight);
         const listingList = await MarketListingMapper.getUserListing(assetAddress, alkanesId);
 
         const listingOutputs = new Set(listingList.map(listing => listing.listingOutput));
