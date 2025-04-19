@@ -1,7 +1,12 @@
 import MarketListing from "../models/MarkeListing.js";
 import {Constants} from "../conf/constants.js";
+import * as RedisHelper from "../lib/RedisHelper.js";
 
 export default class MarketListingMapper {
+
+    static getListingCacheKey(alkanesId, sellerAddress, page, size, orderType) {
+        return `listings:${alkanesId}:${sellerAddress || 'all'}:${page}:${size}:${orderType}`;
+    }
 
     /**
      * 分页查询交易数据
@@ -13,6 +18,13 @@ export default class MarketListingMapper {
      * @returns {Promise<{total: *, pages: number, size, records: *, page}>}
      */
     static async getAllListing(alkanesId, sellerAddress, page, size, orderType) {
+        const cacheKey = MarketListingMapper.getListingCacheKey(alkanesId, sellerAddress, page, size, orderType);
+        // 查缓存
+        const cacheData = await RedisHelper.get(cacheKey);
+        if (cacheData) {
+            return JSON.parse(cacheData);
+        }
+
         const whereClause = {
             alkanesId: alkanesId,
             status: Constants.LISTING_STATUS.LIST
@@ -39,13 +51,17 @@ export default class MarketListingMapper {
             offset: (page - 1) * size
         });
 
-        return {
+        const result = {
             page,
             size,
             total: count,
             pages: Math.ceil(count / size),
             records: rows,
         };
+
+        // 写缓存，3秒有效期
+        await RedisHelper.setEx(cacheKey, 3, JSON.stringify(result));
+        return result;
     }
 
     static async getUserListing(sellerAddress, alkanesId) {

@@ -2,8 +2,13 @@ import TokenInfo from '../models/TokenInfo.js';
 import Sequelize, {Op, QueryTypes} from "sequelize";
 import sequelize from "../lib/SequelizeHelper.js";
 import {Constants} from "../conf/constants.js";
+import * as RedisHelper from "../lib/RedisHelper.js";
 
 export default class TokenInfoMapper {
+
+    static getTokenPageCacheKey(name, mintActive, orderType, page, size) {
+        return `tokenPage:${encodeURIComponent(name||'')}:${String(mintActive)}:${orderType}:${page}:${size}`;
+    }
 
     static async getAllTokens(mintActive = null) {
         const whereClause = {};
@@ -19,7 +24,14 @@ export default class TokenInfoMapper {
         });
     }
 
-    static async findTokenPage(name, mintActive, oderType, page, size) {
+    static async findTokenPage(name, mintActive, orderType, page, size) {
+        const cacheKey = TokenInfoMapper.getTokenPageCacheKey(name, mintActive, orderType, page, size);
+        // 查缓存
+        const cacheData = await RedisHelper.get(cacheKey);
+        if (cacheData) {
+            return JSON.parse(cacheData);
+        }
+
         const whereClause = {};
 
         if (name) {
@@ -45,7 +57,7 @@ export default class TokenInfoMapper {
         };
 
         // 根据不同的排序类型设置排序条件
-        switch (oderType) {
+        switch (orderType) {
             // 进度排序
             case ORDER_TYPE.PROGRESS_DESC:
                 order.push(['progress', 'DESC']);
@@ -203,13 +215,17 @@ export default class TokenInfoMapper {
             offset: (page - 1) * size
         });
 
-        return {
+        const result = {
             page,
             size,
             total: count,
             pages: Math.ceil(count / size),
             records: rows,
         };
+
+        // 写缓存，10秒有效期
+        await RedisHelper.setEx(cacheKey, 10, JSON.stringify(result));
+        return result;
     }
 
     static async getById(id) {

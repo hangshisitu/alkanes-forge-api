@@ -2,10 +2,21 @@ import MarketEvent from "../models/MarkeEvent.js";
 import {Op, QueryTypes} from "sequelize";
 import {Constants} from "../conf/constants.js";
 import sequelize from "../lib/SequelizeHelper.js";
+import * as RedisHelper from "../lib/RedisHelper.js";
 
 export default class MarketEventMapper {
 
+    static getEventCacheKey(alkanesId, type, page, size) {
+        return `events:${alkanesId}:${type}:${page}:${size}`;
+    }
+
     static async getAllEvents(alkanesId, type, address, page, size) {
+        const cacheKey = MarketEventMapper.getEventCacheKey(alkanesId, type, page, size);
+        const cacheData = await RedisHelper.get(cacheKey);
+        if (cacheData) {
+            return JSON.parse(cacheData);
+        }
+
         const whereClause = {
             alkanesId: alkanesId
         };
@@ -32,13 +43,17 @@ export default class MarketEventMapper {
             offset: (page - 1) * size
         });
 
-        return {
+        const result = {
             page,
             size,
             total: count,
             pages: Math.ceil(count / size),
             records: rows,
         };
+
+        // 写缓存，10秒有效期
+        await RedisHelper.setEx(cacheKey, 10, JSON.stringify(result));
+        return result;
     }
 
     /**
