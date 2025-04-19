@@ -56,7 +56,7 @@ export default class AlkanesService {
                     vout: utxo.vout,
                     protocolTag: '1',
                 },
-            ], config.alkanesPublicUrl)
+            ], config.alkanesUtxoUrl)
 
             return alkaneList.map((alkane) => ({
                 id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
@@ -76,7 +76,7 @@ export default class AlkanesService {
                 address: address,
                 protocolTag: '1'
             }
-        ], config.alkanesPublicUrl);
+        ], config.alkanesAddressUrl);
 
         const outpoints = result.outpoints;
 
@@ -156,6 +156,7 @@ export default class AlkanesService {
                 return [];
             }
 
+            const errors = [];
             const alkaneList = [];
             // 使用 asyncPool 对 utxoList 进行并发处理
             for await (const result of asyncPool(
@@ -180,6 +181,7 @@ export default class AlkanesService {
                             }));
                     } catch (error) {
                         console.error(`Failed to process utxo ${utxo.txid}:`, error.message);
+                        errors.push(`${utxo.txid}:${utxo.vout}`);
                         return null;
                     }
                 }
@@ -187,6 +189,10 @@ export default class AlkanesService {
                 if (result !== null) {
                     alkaneList.push(...result);
                 }
+            }
+
+            if (errors.length > 0) {
+                throw new Error('check utxo balance error');
             }
 
             return alkaneList;
@@ -466,7 +472,7 @@ export default class AlkanesService {
         return AlkanesService.parseSimulateReturn(data);
     }
 
-    static async metashrewHeight(alkanesUrl = config.alkanesPublicUrl) {
+    static async metashrewHeight(alkanesUrl = config.alkanesUrl) {
         for (let i = 0; i < 3; i++) {
             try {
                 let blockHeight = await AlkanesService._call('metashrew_height', [], alkanesUrl);

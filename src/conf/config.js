@@ -8,7 +8,7 @@ import DateUtil from "../utils/DateUtil.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const env = process.env.NODE_ENV || 'dev';
+const env = process.env.NODE_ENV || 'm';
 const configPath = `${__dirname}/config.${env}.json`;
 console.log(`config load, ${env} ---- ${configPath}`);
 
