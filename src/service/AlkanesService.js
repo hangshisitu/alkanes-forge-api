@@ -173,7 +173,7 @@ export default class AlkanesService {
         let totalBalance = new BigNumber(0);
         try {
             for (const utxo of utxoList) {
-                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, 0);
+                const alkanes = await AlkanesService.getAlkanesByUtxo(utxo, 0, config.alkanesUrl);
                 for (const alkane of alkanes) {
                     if (alkane.id !== id) {
                         continue;
@@ -387,39 +387,7 @@ export default class AlkanesService {
     }
 
     static async deployToken(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate) {
-        const calldata = [
-            BigInt(6),
-            BigInt(797), // free_mint.wasm contract
-            BigInt(0),
-            BigInt(new BigNumber(premine).multipliedBy(1e8).toFixed()),
-            BigInt(new BigNumber(perMint).multipliedBy(1e8).toFixed()),
-            BigInt(cap),
-            BigInt(
-                '0x' +
-                Buffer.from(name.split('').reverse().join('')).toString('hex')
-                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
-            ),
-            BigInt(0),
-        ]
-        if (symbol) {
-            calldata.push(BigInt(
-                '0x' +
-                Buffer.from(symbol.split('').reverse().join('')).toString('hex')
-                // Buffer.from(Array.from(Buffer.from(symbol, 'utf8')).reverse()).toString('hex')
-            ))
-        }
-
-        const protostone = encodeRunestoneProtostone({
-            protostones: [
-                ProtoStone.message({
-                    protocolTag: 1n,
-                    edicts: [],
-                    pointer: 0,
-                    refundPointer: 0,
-                    calldata: encipher(calldata),
-                }),
-            ],
-        }).encodedRunestone;
+        const protostone = AlkanesService.getDeployProtostone(name, symbol, cap, premine, perMint);
 
         const outputList = [];
         outputList.push({
@@ -635,6 +603,42 @@ export default class AlkanesService {
                     pointer: 0, // 如果存在剩余的代币数量，会转到这里指定的output index
                     refundPointer: 0,
                     calldata: Buffer.from([]),
+                }),
+            ],
+        }).encodedRunestone;
+    }
+
+    static getDeployProtostone(name, symbol, cap, premine, perMint) {
+        const calldata = [
+            BigInt(6),
+            BigInt(797), // free_mint.wasm contract
+            BigInt(0),
+            BigInt(new BigNumber(premine).multipliedBy(1e8).toFixed()),
+            BigInt(new BigNumber(perMint).multipliedBy(1e8).toFixed()),
+            BigInt(cap),
+            BigInt(
+                '0x' +
+                Buffer.from(name.split('').reverse().join('')).toString('hex')
+                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
+            ),
+            BigInt(0),
+        ]
+        if (symbol) {
+            calldata.push(BigInt(
+                '0x' +
+                Buffer.from(symbol.split('').reverse().join('')).toString('hex')
+                // Buffer.from(Array.from(Buffer.from(symbol, 'utf8')).reverse()).toString('hex')
+            ))
+        }
+
+        return encodeRunestoneProtostone({
+            protostones: [
+                ProtoStone.message({
+                    protocolTag: 1n,
+                    edicts: [],
+                    pointer: 0,
+                    refundPointer: 0,
+                    calldata: encipher(calldata),
                 }),
             ],
         }).encodedRunestone;
