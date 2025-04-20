@@ -288,12 +288,12 @@ export default class UnisatAPI {
                 // return result.data;
                 return MempoolUtil.postTx(hex);
             } catch (err) {
-                if (err.message.includes('Transaction already in block chain')) {
+                lastError = err.response?.data || err.message;
+                if (lastError.includes('Transaction already in block chain')) {
                     return txid;
                 }
 
-                lastError = err.message;
-                console.error(`tx push error, hex: ${hex_data}`, err.message);
+                console.error(`tx push error, hex: ${hex_data}`, lastError);
                 await new Promise((resolve) => setTimeout(resolve, 500));
             }
         }

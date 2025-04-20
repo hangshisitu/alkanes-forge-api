@@ -150,12 +150,19 @@ export default class MarketService {
             throw new Error('Not found listing, Please refresh and retry.');
         }
 
+        const failedList = [];
         const signingIndexes = [];
         const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
         for (const [index, listing] of existListingList.entries()) {
             const originalPsbt = PsbtUtil.fromPsbt(listing.psbtData);
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
             sellerInput.pubkey = assetPublicKey;
+
+            const alkanes = await MarketService.checkAlkanes(sellerInput, 0);
+            if (alkanes.value < 1) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
 
             const vin = await PsbtUtil.utxo2PsbtInputEx(sellerInput);
             vin.sighashType = bitcoin.Transaction.SIGHASH_SINGLE | bitcoin.Transaction.SIGHASH_ANYONECANPAY;
@@ -176,6 +183,11 @@ export default class MarketService {
             signingIndexes.push(index);
         }
 
+        if (failedList.length > 1) {
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '');
+            throw new Error('The assets have been transferred, please refresh and try again.');
+        }
+
         return {
             hex: psbt.toHex(),
             base64: psbt.toBase64(),
@@ -192,12 +204,25 @@ export default class MarketService {
             throw new Error('Not found listing, Please refresh and retry.');
         }
 
+        const failedList = [];
         const inputList = [];
         for (const listing of listingList) {
             const originalPsbt = PsbtUtil.fromPsbt(listing.psbtData);
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
+
+            const alkanes = await MarketService.checkAlkanes(sellerInput, 0);
+            if (alkanes.value < 1) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
+
             sellerInput.pubkey = assetPublicKey;
             inputList.push(sellerInput);
+        }
+
+        if (failedList.length > 1) {
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '');
+            throw new Error('The assets have been transferred, please refresh and try again.');
         }
 
         const outputList = [];
