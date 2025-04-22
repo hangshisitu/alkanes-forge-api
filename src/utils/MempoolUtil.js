@@ -172,13 +172,19 @@ export default class MempoolUtil {
     }
 
     static async postTx(hex) {
-        const response = await axios.post(`https://idclub.mempool.space/api/tx`, hex, {
-            headers: {
-                'Content-Type': 'text/plain',
-            },
-            timeout: 10000
-        });
-        return response.data;
+        try {
+            const response = await axios.post(`https://idclub.mempool.space/api/tx`, hex, {
+                headers: {
+                    'Content-Type': 'text/plain',
+                },
+                timeout: 10000
+            });
+            return response.data;
+        } catch (err) {
+            const errMessage = err.response?.data || err.message;
+            console.log(`mempool post tx error, hex: ${hex} error: ${errMessage}`);
+            throw new Error(errMessage);
+        }
     }
 
     static async getMempoolRecent() {

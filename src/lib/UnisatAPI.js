@@ -288,7 +288,7 @@ export default class UnisatAPI {
                 // return result.data;
                 return MempoolUtil.postTx(hex);
             } catch (err) {
-                lastError = err.response?.data || err.message;
+                lastError = err.message;
                 if (lastError.includes('Transaction already in block chain')) {
                     return txid;
                 }
