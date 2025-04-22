@@ -114,8 +114,6 @@ export default class AlkanesService {
             })
         }
 
-
-
         return utxoList;
     }
 
@@ -340,7 +338,7 @@ export default class AlkanesService {
         // 手续费
         const serviceFee = Math.max(Math.min(300 * mints, 5000), 1000);
         fundOutputList.push({
-            address: config.platformAddress,
+            address: config.revenueAddress.inscribe,
             value: serviceFee
         });
         let transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
@@ -399,7 +397,7 @@ export default class AlkanesService {
             value: 0
         });
         outputList.push({
-            address: config.platformAddress,
+            address: config.revenueAddress.inscribe,
             value: 3000
         });
 
@@ -449,7 +447,7 @@ export default class AlkanesService {
 
         const transferFee = 3000 + 500 * (transferAmountList.length - 1);
         outputList.push({
-            address: config.platformAddress,
+            address: config.revenueAddress.transfer,
             value: transferFee
         });
 

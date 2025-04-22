@@ -304,7 +304,7 @@ export default class MarketService {
         // 输入: dummyCount + 出售地址 + 1付款
         const inputAddresses = [...sellerAddressList, {address: fundAddress}];
         // 输出: 1合并dummy + 1接收地址 + 收款地址 +1转账脚本 +1手续费 + dummyCount + 1找零
-        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.market.platformAddress}, {address: fundAddress}];
+        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.revenueAddress.market}, {address: fundAddress}];
         let txFee = Math.ceil(FeeUtil.estTxSize(inputAddresses, outputAddresses) * feerate);
 
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
@@ -381,7 +381,7 @@ export default class MarketService {
 
         // 平台手续费
         buyingPsbt.addOutput({
-            address: config.market.platformAddress,
+            address: config.revenueAddress.market,
             value: totalMakerFee + totalTakerFee
         });
         totalOutputValue += totalMakerFee + totalTakerFee;

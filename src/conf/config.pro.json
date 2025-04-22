@@ -5,7 +5,6 @@
   "alkanesAddressUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "alkanesUtxoUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "concurrencyLimit": 10,
-  "platformAddress": "bc1qshazlzjwhvtjyh4xg7gpalan4yp33c3ee42ext",
   "network": "mainnet",
   "maxHeightGap": 2,
   "database": {
@@ -19,7 +18,11 @@
     "makerFee": 10,
     "takerFee": 20,
     "minimumFee": 333,
-    "postage": 546,
-    "platformAddress": "bc1qj33vexl9gujueg40efh7s27df32thnxnw9pdc2"
+    "postage": 546
+  },
+  "revenueAddress": {
+    "market": "bc1qtr2m8tr797v2z6tptuqlveh0egper6m6m0vtls",
+    "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
+    "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
   }
 }
