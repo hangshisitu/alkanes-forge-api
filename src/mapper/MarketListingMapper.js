@@ -136,10 +136,16 @@ export default class MarketListingMapper {
         }
 
         const uniqueKey = 'listing_output';
-        return await MarketListing.bulkCreate(listingList, {
+        const ret = await MarketListing.bulkCreate(listingList, {
             updateOnDuplicate: Object.keys(listingList[0]).filter(key => key !== uniqueKey),
             returning: false
         });
+        // 从listingList获取所有alkanesId并去重后删除缓存
+        const alkanesIdList = [...new Set(listingList.map(listing => listing.alkanesId))];
+        for (const alkanesId of alkanesIdList) {
+            await MarketListingMapper.deleteListingCache(alkanesId);
+        }
+        return ret;
     }
 
 }
