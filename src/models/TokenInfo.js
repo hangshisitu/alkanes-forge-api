@@ -120,6 +120,22 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.INTEGER,
         comment: '最后更新区块号'
     },
+    twitter: {
+        type: DataTypes.STRING,
+        comment: 'twitter id'
+    },
+    discord: {
+        type: DataTypes.STRING,
+        comment: 'discord邀请链接'
+    },
+    website: {
+        type: DataTypes.STRING,
+        comment: '官方网站'
+    },
+    telegram: {
+        type: DataTypes.STRING,
+        comment: '电报链接'
+    },
     createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

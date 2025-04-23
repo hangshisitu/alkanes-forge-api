@@ -24,13 +24,13 @@ function genKey(key) {
 
 export async function scan(pattern, count = 1000, del_key = false) {
     // 遍历所有符合pattern的key, 如果del_key为true, 则删除每个key, 一直遍历到游标为0为止
-    let cursor = '0';
+    let cursor = 0;
     const ret_keys = [];
     const match = genKey(pattern);
     do {
         const result = await redisClient.scan(cursor, {match, count});
-        cursor = result[0];
-        const keys = result[1];
+        cursor = result.cursor;
+        const keys = result.keys;
         if (keys?.length > 0) {
             ret_keys.push(...keys);
             if (del_key) {
@@ -38,6 +38,6 @@ export async function scan(pattern, count = 1000, del_key = false) {
                 await redisClient.del(keys);
             }
         }
-    } while (cursor !== '0');
+    } while (cursor !== 0);
     return ret_keys;
 }

@@ -43,6 +43,9 @@ export default class TokenInfoMapper {
 
         if (mintActive != null) {
             whereClause.mintActive = mintActive;
+            if (!mintActive) {
+                whereClause.progress = 100;
+            }
         }
 
         if (noPremine) {
