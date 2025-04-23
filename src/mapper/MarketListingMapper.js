@@ -8,6 +8,10 @@ export default class MarketListingMapper {
         return `listings:${alkanesId}:${sellerAddress || 'all'}:${page}:${size}:${orderType}`;
     }
 
+    static async deleteListingCache(alkanesId) {
+        await RedisHelper.scan(`listings:${alkanesId}:*`, 1000, true);
+    }
+
     /**
      * 分页查询交易数据
      * @param alkanesId
@@ -107,7 +111,7 @@ export default class MarketListingMapper {
         })
     }
 
-    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash) {
+    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, alkanesId = null) {
         await MarketListing.update(
             {
                 status: status,
@@ -121,6 +125,9 @@ export default class MarketListingMapper {
                 }
             }
         );
+        if (alkanesId) {
+            await MarketListingMapper.deleteListingCache(alkanesId);
+        }
     }
 
     static async bulkUpsertListing(listingList) {

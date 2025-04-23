@@ -6,12 +6,12 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 
 export default class MarketEventMapper {
 
-    static getEventCacheKey(alkanesId, type, page, size) {
-        return `events:${alkanesId}:${type}:${page}:${size}`;
+    static getEventCacheKey(alkanesId, type, address, page, size) {
+        return `events:${alkanesId}:${type}:${address}:${page}:${size}`;
     }
 
     static async getAllEvents(alkanesId, type, address, page, size) {
-        const cacheKey = MarketEventMapper.getEventCacheKey(alkanesId, type, page, size);
+        const cacheKey = MarketEventMapper.getEventCacheKey(alkanesId, type, address, page, size);
         const cacheData = await RedisHelper.get(cacheKey);
         if (cacheData) {
             return JSON.parse(cacheData);

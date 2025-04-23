@@ -184,7 +184,7 @@ export default class MarketService {
         }
 
         if (failedList.length > 1) {
-            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '');
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
 
@@ -221,7 +221,7 @@ export default class MarketService {
         }
 
         if (failedList.length > 1) {
-            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '');
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
 
@@ -273,7 +273,7 @@ export default class MarketService {
             eventList.push(marketEvent);
         }
 
-        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid);
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid, listingList[0].alkanesId);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
@@ -449,7 +449,7 @@ export default class MarketService {
             eventList.push(marketEvent);
         }
 
-        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid);
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, listingList[0].alkanesId);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
@@ -473,6 +473,20 @@ export default class MarketService {
 
         for (const [txid, outputList] of listingOutputMap.entries()) {
             await MarketListingMapper.bulkUpdateListing(outputList, Constants.LISTING_STATUS.DELIST, '', txid);
+        }
+
+        // 将listingOutputMap的所有value合并成一个array
+        const outputList = [];
+        for (const outputList of listingOutputMap.values()) {
+            outputList.push(...outputList);
+        }
+        if (outputList.length > 0) {
+            const listingList = await MarketListingMapper.getByOutputs(outputList);
+            // 遍历listingList, 获取所有alkanesId并去重后删除缓存
+            const alkanesIdList = [...new Set(listingList.map(listing => listing.alkanesId))];
+            for (const alkanesId of alkanesIdList) {
+                await MarketListingMapper.deleteListingCache(alkanesId);
+            }
         }
     }
 

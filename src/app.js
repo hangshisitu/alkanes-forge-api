@@ -238,7 +238,7 @@ router
     .post('/token/page', async ctx => {
         try {
             const params = ctx.request.body;
-            const tokenList = await TokenInfoMapper.findTokenPage(params.name, params.mintActive, params.orderType, params.page, params.size);
+            const tokenList = await TokenInfoMapper.findTokenPage(params.name, params.mintActive, params.noPremine, params.orderType, params.page, params.size);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

@@ -6,8 +6,8 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 
 export default class TokenInfoMapper {
 
-    static getTokenPageCacheKey(name, mintActive, orderType, page, size) {
-        return `tokenPage:${encodeURIComponent(name||'')}:${String(mintActive)}:${orderType}:${page}:${size}`;
+    static getTokenPageCacheKey(name, mintActive, noPremine, orderType, page, size) {
+        return `tokenPage:${encodeURIComponent(name||'')}:${String(mintActive)}:${String(noPremine)}:${orderType}:${page}:${size}`;
     }
 
     static async getAllTokens(mintActive = null) {
@@ -24,8 +24,8 @@ export default class TokenInfoMapper {
         });
     }
 
-    static async findTokenPage(name, mintActive, orderType, page, size) {
-        const cacheKey = TokenInfoMapper.getTokenPageCacheKey(name, mintActive, orderType, page, size);
+    static async findTokenPage(name, mintActive, noPremine, orderType, page, size) {
+        const cacheKey = TokenInfoMapper.getTokenPageCacheKey(name, mintActive, noPremine, orderType, page, size);
         // 查缓存
         const cacheData = await RedisHelper.get(cacheKey);
         if (cacheData) {
@@ -41,8 +41,12 @@ export default class TokenInfoMapper {
             ];
         }
 
-        if (mintActive) {
+        if (mintActive != null) {
             whereClause.mintActive = mintActive;
+        }
+
+        if (noPremine) {
+            whereClause.premine = 0;
         }
 
         const order = [];
