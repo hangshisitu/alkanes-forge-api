@@ -12,7 +12,7 @@ export default class BaseUtil {
                 }
             }
         }
-        return lastError;
+        throw lastError;
     }
 
     static splitArray(array, size) {
