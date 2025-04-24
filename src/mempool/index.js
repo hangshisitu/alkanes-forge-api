@@ -5,6 +5,7 @@ import MempoolTx from '../models/MempoolTx.js';
 import axios from 'axios';
 import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
+import PsbtUtil from "../utils/PsbtUtil.js";
 
 const message_key = 'mempool:message';
 const txid_key = 'mempool:txid';
@@ -133,12 +134,15 @@ async function handle_mempool_tx() {
                     continue;
                 }
                 message = JSON.parse(message);
-                const address = tx.vout[0].scriptpubkey_address;
+                let address = null;
                 const mempoolTxs = [];
                 let i = 0;
                 while (i < message.length) {
                     const code = message[i];
                     if (code === 2 && message[i + 2] === 77) {
+                        if (!address) {
+                            address = PsbtUtil.script2Address(tx.outs[0].script);
+                        }
                         mempoolTxs.push({
                             txid,
                             alkanesId: `2:${message[i + 1]}`,
@@ -247,8 +251,13 @@ async function main() {
 // });
 
 
+const hex = await ElectrsAPI.getTxHex('a6048373e61433200a51cb257d7697f5f6e3ca4a34ae12d70ea064cb9213a8c3');
 
-
+const tx = bitcoin.Transaction.fromHex(hex);
+const output = tx.outs[0];
+// const scriptType = bitcoin.script.classifyOutput(output.script);
+// console.log(scriptType);
+console.log(PsbtUtil.script2Address(output.script));
 
 
 
