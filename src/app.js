@@ -13,7 +13,12 @@ import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import MempoolTxMapper from "./mapper/MempoolTxMapper.js";
 import BaseService from "./service/BaseService.js";
+<<<<<<< HEAD
 import * as mempool from "./mempool/index.js";
+=======
+import MintService from "./service/MintService.js";
+import MintOrderMapper from "./mapper/MintOrderMapper.js";
+>>>>>>> c210258 (完成新的铸造API)
 
 const app = new Koa();
 const router = new Router();
@@ -133,7 +138,7 @@ router
         try {
             const params = ctx.request.body;
             const psbt = await AlkanesService.transferMintFee(params.fundAddress, params.fundPublicKey, params.toAddress,
-                params.id, params.mints, params.postage, params.feerate);
+                params.id, params.mints, params.postage, params.feerate, params.model);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -155,7 +160,7 @@ router
         try {
             const params = ctx.request.body;
             const txidList = await AlkanesService.startMint(params.fundAddress, params.toAddress,
-                params.id, params.mints, params.postage, params.feerate, params.psbt);
+                params.id, params.mints, params.postage, params.feerate, params.model, params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -493,6 +498,93 @@ router
                 'code': 0,
                 'msg': 'ok',
                 'data': tokenStats
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+
+    // 铸造接口
+    .post('/inscribe/preCreateMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await MintService.preCreateMergeOrder(params.fundAddress, params.fundPublicKey, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/inscribe/createMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintService.createMergeOrder(params.orderId, params.psbt);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/inscribe/accelerateMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintService.accelerateMergeOrder(params.orderId, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/inscribe/orderPage', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintOrderMapper.orderPage(params.page, params.size, params.receiveAddress);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/inscribe/submitRemain', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintService.submitRemain(params.orderId);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

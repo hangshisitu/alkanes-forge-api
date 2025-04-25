@@ -3,7 +3,6 @@ import UnisatAPI from "../lib/UnisatAPI.js";
 import axios from "axios";
 import asyncPool from "tiny-async-pool";
 import {encipher, encodeRunestoneProtostone, ProtoStone} from "alkanes";
-import * as bitcoin from "bitcoinjs-lib";
 import {createHash} from "crypto";
 import BigNumber from "bignumber.js";
 import {u128, u32} from '@magiceden-oss/runestone-lib/dist/src/integer/index.js';
@@ -310,8 +309,8 @@ export default class AlkanesService {
         throw new Error('Get alkanes error');
     }
 
-    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
-        const protostone = AlkanesService.getMintProtostone(id);
+    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, model) {
+        const protostone = AlkanesService.getMintProtostone(id, model);
 
         const outputList = [];
         outputList.push({
@@ -347,13 +346,13 @@ export default class AlkanesService {
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalFee, feerate, true);
         utxoList.map(utxo =>  utxo.pubkey = fundPublicKey);
 
-        return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate);
     }
 
-    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
+    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, model, psbt) {
         const txid = await UnisatAPI.unisatPush(psbt);
 
-        const protostone = AlkanesService.getMintProtostone(id);
+        const protostone = AlkanesService.getMintProtostone(id, model);
 
         const outputList = [];
         outputList.push({
@@ -377,7 +376,7 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const mintTxid = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, bitcoin.networks.bitcoin, false, false);
+            const {txid: mintTxid} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, config.network, false, false);
             console.log(`mint index ${i} tx: ${mintTxid}`);
             txidList.push(mintTxid);
         }
@@ -406,7 +405,7 @@ export default class AlkanesService {
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
-        return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate);
     }
 
     static async transferToken(fundAddress, fundPublicKey, assetAddress, id, feerate, transferAmountList) {
@@ -462,7 +461,7 @@ export default class AlkanesService {
         }
         inputList.push(...utxoList);
 
-        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
     }
 
     static async simulate(request, decoder) {
@@ -562,18 +561,24 @@ export default class AlkanesService {
         }
     }
 
-    static getMintProtostone(ids) {
-        const idList = ids.split(',');
+    static getMintProtostone(id, model = Constants.MINT_MODEL.NORMAL) {
         const protostones = [];
-        for (const id of idList) {
-            const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(77)];
+        const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(77)];
+
+        if (model === Constants.MINT_MODEL.MERGE) {
             protostones.push(ProtoStone.message({
                 protocolTag: 1n,
                 pointer: 0,
                 refundPointer: 0,
-                calldata: encipher(calldata),
+                calldata: Buffer.from([]),
             }));
         }
+        protostones.push(ProtoStone.message({
+            protocolTag: 1n,
+            pointer: 0,
+            refundPointer: 0,
+            calldata: encipher(calldata),
+        }));
 
         return encodeRunestoneProtostone({
             protostones: protostones,

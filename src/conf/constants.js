@@ -76,6 +76,27 @@ export const Constants = Object.freeze({
         DAY30: 3,   // 30天
     },
 
+    // 铸造模式选项
+    MINT_MODEL: {
+        NORMAL: 'normal',    // 1个utxo 1张
+        MERGE: 'merge',    // 24张合并成1个utxo
+    },
+
+    // 铸造订单状态
+    MINT_ORDER_STATUS: {
+        UNPAID: 'unpaid',    // 未付款
+        PARTIAL: 'partial',    // 部分铸造中
+        MINTING: 'minting',    // 全部铸造中
+        COMPLETED: 'completed',    // 全部铸造完成
+    },
+
+    // 铸造状态
+    MINT_STATUS: {
+        WAITING: 'waiting',    // 等待
+        MINTING: 'minting',    // 铸造中
+        COMPLETED: 'completed',    // 已完成
+    },
+
     REDIS_KEY: {
         TOKEN_INFO_LIST: 'token_info_list',
         TOKEN_INFO_UPDATED_HEIGHT: 'token_info_updated_height',

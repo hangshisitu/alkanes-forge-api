@@ -1,9 +1,9 @@
 import TokenStatsMapper from '../mapper/TokenStatsMapper.js';
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
-import {nanoid} from "nanoid";
 import {Constants} from "../conf/constants.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import BigNumber from "bignumber.js";
+import BaseUtil from "../utils/BaseUtil.js";
 
 export default class TokenStatsService {
 
@@ -42,7 +42,7 @@ export default class TokenStatsService {
             const tradeCount = trades.length;
 
             const stats = {
-                id: nanoid(),
+                id: BaseUtil.genId(),
                 alkanesId: token.id,
                 statsDate: startTime,
                 averagePrice,

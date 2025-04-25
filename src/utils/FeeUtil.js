@@ -41,11 +41,11 @@ export default class FeeUtil {
     static getInputSize(address) {
         let baseSize = 32 + 4 + 4; // txid + vout + sequence
 
-        if (address.startsWith('bc1p')) { // P2TR
+        if (address.startsWith('bc1p') || address.startsWith('tb1p')) { // P2TR
             baseSize += 1; // 空 scriptSig（1字节）
             baseSize += (1 + (1 + 64) + (1 + 33)) / 4; // Schnorr 签名 + 控制块
         }
-        else if (address.startsWith('bc1q')) { // P2WPKH
+        else if (address.startsWith('bc1q') || address.startsWith('tb1q')) { // P2WPKH
             baseSize += 1; // 空 scriptSig（1字节）
             baseSize += ( 1 + (1 + 72) + (1 + 33)) / 4; // DER 签名 + 压缩公钥
         }
@@ -64,9 +64,9 @@ export default class FeeUtil {
 
     static getOutputSize(address) {
         let scriptSize;
-        if (address.startsWith('bc1p')) {
+        if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
             scriptSize = 34; // P2TR
-        } else if (address.startsWith('bc1q')) {
+        } else if (address.startsWith('bc1q') || address.startsWith('tb1p')) {
             scriptSize = 22; // P2WPKH
         } else if (address.startsWith('3')) {
             scriptSize = 23; // P2SH
@@ -76,4 +76,13 @@ export default class FeeUtil {
         return scriptSize;
     }
 
+    static getAdditionalOutputSize(address) {
+        const scriptSize = FeeUtil.getOutputSize(address);
+        return FeeUtil.varIntSize(scriptSize) + scriptSize + 8;
+    }
+
+    static getOutputFee(address, feerate) {
+        const changeSize = FeeUtil.getAdditionalOutputSize(address);
+        return Math.ceil(changeSize * feerate);
+    }
 }

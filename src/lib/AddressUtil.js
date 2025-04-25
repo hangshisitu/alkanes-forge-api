@@ -1,6 +1,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from 'tiny-secp256k1';
 import {ECPairFactory} from "ecpair";
+import config from "../conf/config.js";
 
 export default class AddressUtil {
 
@@ -8,7 +9,7 @@ export default class AddressUtil {
         bitcoin.initEccLib(ecc);
 
         const rootKey = AddressUtil.convertKeyPair(privateKey);
-        return bitcoin.payments.p2wpkh({network: bitcoin.networks.bitcoin, pubkey: rootKey.publicKey}).address;
+        return bitcoin.payments.p2wpkh({network: config.network, pubkey: rootKey.publicKey}).address;
     }
 
     static convertKeyPair(privateKey) {

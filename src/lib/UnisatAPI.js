@@ -6,16 +6,19 @@ import FeeUtil from "../utils/FeeUtil.js";
 import AddressUtil from "./AddressUtil.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import config from "../conf/config.js";
+import BaseUtil from "../utils/BaseUtil.js";
 
 export default class UnisatAPI {
 
-    static unisatUrl = 'https://open-api.unisat.io';
-    static unisatToken = '0430a4cb33e4e75316a673a56d9ce874ff504e1eb3eb30994289350a5e866893';
-
     static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
         const keyPair = AddressUtil.convertKeyPair(privateKey);
-        const hex = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
-        return await UnisatAPI.unisatPush(hex);
+        const {hex, txSize} = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
+        const txid = await UnisatAPI.unisatPush(hex);
+        return {
+            txid,
+            txSize
+        }
     }
 
     static async createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = false) {
@@ -104,7 +107,10 @@ export default class UnisatAPI {
             }
         }
 
-        return tx.toHex();
+        return {
+            hex: tx.toHex(),
+            txSize: BaseUtil.divCeil(tx.weight(), 4)
+        };
     }
 
     static async getAllUtxo(address, confirmed = false) {
@@ -158,9 +164,9 @@ export default class UnisatAPI {
     static async getBalance(address) {
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.get(`${this.unisatUrl}/v1/indexer/address/${address}/balance`, {
+                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/address/${address}/balance`, {
                     headers: {
-                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Authorization': `Bearer ${config.api.unisatApiKey}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 10000
@@ -177,9 +183,9 @@ export default class UnisatAPI {
     static async getUtxoList(address, confirmed = false, page = 1, size = 1000) {
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.get(`${this.unisatUrl}/v1/indexer/address/${address}/utxo-data?cursor=${(page - 1) * size}&size=${size}`, {
+                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/address/${address}/utxo-data?cursor=${(page - 1) * size}&size=${size}`, {
                     headers: {
-                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Authorization': `Bearer ${config.api.unisatApiKey}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 10000
@@ -229,9 +235,9 @@ export default class UnisatAPI {
     static async getTx(txid) {
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.get(`${this.unisatUrl}/v1/indexer/tx/${txid}`, {
+                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/tx/${txid}`, {
                     headers: {
-                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Authorization': `Bearer ${config.api.unisatApiKey}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 10000
@@ -248,9 +254,9 @@ export default class UnisatAPI {
     static async getUtxoInfo(txid, vout) {
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.get(`${this.unisatUrl}/v1/indexer/utxo/${txid}/${vout}`, {
+                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/utxo/${txid}/${vout}`, {
                     headers: {
-                        'Authorization': `Bearer ${this.unisatToken}`,
+                        'Authorization': `Bearer ${config.api.unisatApiKey}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 10000
@@ -272,11 +278,11 @@ export default class UnisatAPI {
         let lastError = '';
         for (let i = 0; i < 3; i++) {
             try {
-                // const response = await axios.post(`${this.unisatUrl}/v1/indexer/local_pushtx`, {
+                // const response = await axios.post(`${config.api.unisatHost}/v1/indexer/local_pushtx`, {
                 //     txHex: hex
                 // }, {
                 //     headers: {
-                //         'Authorization': `Bearer ${this.unisatToken}`,
+                //         'Authorization': `Bearer ${config.api.unisatApiKey}`,
                 //         'Content-Type': 'application/json'
                 //     },
                 //     timeout: 10000

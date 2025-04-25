@@ -38,5 +38,5 @@ outputList.push({
     value: 0
 })
 
-const hex = await PsbtUtil.createUnSignPsbt(inputList, outputList, 'bc1qlhf6xqe8jw53lsl2ptf4kkdmy9ms0qa5p75ryg', 2.1, bitcoin.networks.bitcoin);
+const hex = await PsbtUtil.createUnSignPsbt(inputList, outputList, 'bc1qlhf6xqe8jw53lsl2ptf4kkdmy9ms0qa5p75ryg', 2.1);
 console.log(hex.hex);

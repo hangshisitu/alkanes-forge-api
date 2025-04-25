@@ -1,36 +1,32 @@
 import mempoolJS from "@mempool/mempool.js";
-import config, {network} from '../conf/config.js'
+import config from '../conf/config.js'
 import axios from "axios";
-import PsbtUtil from "./PsbtUtil.js";
 import UnisatAPI from "../lib/UnisatAPI.js";
 
 const mempoolHost = config['mempoolHost'];
-const strNetwork = network.bech32 === 'tb' ? 'testnet' : 'bitcoin'
-console.info(`mempoolHost: ${mempoolHost} network: ${strNetwork}`)
-
 const {bitcoin: {addresses}} = mempoolJS({
     hostname: mempoolHost,
-    network: strNetwork
+    network: config.networkName
 });
 
 const {bitcoin: {transactions}} = mempoolJS({
     hostname: mempoolHost,
-    network: strNetwork
+    network: config.networkName
 });
 
 const {bitcoin: {fees}} = mempoolJS({
     hostname: mempoolHost,
-    network: strNetwork
+    network: config.networkName
 });
 
 const {bitcoin: {mempool}} = mempoolJS({
     hostname: mempoolHost,
-    network: strNetwork
+    network: config.networkName
 });
 
 const {bitcoin: {blocks}} = mempoolJS({
     hostname: mempoolHost,
-    network: strNetwork
+    network: config.networkName
 });
     
 export default class MempoolUtil {
@@ -173,13 +169,15 @@ export default class MempoolUtil {
 
     static async postTx(hex) {
         try {
-            const response = await axios.post(`https://idclub.mempool.space/api/tx`, hex, {
+            const host = config.networkName === 'mainnet' ? `https://${mempoolHost}` : `https://${mempoolHost}/${config.networkName}`;
+            const response = await axios.post(`${host}/api/tx`, hex, {
                 headers: {
                     'Content-Type': 'text/plain',
                 },
                 timeout: 10000
             });
             return response.data;
+            // return await transactions.postTx({txhex: hex});
         } catch (err) {
             const errMessage = err.response?.data || err.message;
             console.log(`mempool post tx error, hex: ${hex} error: ${errMessage}`);

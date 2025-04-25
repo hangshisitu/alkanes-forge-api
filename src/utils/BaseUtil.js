@@ -1,3 +1,5 @@
+import {customAlphabet} from "nanoid";
+
 export default class BaseUtil {
 
     static async retryRequest(requestFn, maxRetries = 3, delayMs = 1000) {
@@ -22,6 +24,34 @@ export default class BaseUtil {
             result.push(chunk);
         }
         return result;
+    }
+
+    static splitByBatchSize(total, batchSize) {
+        const result = [];
+        let remaining = total;
+
+        while (remaining > 0) {
+            const group = Math.min(batchSize, remaining);
+            result.push(group);
+            remaining -= group;
+        }
+
+        return result;
+    }
+
+    static divCeil(a, b, decimal = 2) {
+        const factor = Math.pow(10, decimal);
+        const result = a / b;
+        // 先放大，向上取整，再缩小
+        return Math.ceil(result * factor) / factor;
+    }
+
+    static genId(size = 24) {
+        const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const alphanum = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const firstChar = customAlphabet(letters, 1)();          // 首位只用字母
+        const rest = customAlphabet(alphanum, size - 1)();        // 剩余可以含数字
+        return firstChar + rest;
     }
 
 }

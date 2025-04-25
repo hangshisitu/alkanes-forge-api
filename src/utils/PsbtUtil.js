@@ -1,17 +1,17 @@
 import * as bitcoin from "bitcoinjs-lib"
 import * as psbtUtils from 'bitcoinjs-lib/src/psbt/psbtutils.js'
-import {network} from '../conf/config.js'
 import * as ecc from "tiny-secp256k1";
 import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import FeeUtil from "./FeeUtil.js";
 import MempoolUtil from "./MempoolUtil.js";
+import config from "../conf/config.js";
 
 bitcoin.initEccLib(ecc);
 
 export default class PsbtUtil {
 
-    static async createUnSignPsbt(inputList, outputList, changeAddress, feerate, network, checkFee = true) {
-        const psbt = new bitcoin.Psbt({network});
+    static async createUnSignPsbt(inputList, outputList, changeAddress, feerate, checkFee = true) {
+        const psbt = new bitcoin.Psbt({network: config.network});
         if (checkFee) {
             psbt.setMaximumFeeRate(500000000);
         } else {
@@ -58,7 +58,7 @@ export default class PsbtUtil {
                     address: changeAddress,
                     value: changeValue
                 });
-                return this.createUnSignPsbt(inputList, outputList, changeAddress, feerate, network, false);
+                return this.createUnSignPsbt(inputList, outputList, changeAddress, feerate, false);
             } else if (changeValue < 0) {
                 throw new Error('Insufficient utxo balance');
             }
@@ -73,27 +73,27 @@ export default class PsbtUtil {
 
     static script2Address(output) {
         if (psbtUtils.isP2TR(output)) {
-            const {address} = bitcoin.payments.p2tr({network, output})
+            const {address} = bitcoin.payments.p2tr({network: config.network, output})
             return address;
 
         } else if (psbtUtils.isP2WPKH(output)) {
-            const {address} = bitcoin.payments.p2wpkh({network, output})
+            const {address} = bitcoin.payments.p2wpkh({network: config.network, output})
             return address;
         } else if (psbtUtils.isP2SHScript(output)) {
-            const {address} = bitcoin.payments.p2sh({network, output})
+            const {address} = bitcoin.payments.p2sh({network: config.network, output})
             return address;
 
         } else if (psbtUtils.isP2PKH(output)) {
-            const {address} = bitcoin.payments.p2pkh({network, output})
+            const {address} = bitcoin.payments.p2pkh({network: config.network, output})
             return address;
         } else if (psbtUtils.isP2WSHScript(output)) {
-            const {address} = bitcoin.payments.p2wsh({network, output})
+            const {address} = bitcoin.payments.p2wsh({network: config.network, output})
             return address;
         } else if (psbtUtils.isP2MS(output)) {
-            const {address} = bitcoin.payments.p2ms({network, output})
+            const {address} = bitcoin.payments.p2ms({network: config.network, output})
             return address;
         } else if (psbtUtils.isP2PK(output)) {
-            const {address} = bitcoin.payments.p2pk({network, output})
+            const {address} = bitcoin.payments.p2pk({network: config.network, output})
             return address;
         }
         throw new Error("unknow script")
@@ -113,7 +113,7 @@ export default class PsbtUtil {
             input.address = PsbtUtil.script2Address(outScript)
         }
         if (!outScript) {
-            outScript = bitcoin.address.toOutputScript(input.address, network)
+            outScript = bitcoin.address.toOutputScript(input.address, config.network)
         }
 
         if (psbtUtils.isP2TR(outScript) || psbtUtils.isP2WPKH(outScript) || psbtUtils.isP2WSHScript(outScript)) {
@@ -128,7 +128,7 @@ export default class PsbtUtil {
         } else if (psbtUtils.isP2SHScript(outScript)) {
             input.witnessUtxo = {script: outScript, value: input.value};
             if (utxo.pubkey) {
-                input.redeemScript = bitcoin.payments.p2wpkh({network, pubkey: Buffer.from(utxo.pubkey, 'hex')}).output;
+                input.redeemScript = bitcoin.payments.p2wpkh({network: config.network, pubkey: Buffer.from(utxo.pubkey, 'hex')}).output;
             }
         } else {
             if (!txHex) {

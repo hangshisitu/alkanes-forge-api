@@ -39,9 +39,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('5c040cb48990e1302d8492907c13e3347e3677d17df681369b51fe6c99bcfc74', 'hex').reverse().toString('hex'))
-// console.log(new BigNumber('0x12309ce54000').toNumber());
-// console.log(new BigNumber('0x20c85580').toNumber());
+console.log(Buffer.from('85deacf85e4ad561708144cbba4a80d5d5cf42e48a2b2e669e8627a47d0464ec', 'hex').reverse().toString('hex'))
+console.log(new BigNumber('0x61a8').toNumber());
 
 // 查询代币信息
 // const alkanes = await AlkanesService.getAlkanesById('2:456');
@@ -66,7 +65,7 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // console.log(psbt);
 
 
-// const script = AlkanesService.getMintProtostone('2:456');
+// const script = AlkanesService.getMintProtostone('2:490');
 // const script = AlkanesService.getDeployProtostone('BITCAT', 'CAT', '1000', '0', '1000000');
 // const script = AlkanesService.getTransferProtostone('2:20', [{
 //     amount: '0',

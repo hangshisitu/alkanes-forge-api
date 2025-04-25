@@ -31,13 +31,11 @@ console.error = function(...args) {
 };
 
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-export default config;
 
-let nt = networks.testnet;
-if (config.network === 'mainnet') {
-    nt = networks.bitcoin;
-} else if (env === 'fat') {
-    nt = networks.testnet;
+config.network = networks.testnet;
+if (config.networkName === 'mainnet') {
+    config.network = networks.bitcoin;
 }
-export const network = nt;
+
+export default config;
 

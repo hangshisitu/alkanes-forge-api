@@ -4,13 +4,13 @@ import UnisatAPI from "../lib/UnisatAPI.js";
 import FeeUtil from "../utils/FeeUtil.js";
 import config from "../conf/config.js";
 import AlkanesService from "./AlkanesService.js";
-import {nanoid} from "nanoid";
 import MarketListingMapper from "../mapper/MarketListingMapper.js";
 import BigNumber from "bignumber.js";
 import {Constants} from "../conf/constants.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import TokenInfoService from "./TokenInfoService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import BaseUtil from "../utils/BaseUtil.js";
 
 export default class MarketService {
 
@@ -26,7 +26,7 @@ export default class MarketService {
     }
 
     static async createUnsignedListing(assetAddress, assetPublicKey, fundAddress, listingList) {
-        const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
+        const psbt = new bitcoin.Psbt({network: config.network});
 
         const signingIndexes = [];
         for (const [index, listing] of listingList.entries()) {
@@ -92,7 +92,7 @@ export default class MarketService {
             const listingPrice = new BigNumber(listingAmount).div(tokenAmount)
                 .decimalPlaces(18, BigNumber.ROUND_DOWN);
 
-            const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
+            const psbt = new bitcoin.Psbt({network: config.network});
             psbt.addInput({
                 hash: originalPsbt.txInputs[i].hash,
                 index: originalPsbt.txInputs[i].index,
@@ -104,7 +104,7 @@ export default class MarketService {
             });
 
             const marketListing = {
-                id: nanoid(),
+                id: BaseUtil.genId(),
                 alkanesId: alkanes.id,
                 tokenAmount: tokenAmount,
                 listingPrice: listingPrice,
@@ -119,7 +119,7 @@ export default class MarketService {
             listingList.push(marketListing);
 
             const marketEvent = {
-                id: nanoid(),
+                id: BaseUtil.genId(),
                 type: isUpdate ? Constants.MARKET_EVENT.UPDATE : Constants.MARKET_EVENT.LIST,
                 alkanesId: alkanes.id,
                 tokenAmount: tokenAmount,
@@ -152,7 +152,7 @@ export default class MarketService {
 
         const failedList = [];
         const signingIndexes = [];
-        const psbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
+        const psbt = new bitcoin.Psbt({network: config.network});
         for (const [index, listing] of existListingList.entries()) {
             const originalPsbt = PsbtUtil.fromPsbt(listing.psbtData);
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
@@ -243,7 +243,7 @@ export default class MarketService {
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
         inputList.push(...utxoList);
 
-        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate, bitcoin.networks.bitcoin);
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
     }
 
     static async putSignedDelisting(signedPsbt) {
@@ -260,7 +260,7 @@ export default class MarketService {
         const eventList = [];
         for (const listing of listingList) {
             const marketEvent = {
-                id: nanoid(),
+                id: BaseUtil.genId(),
                 type: Constants.MARKET_EVENT.DELIST,
                 alkanesId: listing.alkanesId,
                 tokenAmount: listing.tokenAmount,
@@ -322,7 +322,7 @@ export default class MarketService {
         let totalInputValue = 0;
         let totalOutputValue = 0;
         const signingIndexes = [];
-        const buyingPsbt = new bitcoin.Psbt({network: bitcoin.networks.bitcoin});
+        const buyingPsbt = new bitcoin.Psbt({network: config.network});
 
         // 先添加1个付款的utxo用于占位，让挂单与结算utxo的索引一致
         const firstPaymentUtxo = paymentUtxoList[0];
@@ -435,7 +435,7 @@ export default class MarketService {
         const eventList = [];
         for (const listing of listingList) {
             const marketEvent = {
-                id: nanoid(),
+                id: BaseUtil.genId(),
                 type: Constants.MARKET_EVENT.SOLD,
                 alkanesId: listing.alkanesId,
                 tokenAmount: listing.tokenAmount,

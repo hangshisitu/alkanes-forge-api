@@ -18,11 +18,6 @@ export default class TokenInfoService {
         const tokenList = await TokenInfoMapper.getAllTokens();
         console.log(`found existing tokens: ${tokenList.length}`);
 
-        if (!tokenList) {
-            console.log('Failed to get existing tokens');
-            return;
-        }
-
         // 2. 获取需要更新的活跃token
         const activeTokens = tokenList.filter(token => token.mintActive);
         console.log(`found active tokens: ${activeTokens.length}`);
