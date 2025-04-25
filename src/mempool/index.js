@@ -6,6 +6,7 @@ import axios from 'axios';
 import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
 import PsbtUtil from "../utils/PsbtUtil.js";
+import WebSocket from 'ws';
 
 const message_key = 'mempool:message';
 const txid_key = 'mempool:txid';

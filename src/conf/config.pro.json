@@ -25,5 +25,5 @@
     "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
     "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
   },
-  "protoruneParseEndpoint": "http://10.6.96.4:58888"
+  "protoruneParseEndpoint": "http://10.5.96.26:58888"
 }
