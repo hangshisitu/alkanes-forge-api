@@ -152,17 +152,20 @@ async function handle_mempool_tx() {
                 continue;
             }
             const result = await parse_tx_hex(hex);
-            console.log(`handle mempool tx: ${txid}, opreturn result: ${JSON.stringify(result)}`);
             if (result?.status !== 'success') {
                 console.error(`parse tx [${txid}] error`, result);
                 continue;
             }
             for (const protostone of result.protostones ?? []) {
-                let message = protostone.message;
+                const message = protostone.message;
                 if (!message) {
                     continue;
                 }
                 const mintData = decodeLEB128Array(JSON.parse(message));
+                if (mintData.length < 3) {
+                    continue;
+                }
+                console.log(`handle mempool tx: ${txid}, protostone message: ${message}`);
                 let address = null;
                 const mempoolTxs = [];
                 let i = 0;
@@ -208,9 +211,11 @@ async function handle_mempool_message() {
             data = JSON.parse(data);
             if (data.block) { // 出新块, 将已确认的从数据库中删除
                 await remove_by_block_height(data.block.id);
-                console.log(1111, data['projected-block-transactions'].blockTransactions);
-                for (const tx of data['projected-block-transactions'].blockTransactions) {
-                    await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
+                const txs = data['projected-block-transactions']?.blockTransactions;
+                if (txs?.length) {
+                    for (const tx of data['projected-block-transactions'].blockTransactions) {
+                        await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
+                    }
                 }
             }
             const delta = data['projected-block-transactions']?.delta;
