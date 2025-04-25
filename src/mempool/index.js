@@ -147,7 +147,7 @@ async function try_scan_mempool_tx() {
 
 async function parse_tx_hex(hex) {
     try {
-        const response = await axios.post(`${config.protoruneParseEndpoint}/decode`, hex);
+        const response = await axios.post(`${config.api.protoruneParseEndpoint}/decode`, hex);
         return response.data;
     } catch (error) {
         console.error(`parse tx hex error`, error);

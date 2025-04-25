@@ -25,12 +25,9 @@
     "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
     "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
   },
-<<<<<<< HEAD
-  "protoruneParseEndpoint": "http://10.5.96.26:58888"
-=======
   "api": {
+    "protoruneParseEndpoint": "http://10.5.96.26:58888",
     "unisatHost": "https://open-api.unisat.io",
     "unisatApiKey": "0430a4cb33e4e75316a673a56d9ce874ff504e1eb3eb30994289350a5e866893"
   }
->>>>>>> c210258 (完成新的铸造API)
 }

@@ -13,12 +13,9 @@ import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import MempoolTxMapper from "./mapper/MempoolTxMapper.js";
 import BaseService from "./service/BaseService.js";
-<<<<<<< HEAD
 import * as mempool from "./mempool/index.js";
-=======
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
->>>>>>> c210258 (完成新的铸造API)
 
 const app = new Koa();
 const router = new Router();

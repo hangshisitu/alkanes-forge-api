@@ -21,20 +21,13 @@
     "postage": 546
   },
   "revenueAddress": {
-<<<<<<< HEAD
-    "market": "bc1qtr2m8tr797v2z6tptuqlveh0egper6m6m0vtls",
-    "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
-    "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
-  },
-  "protoruneParseEndpoint": "http://127.0.0.1:58888"
-=======
     "market": "tb1q235uy7hre5k780xynpsm96mjwngtv8ywsttl6x",
     "inscribe": "tb1qn0z4vuxay90kuxu2ghf833gtvlph0xgxx29vuv",
     "transfer": "tb1q4y980n4367t3nuz3vkz8nex3vtxjsfrfuxdpkv"
   },
   "api": {
+    "protoruneParseEndpoint": "http://127.0.0.1:58888",
     "unisatHost": "https://open-api-signet.unisat.io",
     "unisatApiKey": "02b773333e2831d29cd02f55c7727a0f0333d73187d0b6781dd85901dc1f56ea"
   }
->>>>>>> c210258 (完成新的铸造API)
 }
