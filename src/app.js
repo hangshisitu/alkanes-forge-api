@@ -282,7 +282,7 @@ router
         try {
             const params = ctx.request.body;
             const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id);
-            mempool.dataValues.config = await BaseService.getConfig();
+            mempool.config = await BaseService.getConfig();
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

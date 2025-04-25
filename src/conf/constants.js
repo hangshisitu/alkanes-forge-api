@@ -104,6 +104,7 @@ export const Constants = Object.freeze({
         INDEX_BLOCK_HEIGHT: 'index_block_height',
 
         BTC_PRICE_USD: 'btc_price_usd',
-        MEMPOOL_FEES_RECOMMENDED: 'mempool_fees_recommended'
+        MEMPOOL_FEES_RECOMMENDED: 'mempool_fees_recommended',
+        MEMPOOL_FEES_MEMPOOL_BLOCKS: 'mempool_fees_mempool_blocks'
     }
 });

@@ -167,6 +167,13 @@ export default class MempoolUtil {
         return feeRate;
     }
 
+    static async getFeesMempoolBlocks() {
+        const start = Date.now()
+        const blocks = await fees.getFeesMempoolBlocks();
+        console.info(`getFeesMempoolBlocks blocks: ${JSON.stringify(blocks)} cost: ${Date.now() - start}ms`)
+        return blocks;
+    }
+
     static async postTx(hex) {
         try {
             const host = config.networkName === 'mainnet' ? `https://${mempoolHost}` : `https://${mempoolHost}/${config.networkName}`;

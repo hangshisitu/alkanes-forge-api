@@ -81,7 +81,12 @@ export default class MempoolTxMapper {
             let mergedRanges = [];
             if (result.length <= 3) {
                 // 当区间数量小于等于3时，保持不变
-                mergedRanges = result;
+                mergedRanges = result.map(x => {
+                    return {
+                        feeRateRange: x.fee_rate_range,
+                        count: x.cnt
+                    };
+                });
             } else if (result.length <= 10) {
                 // 当区间数量在4-10之间时，合并为原来的一半
                 const rangeSize = 2;
@@ -95,8 +100,8 @@ export default class MempoolTxMapper {
                     const totalCount = currentRanges.reduce((sum, range) => sum + parseInt(range.cnt), 0);
                     
                     mergedRanges.push({
-                        fee_rate_range: `${startRange}~${endRange}`,
-                        cnt: totalCount
+                        feeRateRange: `${startRange}~${endRange}`,
+                        count: totalCount
                     });
                 }
             } else {
@@ -114,31 +119,15 @@ export default class MempoolTxMapper {
                     const totalCount = currentRanges.reduce((sum, range) => sum + parseInt(range.cnt), 0);
                     
                     mergedRanges.push({
-                        fee_rate_range: `${startRange}~${endRange}`,
-                        cnt: totalCount
+                        feeRateRange: `${startRange}~${endRange}`,
+                        count: totalCount
                     });
                 }
             }
 
-            // 计算中位数feeRate
-            const allFeeRates = [];
-            result.forEach(range => {
-                const [start, end] = range.fee_rate_range.split('~').map(Number);
-                const count = parseInt(range.cnt);
-                for (let i = 0; i < count; i++) {
-                    allFeeRates.push((start + end) / 2);
-                }
-            });
-            
-            allFeeRates.sort((a, b) => a - b);
-            const medianFeeRate = allFeeRates.length % 2 === 0
-                ? (allFeeRates[allFeeRates.length / 2 - 1] + allFeeRates[allFeeRates.length / 2]) / 2
-                : allFeeRates[Math.floor(allFeeRates.length / 2)];
-
             return {
                 ...data.dataValues,
                 feeRateRanges: mergedRanges,
-                medianFeeRate
             };
         }
         return data;

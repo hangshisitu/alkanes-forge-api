@@ -33,6 +33,9 @@ function refreshBlockHeight() {
             const fees = await MempoolUtil.getFeesRecommended();
             await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_FEES_RECOMMENDED, JSON.stringify(fees));
 
+            const blocks = await MempoolUtil.getFeesMempoolBlocks();
+            await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_FEES_MEMPOOL_BLOCKS, JSON.stringify(blocks));
+
             const btcPrice = await MempoolUtil.getBtcPrice();
             await RedisHelper.set(Constants.REDIS_KEY.BTC_PRICE_USD, btcPrice);
 

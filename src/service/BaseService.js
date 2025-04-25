@@ -14,11 +14,14 @@ export default class BaseService {
         const indexHeight = await RedisHelper.get(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT);
         const btcPrice = await RedisHelper.get(Constants.REDIS_KEY.BTC_PRICE_USD);
         const fees = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_FEES_RECOMMENDED);
+        const mempoolBlocks = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_FEES_MEMPOOL_BLOCKS);
+        const medianFee = mempoolBlocks ? JSON.parse(mempoolBlocks)[0]?.medianFee : null;
         return {
             mempoolHeight,
             indexHeight,
             btcPrice,
-            fees: JSON.parse(fees)
+            fees: JSON.parse(fees),
+            medianFee,
         }
     }
 

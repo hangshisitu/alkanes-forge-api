@@ -142,8 +142,6 @@ async function try_scan_mempool_tx() {
         await scan_mempool_tx();
     } catch (err) {
         console.error('scan mempool tx error', err);
-        await DateUtil.sleep(3000);
-        await try_scan_mempool_tx();
     }
 }
 
@@ -191,6 +189,13 @@ async function handle_mempool_tx() {
                 const mintData = decodeLEB128Array(JSON.parse(message));
                 if (mintData.length < 3) {
                     continue;
+                }
+                if (await MempoolTx.findOne({
+                    where: {
+                        txid
+                    }
+                })) {
+                    break;
                 }
                 console.log(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
                 let address = null;
@@ -253,6 +258,7 @@ async function handle_new_block(block, handle_db = true) {
     if (handle_db) {
         await remove_by_block_height(block.id);
     }
+    try_scan_mempool_tx();
 }
 
 async function handle_mempool_message() {
