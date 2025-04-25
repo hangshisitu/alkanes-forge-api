@@ -12,6 +12,7 @@ import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import BaseService from "./service/BaseService.js";
+import * as mempool from "./mempool/index.js";
 
 const app = new Koa();
 const router = new Router();
@@ -491,4 +492,9 @@ if (process.env.port) {
 if (process.env.jobEnable === 'true') {
     jobs();
     console.log(`Jobs started.`)
+}
+
+if (process.env.mempoolEnable === 'true') {
+    mempool.start();
+    console.log(`Mempool started.`)
 }

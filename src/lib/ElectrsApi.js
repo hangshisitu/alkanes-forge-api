@@ -4,52 +4,34 @@ export default class ElectrsAPI {
 
     static endpoint = 'https://idclub.mempool.space/api'
 
-    static async getBlockTxids(hash) {
+    static async fetch(url, options = {timeout: 10000}) {
         try {
-            const response = await axios.get(`${this.endpoint}/block/${hash}/txids`);
+            const response = await axios.get(url, {
+                timeout: options.timeout,
+            });
             return response.data;
         } catch (error) {
-            if (error.response.status === 404) {
-                return [];
+            if (error.response?.status === 404) {
+                return null;
             }
             throw error;
         }
+    }
+
+    static async getBlockTxids(hash) {
+        return await this.fetch(`${this.endpoint}/block/${hash}/txids`);
     }
 
     static async getTx(txid) {
-        try {
-            const response = await axios.get(`${this.endpoint}/tx/${txid}`);
-            return response.data;
-        } catch (error) {
-            if (error.response.status === 404) {
-                return null;
-            }
-            throw error;
-        }
+        return await this.fetch(`${this.endpoint}/tx/${txid}`);
     }
 
     static async getTxStatus(txid) {
-        try {
-            const response = await axios.get(`${this.endpoint}/tx/${txid}/status`);
-            return response.data;
-        } catch (error) {
-            if (error.response.status === 404) {
-                return null;
-            }
-            throw error;
-        }
+        return await this.fetch(`${this.endpoint}/tx/${txid}/status`);
     }
 
     static async getTxHex(txid) {
-        try {
-            const response = await axios.get(`${this.endpoint}/tx/${txid}/hex`);
-            return response.data;
-        } catch (error) {
-            if (error.response.status === 404) {
-                return null;
-            }
-            throw error;
-        }
+        return await this.fetch(`${this.endpoint}/tx/${txid}/hex`);
     }
 
 

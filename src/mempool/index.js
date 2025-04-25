@@ -36,6 +36,31 @@ class DateUtil {
 
 }
 
+function decodeLEB128Array(bytes) {
+    const result = [];
+    let i = 0;
+
+    while (i < bytes.length) {
+        // 如果当前字节的最高位是 0，直接保留
+        if ((bytes[i] & 0x80) === 0) {
+            result.push(bytes[i]);
+            i++;
+        } else {
+            // 否则进行 LEB128 解码
+            let value = 0;
+            let shift = 0;
+            do {
+                value |= (bytes[i] & 0x7F) << shift;
+                shift += 7;
+                i++;
+            } while (i < bytes.length && (bytes[i - 1] & 0x80) !== 0);
+            result.push(value);
+        }
+    }
+
+    return result;
+}
+
 async function delete_mempool_txs(txids) {
     if (!txids?.length) {
         return;
@@ -48,6 +73,9 @@ async function delete_mempool_txs(txids) {
 
 async function remove_by_block_height(hash) {
     const blockTxids = await ElectrsAPI.getBlockTxids(hash);
+    if (!blockTxids?.length) {
+        return;
+    }
     for (let i = 0; i < blockTxids.length; i += 100) {
         const txids = blockTxids.slice(i, i + 100);
         await delete_mempool_txs(txids);
@@ -133,19 +161,19 @@ async function handle_mempool_tx() {
                 if (!message) {
                     continue;
                 }
-                message = JSON.parse(message);
+                const mintData = decodeLEB128Array(JSON.parse(message));
                 let address = null;
                 const mempoolTxs = [];
                 let i = 0;
-                while (i < message.length) {
-                    const code = message[i];
-                    if (code === 2 && message[i + 2] === 77) {
+                while (i < mintData.length) {
+                    const code = mintData[i];
+                    if (code === 2 && mintData[i + 2] === 77) {
                         if (!address) {
                             address = PsbtUtil.script2Address(tx.outs[0].script);
                         }
                         mempoolTxs.push({
                             txid,
-                            alkanesId: `2:${message[i + 1]}`,
+                            alkanesId: `2:${mintData[i + 1]}`,
                             op: 'mint',
                             address,
                             feeRate: Math.round(tx.fee / (tx.weight / 4) * 100) / 100,
@@ -179,6 +207,7 @@ async function handle_mempool_message() {
             data = JSON.parse(data);
             if (data.block) { // 出新块, 将已确认的从数据库中删除
                 await remove_by_block_height(data.block.id);
+                console.log(1111, data['projected-block-transactions'].blockTransactions);
                 for (const tx of data['projected-block-transactions'].blockTransactions) {
                     await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
                 }
@@ -203,7 +232,7 @@ async function handle_mempool_message() {
 }
 
 function connect_mempool(onmessage) {
-    const rws = new ReconnectingWebSocket('wss://mempool.space/api/v1/ws', undefined, {
+    const rws = new ReconnectingWebSocket('wss://idclub.mempool.space/api/v1/ws', undefined, {
         WebSocket,
         startClosed: true
     });
@@ -231,7 +260,7 @@ function connect_mempool(onmessage) {
 }
 
 
-async function main() {
+export function start() {
     const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
     for (let i = 0; i < concurrent; i++) {
         handle_mempool_tx().catch(err => {
@@ -246,21 +275,19 @@ async function main() {
     });
 }
 
-// main().catch(err => {
-//     console.error('process error', err);
-// });
+// start();
 
 
-const hex = await ElectrsAPI.getTxHex('a6048373e61433200a51cb257d7697f5f6e3ca4a34ae12d70ea064cb9213a8c3');
+// const hex = await ElectrsAPI.getTxHex('12e2dd1714b79b9e9f0a812f1615b0d9ddab1c90ec817cc357691e5461553fd3');
+// console.log(await parse_tx_hex(hex));
+// console.log(111,hex);
+// const tx = bitcoin.Transaction.fromHex(hex);
+// const output = tx.outs[0];
+// // const scriptType = bitcoin.script.classifyOutput(output.script);
+// // console.log(scriptType);
+// console.log(PsbtUtil.script2Address(output.script));
 
-const tx = bitcoin.Transaction.fromHex(hex);
-const output = tx.outs[0];
-// const scriptType = bitcoin.script.classifyOutput(output.script);
-// console.log(scriptType);
-console.log(PsbtUtil.script2Address(output.script));
-
-
-
+// console.log(decodeLEB128Array([2,234,3,77,0,0,0,0,0,0,0,0,0,0,0]));
 
 
 
