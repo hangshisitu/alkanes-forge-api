@@ -184,10 +184,8 @@ export default class MempoolUtil {
                 timeout: 10000
             });
             return response.data;
-            // return await transactions.postTx({txhex: hex});
         } catch (err) {
             const errMessage = err.response?.data || err.message;
-            console.log(`mempool post tx error, hex: ${hex} error: ${errMessage}`);
             throw new Error(errMessage);
         }
     }

@@ -350,7 +350,10 @@ export default class AlkanesService {
     }
 
     static async startMint(fundAddress, toAddress, id, mints, postage, feerate, model, psbt) {
-        const txid = await UnisatAPI.unisatPush(psbt);
+        const {txid, error} = await UnisatAPI.unisatPush(psbt);
+        if (error) {
+            throw new Error(error);
+        }
 
         const protostone = AlkanesService.getMintProtostone(id, model);
 
@@ -376,7 +379,11 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const {txid: mintTxid} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, config.network, false, false);
+            const {txid: mintTxid, error} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, config.network, false, false);
+            if (error) {
+                throw new Error(error);
+            }
+
             console.log(`mint index ${i} tx: ${mintTxid}`);
             txidList.push(mintTxid);
         }

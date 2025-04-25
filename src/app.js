@@ -174,11 +174,18 @@ router
     .post('/broadcast', async ctx => {
         try {
             const params = ctx.request.body;
-            const txid = await UnisatAPI.unisatPush(params.psbt);
-            ctx.body = {
-                'code': 0,
-                'msg': 'ok',
-                'data': txid
+            const {txid, error} = await UnisatAPI.unisatPush(params.psbt);
+            if (error) {
+                ctx.body = {
+                    'code': 1,
+                    'msg': error
+                }
+            } else {
+                ctx.body = {
+                    'code': 0,
+                    'msg': 'ok',
+                    'data': txid
+                }
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)

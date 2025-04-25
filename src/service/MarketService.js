@@ -247,7 +247,11 @@ export default class MarketService {
     }
 
     static async putSignedDelisting(signedPsbt) {
-        const txid = await UnisatAPI.unisatPush(signedPsbt);
+        const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
+        if (error) {
+            throw new Error(error);
+        }
+
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         const listingOutputList = [];
@@ -408,20 +412,14 @@ export default class MarketService {
     }
 
     static async putSignedBuying(signedPsbt) {
-        let txid;
-        try {
-            txid = await UnisatAPI.unisatPush(signedPsbt);
-        } catch (err) {
-            if (err.message.includes('bad-txns-inputs-missingorspent')
-                || err.message.includes('TX decode failed')
-                || err.message.includes('txn-mempool-conflict')
-                || err.response?.data?.includes('bad-txns-inputs-missingorspent')
-                || err.response?.data?.includes('txn-mempool-conflict')) {
-                await MarketService.checkListingSpent(signedPsbt);
-                throw new Error('Some items in your order are already purchased or delisted.');
-            }
-            throw err;
+        const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
+        if (error.includes('bad-txns-inputs-missingorspent')
+            || error.includes('TX decode failed')
+            || error.includes('txn-mempool-conflict')) {
+            await MarketService.checkListingSpent(signedPsbt);
+            throw new Error('Some items in your order are already purchased or delisted.');
         }
+
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         let buyerAddress = originalPsbt.txOutputs[0].address;

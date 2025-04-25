@@ -255,12 +255,15 @@ export default class PsbtUtil {
 
             txid = psbt.extractTransaction().getId();
         }
-        if (hex_data.startsWith('7073')) {
+        else if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
             const tx = psbt.extractTransaction();
             hex_data = tx.toHex();
 
             txid = psbt.extractTransaction().getId();
+        } else {
+            const tx = bitcoin.Transaction.fromHex(hex_data);
+            txid = tx.getId();
         }
         return {
             txid,

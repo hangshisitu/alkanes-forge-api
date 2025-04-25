@@ -14,9 +14,10 @@ export default class UnisatAPI {
     static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
         const keyPair = AddressUtil.convertKeyPair(privateKey);
         const {hex, txSize} = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
-        const txid = await UnisatAPI.unisatPush(hex);
+        const {txid, error} = await UnisatAPI.unisatPush(hex);
         return {
             txid,
+            error,
             txSize
         }
     }
@@ -276,34 +277,28 @@ export default class UnisatAPI {
         const hex = txInfo.hex;
 
         let lastError = '';
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) {
             try {
-                // const response = await axios.post(`${config.api.unisatHost}/v1/indexer/local_pushtx`, {
-                //     txHex: hex
-                // }, {
-                //     headers: {
-                //         'Authorization': `Bearer ${config.api.unisatApiKey}`,
-                //         'Content-Type': 'application/json'
-                //     },
-                //     timeout: 10000
-                // });
-                // const result = response.data;
-                // if (result.code !== 0) {
-                //     throw new Error(result.msg);
-                // }
-                // return result.data;
-                return MempoolUtil.postTx(hex);
+                await MempoolUtil.postTx(hex);
+                return {
+                    txid
+                }
             } catch (err) {
                 lastError = err.message;
-                if (lastError.includes('Transaction already in block chain')) {
-                    return txid;
+                if (lastError.includes('Transaction') && lastError.includes('already')) {
+                    return {
+                        txid
+                    };
                 }
 
                 console.error(`tx push error, hex: ${hex_data}`, lastError);
-                await new Promise((resolve) => setTimeout(resolve, 500));
+                await new Promise((resolve) => setTimeout(resolve, 200));
             }
         }
-        throw new Error(`tx push error: ${lastError}`);
+        return {
+            txid,
+            error: lastError
+        }
     }
 
 }

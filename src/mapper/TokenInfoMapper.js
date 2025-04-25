@@ -4,6 +4,7 @@ import sequelize from "../lib/SequelizeHelper.js";
 import {Constants} from "../conf/constants.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import MempoolTxMapper from "./MempoolTxMapper.js";
+import BigNumber from "bignumber.js";
 export default class TokenInfoMapper {
 
     static getTokenPageCacheKey(name, mintActive, noPremine, orderType, page, size) {
@@ -253,7 +254,8 @@ export default class TokenInfoMapper {
             tokenList = JSON.parse(cacheData);
         } else {
             tokenList = await TokenInfo.findAll({
-                attributes: ['id', 'name', 'image', 'floorPrice', 'priceChange24h', 'marketCap']
+                attributes: ['id', 'name', 'image', 'floorPrice', 'priceChange24h', 'marketCap'],
+                raw: true
             });
             // 缓存全部token信息，单位：秒（如10s）
             await RedisHelper.setEx(cacheKey, 10, JSON.stringify(tokenList));
@@ -263,6 +265,19 @@ export default class TokenInfoMapper {
         if (Array.isArray(ids) && ids.length > 0) {
             tokenList = tokenList.filter(token => ids.includes(token.id));
         }
+
+        // 3. 新增 floorPriceUSD 和 marketCapUSD
+        const btcPrice = await RedisHelper.get(Constants.REDIS_KEY.BTC_PRICE_USD);
+        const btcPriceNumber = new BigNumber(btcPrice);
+        tokenList = tokenList.map(token => {
+            const floorPriceUSD = new BigNumber(token.floorPrice).multipliedBy(btcPriceNumber).dividedBy(10**8).decimalPlaces(18, BigNumber.ROUND_CEIL);
+            const marketCapUSD = new BigNumber(token.marketCap).multipliedBy(btcPriceNumber).dividedBy(10**8).decimalPlaces(0, BigNumber.ROUND_CEIL);
+            return {
+                ...token,
+                floorPriceUSD: floorPriceUSD.toFixed().replace(/\.?0+$/, ''),
+                marketCapUSD: marketCapUSD.toFixed().replace(/\.?0+$/, '')
+            };
+        });
 
         return tokenList;
     }

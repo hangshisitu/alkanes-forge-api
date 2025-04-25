@@ -128,7 +128,11 @@ export default class MintService {
         }
 
         const txidList = [];
-        const paymentHash = await UnisatAPI.unisatPush(psbt);
+        const {txid: paymentHash, error} = await UnisatAPI.unisatPush(psbt);
+        if (error) {
+            throw new Error(error);
+        }
+
         txidList.push(paymentHash);
 
         const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
@@ -202,7 +206,11 @@ export default class MintService {
                 });
             }
 
-            const {txid, txSize} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintAddress, mintOrder.feerate, config.network, false, false);
+            const {txid, txSize, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintAddress, mintOrder.feerate, config.network, false, false);
+            if (error) {
+                throw new Error(error);
+            }
+
             console.log(`mint index ${i} tx: ${txid}`);
             txidList.push(txid);
             inputTxid = txid;
@@ -287,7 +295,11 @@ export default class MintService {
                 });
             }
 
-            const {txid} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, config.network, false, false);
+            const {txid, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, config.network, false, false);
+            if (error) {
+                throw new Error(error);
+            }
+
             console.log(`accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
             txidList.push(txid);
 
@@ -405,7 +417,13 @@ export default class MintService {
                 });
             }
 
-            const {txid, txSize} = await UnisatAPI.transfer(privateKey, [mintUtxo], outputList, mintAddress, mintOrder.feerate, config.network, false, false);
+            const {txid, txSize, error} = await UnisatAPI.transfer(privateKey, [mintUtxo], outputList, mintAddress, mintOrder.feerate, config.network, false, false);
+            if (error && !((error.includes('Transaction') && error.includes('already'))
+                || error.includes('bad-txns-inputs-missingorspent')
+                || error.includes('txn-mempool-conflict'))) {
+                throw new Error(error);
+            }
+
             console.log(`mint the ${batchIndex} batch of index ${i} tx: ${txid}`);
             inputTxid = txid;
 
@@ -414,7 +432,7 @@ export default class MintService {
                 orderId: mintOrder.id,
                 inputUtxo: `${mintUtxo.txid}:${mintUtxo.vout}:${mintUtxo.value}`,
                 txSize: txSize,
-                batchIndex: 0,
+                batchIndex: batchIndex,
                 mintIndex: i,
                 receiveAddress: receiveAddress,
                 mintHash: inputTxid,
