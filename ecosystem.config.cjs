@@ -49,7 +49,7 @@ module.exports = {
             },
         },
         {
-            name: 'alkanes-job',
+            name: 'alkanes-mempool',
             script: 'src/app.js',
             env: {
                 NODE_ENV: 'dev',
