@@ -415,7 +415,7 @@ export default class AlkanesService {
         for (const [index, transferInfo] of transferAmountList.entries()) {
             outputList.push({
                 address: transferInfo.address,
-                value: 330
+                value: 546
             });
 
             const amount = new BigNumber(transferInfo.amount).multipliedBy(1e8);
