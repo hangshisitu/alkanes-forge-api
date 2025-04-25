@@ -282,6 +282,7 @@ router
         try {
             const params = ctx.request.body;
             const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id);
+            mempool.dataValues.config = await BaseService.getConfig();
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -602,6 +603,7 @@ if (process.env.port) {
 }
 
 if (process.env.jobEnable === 'true') {
+    mempool.start(true);
     jobs();
     console.log(`Jobs started.`)
 }

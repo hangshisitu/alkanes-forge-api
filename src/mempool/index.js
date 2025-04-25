@@ -10,6 +10,8 @@ import WebSocket from 'ws';
 
 const message_key = 'mempool:message';
 const txid_key = 'mempool:txid';
+const new_block_callbacks = [];
+
 class DateUtil {
     static now() {
         const now = new Date();
@@ -165,14 +167,11 @@ async function handle_mempool_tx() {
         const txid = results[0].value;
 
         try {
-            const mempoolTx = await MempoolTx.findOne({
-                where: { txid }
-            });
-            if (mempoolTx) {
-                continue;
-            }
             const hex = await ElectrsAPI.getTxHex(txid);
             if (!hex) {
+                await MempoolTx.destroy({
+                    where: { txid }
+                });
                 continue;
             }
             const tx = bitcoin.Transaction.fromHex(hex);
@@ -193,7 +192,7 @@ async function handle_mempool_tx() {
                 if (mintData.length < 3) {
                     continue;
                 }
-                console.log(`handle mempool tx: ${txid}, protostone message: ${message}`);
+                console.log(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
                 let address = null;
                 let feeRate = null;
                 const mempoolTxs = [];
@@ -236,6 +235,23 @@ async function handle_mempool_tx() {
     }
 }
 
+function safe_call(callback, ...args) {
+    try {
+        callback(...args);
+    } catch (e) {
+        console.error(`safe call error`, e);
+    }
+}
+
+async function handle_new_block(block, handle_db = true) {
+    for (const callback of new_block_callbacks) {
+        safe_call(callback, block);
+    }
+    if (handle_db) {
+        await remove_by_block_height(block.id);
+    }
+}
+
 async function handle_mempool_message() {
     while (true) {
         try {
@@ -248,7 +264,7 @@ async function handle_mempool_message() {
             const ws_block = parseInt(data.substring(0, idx));
             data = JSON.parse(data.substring(idx + 1));
             if (ws_block === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
-                await remove_by_block_height(data.block.id);
+                await handle_new_block(data.block);
                 const txs = data['projected-block-transactions']?.blockTransactions;
                 if (txs?.length) {
                     for (const tx of data['projected-block-transactions'].blockTransactions) {
@@ -275,7 +291,7 @@ async function handle_mempool_message() {
     }
 }
 
-function connect_mempool(block, onmessage) {
+function connect_mempool(block, onmessage, monitor_new_block_only = false) {
     let connect_count = 0;
     const rws = new ReconnectingWebSocket('wss://idclub.mempool.space/api/v1/ws', undefined, {
         WebSocket,
@@ -283,7 +299,11 @@ function connect_mempool(block, onmessage) {
     });
     rws.onopen = () => {
         if (connect_count > 0 && block === 0) {
-            try_scan_mempool_tx();  
+            if (monitor_new_block_only) {
+                handle_new_block(null, false);
+            } else {
+                try_scan_mempool_tx();  
+            }
         }
         connect_count ++;      
         console.log(`connect mempool block: ${block}, connect_count: ${connect_count}`);
@@ -308,24 +328,37 @@ function connect_mempool(block, onmessage) {
 }
 
 
-export function start() {
-    const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
-    for (let i = 0; i < concurrent; i++) {
-        handle_mempool_tx().catch(err => {
-            console.error(`[${i}]handle mempool tx error`, err);
-        });
-    }
-    handle_mempool_message().catch(err => {
-        console.error('handle mempool message queue error', err);
-    });
-    const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
-    try_scan_mempool_tx().finally(() => {
-        for (let i = 0; i < blocks; i++) {
-            connect_mempool(i, async data => {
-                await RedisHelper.lpush(message_key, data);
+export function start(monitor_new_block_only = false) {
+    if (!monitor_new_block_only) {
+        const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
+        for (let i = 0; i < concurrent; i++) {
+            handle_mempool_tx().catch(err => {
+                console.error(`[${i}]handle mempool tx error`, err);
             });
         }
-    });
+        handle_mempool_message().catch(err => {
+            console.error('handle mempool message queue error', err);
+        });
+        const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
+        try_scan_mempool_tx().finally(() => {
+            for (let i = 0; i < blocks; i++) {
+                connect_mempool(i, async data => {
+                    await RedisHelper.lpush(message_key, data);
+                });
+            }
+        });
+        return;
+    }
+    connect_mempool(0, async data => {
+        data = JSON.parse(data);
+        if (data.block) { // 出新块
+            await handle_new_block(data.block, false);
+        }
+    }, true);
+}
+
+export function onNewBlock(callback) {
+    new_block_callbacks.push(callback);
 }
 
 // start();
