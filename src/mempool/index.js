@@ -237,18 +237,22 @@ async function handle_mempool_message() {
     }
 }
 
-function connect_mempool(onmessage) {
+function connect_mempool(block, onmessage) {
+    let connect_count = 0;
     const rws = new ReconnectingWebSocket('wss://idclub.mempool.space/api/v1/ws', undefined, {
         WebSocket,
         startClosed: true
     });
     rws.onopen = () => {
-        try_scan_mempool_tx();        
-        console.log('Connected');
+        if (connect_count > 0) {
+            try_scan_mempool_tx();  
+        }
+        connect_count ++;      
+        console.log(`connect mempool block: ${block}, connect_count: ${connect_count}`);
         rws.send(`{"action":"init"}`);
         rws.send(`{"action":"want","data":["blocks","mempool-blocks"]}`);
         rws.send(`{"track-rbf-summary":true}`);
-        rws.send(`{"track-mempool-block":0}`);
+        rws.send(`{"track-mempool-block":${block}}`);
     };
     rws.onmessage = (event) => {
         try {
@@ -276,8 +280,13 @@ export function start() {
     handle_mempool_message().catch(err => {
         console.error('handle mempool message queue error', err);
     });
-    connect_mempool(async data => {
-        await RedisHelper.lpush(message_key, data);
+    const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
+    try_scan_mempool_tx().finally(() => {
+        for (let i = 0; i < blocks; i++) {
+            connect_mempool(i, async data => {
+                await RedisHelper.lpush(message_key, data);
+            });
+        }
     });
 }
 
