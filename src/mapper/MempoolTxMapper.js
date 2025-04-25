@@ -15,9 +15,14 @@ export default class MempoolTxMapper {
         });
     }
 
-    static async countByAlkanesId(alkanesId) {
+    static async countByAlkanesId(alkanesId, minFeeRate = 0) {
         const result = await MempoolTx.findOne({
-            attributes: ['alkanesId', [sequelize.fn('COUNT', sequelize.col('id')), 'count'], [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'addressCount']],
+            attributes: [
+                'alkanesId', 
+                [sequelize.fn('COUNT', sequelize.col('id')), 'count'], 
+                [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'addressCount'],
+                [sequelize.fn('COUNT', sequelize.literal(`CASE WHEN fee_rate >= ${minFeeRate} THEN 1 END`)), 'nextBlockCount']
+            ],
             where: { alkanesId }
         });
         return result;
@@ -28,7 +33,11 @@ export default class MempoolTxMapper {
             return [];
         }
         const result = await MempoolTx.findAll({
-            attributes: ['alkanesId', [sequelize.fn('COUNT', sequelize.col('id')), 'count'], [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'addressCount']],
+            attributes: [
+                'alkanesId', 
+                [sequelize.fn('COUNT', sequelize.col('id')), 'count'], 
+                [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'addressCount']
+            ],
             where: { alkanesId: alkanesIds },
             group: ['alkanesId']
         });
@@ -52,8 +61,8 @@ export default class MempoolTxMapper {
         };
     }
 
-    static async getAlkanesIdMempoolData(alkanesId) {
-        let data = await this.countByAlkanesId(alkanesId);
+    static async getAlkanesIdMempoolData(alkanesId, minFeeRate) {
+        let data = await this.countByAlkanesId(alkanesId, minFeeRate);
         data = data.dataValues;
         if (data.count > 0) {
             // 需要执行原始sql, 将alkanesId传入
@@ -126,7 +135,7 @@ export default class MempoolTxMapper {
             }
 
             return {
-                ...data.dataValues,
+                ...data,
                 feeRateRanges: mergedRanges,
             };
         }

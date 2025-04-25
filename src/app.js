@@ -262,8 +262,7 @@ router
             const tokenInfo = await TokenInfoMapper.getById(params.id);
             if (tokenInfo) {
                 let data = await MempoolTxMapper.countByAlkanesId(params.id);
-                data = data.dataValues;
-                tokenInfo.dataValues.mempool = {count: data.count, addressCount: data.addressCount};
+                tokenInfo.dataValues.mempool = data.dataValues;
             }
             ctx.body = {
                 'code': 0,
@@ -281,8 +280,9 @@ router
     .post('/token/mempool', async ctx => {
         try {
             const params = ctx.request.body;
-            const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id);
-            mempool.config = await BaseService.getConfig();
+            const config = await BaseService.getConfig();
+            const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id, config.blockFee?.feeRange?.[0]);
+            mempool.config = config;
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
