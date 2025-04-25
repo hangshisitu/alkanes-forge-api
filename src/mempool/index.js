@@ -94,10 +94,10 @@ async function detect_tx_status(txs) {
         }
         const txid = tx.txid;
         try {
-            const status = await ElectrsAPI.getTxStatus(txid);
-            if (!status) {
+            const mempoolTx = await ElectrsAPI.getTx(txid);
+            if (!mempoolTx) {
                 ret_txids.push(txid);
-            } else if (status.confirmed) {
+            } else if (mempoolTx.status.confirmed) {
                 ret_txids.push(txid);
             }
         } catch (e) {
@@ -206,6 +206,9 @@ async function handle_mempool_tx() {
                         if (!feeRate) {
                             const electrsTx = await ElectrsAPI.getTx(txid);
                             if (!electrsTx) {
+                                await MempoolTx.destroy({
+                                    where: { txid }
+                                });
                                 break;
                             }
                             feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
@@ -375,5 +378,5 @@ export function onNewBlock(callback) {
 
 // console.log(decodeLEB128Array([2,234,3,77,0,0,0,0,0,0,0,0,0,0,0]));
 
-
+// await scan_mempool_tx();
 
