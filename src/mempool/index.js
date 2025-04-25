@@ -406,7 +406,9 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
         rws.send(`{"action":"init"}`);
         rws.send(`{"track-mempool-block":${block}}`);
         rws.send(`{"action":"want","data":["blocks","mempool-blocks"]}`);
-        rws.send(`{"track-rbf":"all"}`);
+        if (block === 0 && !monitor_new_block_only) {
+            rws.send(`{"track-rbf":"all"}`);
+        }
     };
     rws.onmessage = (event) => {
         try {
