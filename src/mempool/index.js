@@ -332,9 +332,10 @@ async function flat_rbf_latest(replaces, txids) {
 }
 
 async function handle_mempool_message(block_index) {
+    const queue = block_message_queues[block_index];
     while (true) {
         try {
-            let data = await block_message_queues[block_index].get();
+            let data = await queue.get();
             if (!data) {
                 await DateUtil.sleep(500);
                 continue;
@@ -374,8 +375,10 @@ async function handle_mempool_message(block_index) {
                 rbfLatest.forEach(item => {
                     flat_rbf_latest(item.replaces, txids);
                 });
-                await handle_mempool_txs(txids);
-                console.log(`handle rbf latest txs: ${txids.length}`);
+                if (txids.length) {
+                    await delete_mempool_txs(txids);
+                    console.log(`handle rbf latest txs: ${txids.length}`);
+                }
             }
         } catch (e) {
             console.error('parse mempool message occur error', e);
