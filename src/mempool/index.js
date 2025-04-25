@@ -83,6 +83,30 @@ async function remove_by_block_height(hash) {
     }
 }
 
+async function detect_tx_status(txs) {
+    const ret_txids = [];
+    while (true) {
+        const tx = txs.shift();
+        if (!tx) {
+            break;
+        }
+        const txid = tx.txid;
+        try {
+            const status = await ElectrsAPI.getTxStatus(txid);
+            if (!status) {
+                ret_txids.push(txid);
+            } else if (status.confirmed) {
+                ret_txids.push(txid);
+            }
+        } catch (e) {
+            console.error(`detect tx status error: ${txid}`, e);
+            await DateUtil.sleep(3000);
+            continue;
+        }
+    }
+    return ret_txids;
+}
+
 async function scan_mempool_tx() {
     let offset = 0;
     const size = 100;
@@ -95,18 +119,16 @@ async function scan_mempool_tx() {
         if (txs.length === 0) {
             break;
         }
-        for (const mempoolTx of txs) {
-            const txid = mempoolTx.txid;
-            const status = await ElectrsAPI.getTxStatus(txid);
-            if (!status) {
-                txids.push(txid);
-            } else if (status.confirmed) {
-                txids.push(txid);
-            }
-            if (txids.length >= size) {
-                await delete_mempool_txs(txids);
-                txids = [];
-            }
+        const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
+        const promises = [];
+        for (let i = 0; i < concurrent; i++) {
+            promises.push(detect_tx_status(txs));
+        }
+        const results = await Promise.all(promises);
+        txids = results.flat();
+        if (txids.length >= size) {
+            await delete_mempool_txs(txids);
+            txids = [];
         }
         offset += size;
     }
@@ -223,11 +245,9 @@ async function handle_mempool_message() {
                 continue;
             }
             const idx = data.indexOf(':');
+            const ws_block = parseInt(data.substring(0, idx));
             data = JSON.parse(data.substring(idx + 1));
-            if (data.block) { // 出新块, 将已确认的从数据库中删除
-                if (parseInt(data.substring(0, idx)) !== 0) {
-                    continue;
-                }
+            if (ws_block === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
                 await remove_by_block_height(data.block.id);
                 const txs = data['projected-block-transactions']?.blockTransactions;
                 if (txs?.length) {
