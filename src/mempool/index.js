@@ -167,6 +167,7 @@ async function handle_mempool_tx() {
                 }
                 console.log(`handle mempool tx: ${txid}, protostone message: ${message}`);
                 let address = null;
+                let feeRate = null;
                 const mempoolTxs = [];
                 let i = 0;
                 while (i < mintData.length) {
@@ -175,12 +176,19 @@ async function handle_mempool_tx() {
                         if (!address) {
                             address = PsbtUtil.script2Address(tx.outs[0].script);
                         }
+                        if (!feeRate) {
+                            const electrsTx = await ElectrsAPI.getTx(txid);
+                            if (!electrsTx) {
+                                break;
+                            }
+                            feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
+                        }
                         mempoolTxs.push({
                             txid,
                             alkanesId: `2:${mintData[i + 1]}`,
                             op: 'mint',
                             address,
-                            feeRate: Math.round(tx.fee / (tx.weight / 4) * 100) / 100,
+                            feeRate,
                         });
                         i += 3;
                     } else {
