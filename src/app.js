@@ -11,7 +11,9 @@ import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
+import MempoolTxMapper from "./mapper/MempoolTxMapper.js";
 import BaseService from "./service/BaseService.js";
+import * as mempool from "./mempool/index.js";
 
 const app = new Koa();
 const router = new Router();
@@ -256,10 +258,32 @@ router
         try {
             const params = ctx.request.body;
             const tokenInfo = await TokenInfoMapper.getById(params.id);
+            if (tokenInfo) {
+                let data = await MempoolTxMapper.countByAlkanesId(params.id);
+                data = data.dataValues;
+                tokenInfo.dataValues.mempool = {count: data.count, addressCount: data.addressCount};
+            }
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
                 'data': tokenInfo
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/token/mempool', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': mempool
             }
         } catch (e) {
             console.error(`${util.inspect(e)}`)
@@ -491,4 +515,9 @@ if (process.env.port) {
 if (process.env.jobEnable === 'true') {
     jobs();
     console.log(`Jobs started.`)
+}
+
+if (process.env.mempoolEnable === 'true') {
+    mempool.start();
+    console.log(`Mempool started.`)
 }

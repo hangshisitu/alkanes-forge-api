@@ -24,5 +24,6 @@
     "market": "bc1qtr2m8tr797v2z6tptuqlveh0egper6m6m0vtls",
     "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
     "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
-  }
+  },
+  "protoruneParseEndpoint": "http://10.5.96.26:58888"
 }

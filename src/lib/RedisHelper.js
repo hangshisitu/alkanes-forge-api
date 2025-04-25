@@ -41,3 +41,27 @@ export async function scan(pattern, count = 1000, del_key = false) {
     } while (cursor !== 0);
     return ret_keys;
 }
+
+export async function lpush(key, value) {
+    return await redisClient.lPush(genKey(key), value);
+}
+
+export async function rpop(key) {
+    return await redisClient.rPop(genKey(key));
+}
+
+export async function zadd(key, score, value) {
+    return await redisClient.zAdd(genKey(key), {score, value});
+}
+
+export async function zrange(key, start, end) {
+    return await redisClient.zRange(genKey(key), start, end);
+}
+
+export async function zpopmin(key, count = 1) {
+    return await redisClient.zPopMinCount(genKey(key), count);
+}
+
+export async function zrem(key, value) {
+    return await redisClient.zRem(genKey(key), value);
+}

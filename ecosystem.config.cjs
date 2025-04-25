@@ -47,6 +47,18 @@ module.exports = {
                 NODE_ENV: 'pro',
                 jobEnable: true
             },
+        },
+        {
+            name: 'alkanes-mempool',
+            script: 'src/app.js',
+            env: {
+                NODE_ENV: 'dev',
+                mempoolEnable: true
+            },
+            env_pro: {
+                NODE_ENV: 'pro',
+                mempoolEnable: true
+            },
         }
     ],
 };
