@@ -1,6 +1,5 @@
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import ElectrsAPI from '../lib/ElectrsApi.js';
-import * as RedisHelper from '../lib/RedisHelper.js';
 import MempoolTx from '../models/MempoolTx.js';
 import axios from 'axios';
 import config from "../conf/config.js";
@@ -9,9 +8,43 @@ import PsbtUtil from "../utils/PsbtUtil.js";
 import WebSocket from 'ws';
 import {Op} from "sequelize";
 
-const message_key = 'mempool:message';
-const txid_key = 'mempool:txid';
+class Queue {
+
+    constructor() {
+        this._queue = [];
+        this._empty = [];
+    }
+
+    isEmpty() {
+        return this._queue.length === 0;
+    }
+
+    async get() {
+        if (this.isEmpty()) {
+            await new Promise(resolve => {
+                this._empty.push(resolve);
+            });
+        }
+        return this._queue.shift();
+    }
+
+    put(item) {
+        this._queue.push(item);
+        if (this._empty.length > 0) {
+            const resolve = this._empty.shift();
+            resolve();
+        }
+    }
+
+}
+
 const new_block_callbacks = [];
+const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
+const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
+const block_message_queues = {};
+for (let i = 0; i < blocks; i++) {
+    block_message_queues[i] = new Queue();
+}
 
 class DateUtil {
     static now() {
@@ -69,10 +102,10 @@ async function delete_mempool_txs(txids) {
     if (!txids?.length) {
         return;
     }
-    await RedisHelper.zrem(txid_key, txids);
     await MempoolTx.destroy({
         where: { txid: txids }
     });
+    console.log(`delete mempool txs: ${JSON.stringify(txids)}`);
 }
 
 async function remove_by_block_height(hash) {
@@ -130,7 +163,6 @@ async function scan_mempool_tx() {
             break;
         }
         minId = txs[txs.length - 1].id;
-        const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
         const promises = [];
         for (let i = 0; i < concurrent; i++) {
             promises.push(detect_tx_status(txs));
@@ -160,92 +192,98 @@ async function parse_tx_hex(hex) {
     }
 }
 
-async function handle_mempool_tx() {
-    while (true) {
-        const results = await RedisHelper.zpopmin(txid_key);
-        if (!results?.length) {
-            await DateUtil.sleep(500);
-            continue;
-        }
-
-        const txid = results[0].value;
-
-        try {
-            const hex = await ElectrsAPI.getTxHex(txid);
-            if (!hex) {
-                await MempoolTx.destroy({
-                    where: { txid }
-                });
-                continue;
-            }
-            const tx = bitcoin.Transaction.fromHex(hex);
-            if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
-                continue;
-            }
-            const result = await parse_tx_hex(hex);
-            if (result?.status !== 'success') {
-                console.error(`parse tx [${txid}] error`, result);
-                continue;
-            }
-            for (const protostone of result.protostones ?? []) {
-                const message = protostone.message;
-                if (!message) {
-                    continue;
-                }
-                const mintData = decodeLEB128Array(JSON.parse(message));
-                if (mintData.length < 3) {
-                    continue;
-                }
-                if (await MempoolTx.findOne({
-                    where: {
-                        txid
-                    }
-                })) {
+async function handle_mempool_txs(txids) {
+    const promises = [];
+    for (let i = 0; i < concurrent; i++) {
+        promises.push((async () => {
+            while (true) {
+                const txid = txids.shift();
+                if (!txid) {
                     break;
                 }
-                console.log(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
-                let address = null;
-                let feeRate = null;
-                const mempoolTxs = [];
-                let i = 0;
-                while (i < mintData.length) {
-                    const code = mintData[i];
-                    if (code === 2 && mintData[i + 2] === 77) {
-                        if (!address) {
-                            address = PsbtUtil.script2Address(tx.outs[0].script);
-                        }
-                        if (!feeRate) {
-                            const electrsTx = await ElectrsAPI.getTx(txid);
-                            if (!electrsTx || electrsTx.status.confirmed) {
-                                await MempoolTx.destroy({
-                                    where: { txid }
-                                });
-                                break;
-                            }
-                            feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
-                        }
-                        mempoolTxs.push({
-                            txid,
-                            alkanesId: `2:${mintData[i + 1]}`,
-                            op: 'mint',
-                            address,
-                            feeRate,
-                        });
-                        i += 3;
-                    } else {
-                        i ++;
-                    }
-                }
-                if (mempoolTxs.length > 0) {
-                    await MempoolTx.bulkCreate(mempoolTxs, {
-                        ignoreDuplicates: true,
-                    });
+                try {
+                    await handle_mempool_tx(txid);
+                } catch (e) {
+                    console.error(`handle mempool tx error: ${txid}`, e);
                 }
             }
-        } catch (e) {
-            console.error(`handle mempool tx error: ${txid}`, e);
+        })());
+    }
+    await Promise.all(promises);
+}
+
+async function handle_mempool_tx(txid) {
+    const hex = await ElectrsAPI.getTxHex(txid);
+    if (!hex) {
+        console.error(`no hex found: ${txid}, delete from db`);
+        await MempoolTx.destroy({
+            where: { txid }
+        });
+        return;
+    }
+    const tx = bitcoin.Transaction.fromHex(hex);
+    if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
+        return;
+    }
+    const result = await parse_tx_hex(hex);
+    if (result?.status !== 'success') {
+        console.error(`parse tx [${txid}] error`, result);
+        return;
+    }
+    const mempoolTxs = [];
+    for (const protostone of result.protostones ?? []) {
+        const message = protostone.message;
+        if (!message) {
             continue;
         }
+        const mintData = decodeLEB128Array(JSON.parse(message));
+        if (mintData.length < 3) {
+            continue;
+        }
+        if (await MempoolTx.findOne({
+            where: {
+                txid
+            }
+        })) {
+            break;
+        }
+        console.log(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
+        let address = null;
+        let feeRate = null;
+        let i = 0;
+        while (i < mintData.length) {
+            const code = mintData[i];
+            if (code === 2 && mintData[i + 2] === 77) {
+                if (!address) {
+                    address = PsbtUtil.script2Address(tx.outs[0].script);
+                }
+                if (!feeRate) {
+                    const electrsTx = await ElectrsAPI.getTx(txid);
+                    if (!electrsTx || electrsTx.status.confirmed) {
+                        await MempoolTx.destroy({
+                            where: { txid }
+                        });
+                        break;
+                    }
+                    feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
+                }
+                mempoolTxs.push({
+                    txid,
+                    alkanesId: `2:${mintData[i + 1]}`,
+                    op: 'mint',
+                    address,
+                    feeRate,
+                });
+                i += 3;
+            } else {
+                i++;
+            }
+        }
+    }
+    if (mempoolTxs.length > 0) {
+        await MempoolTx.bulkCreate(mempoolTxs, {
+            ignoreDuplicates: true,
+        });
     }
 }
 
@@ -267,50 +305,58 @@ async function handle_new_block(block, handle_db = true) {
     try_scan_mempool_tx();
 }
 
-async function handle_mempool_message() {
+async function handle_removed_txs(txids) {
+    const promises = [];
+    const txs = txids.map(txid => {
+        return {txid};
+    });
+    for (let i = 0; i < concurrent; i++) {
+        promises.push(detect_tx_status(txs));
+    }
+    const results = await Promise.all(promises);
+    const remove_txids = results.flat();
+    if (remove_txids.length) {
+        await delete_mempool_txs(remove_txids);
+    }
+}
+
+async function handle_mempool_message(block_index) {
     while (true) {
         try {
-            let data = await RedisHelper.rpop(message_key);
+            let data = await block_message_queues[block_index].get();
             if (!data) {
                 await DateUtil.sleep(500);
                 continue;
             }
-            const idx = data.indexOf(':');
-            const ws_block = parseInt(data.substring(0, idx));
-            data = JSON.parse(data.substring(idx + 1));
-            if (ws_block === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
+            data = JSON.parse(data);
+            if (block_index === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
                 await handle_new_block(data.block);
-                const txs = data['projected-block-transactions']?.blockTransactions;
-                if (txs?.length) {
-                    for (const tx of data['projected-block-transactions'].blockTransactions) {
-                        await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
-                    }
-                }
             }
             const delta = data['projected-block-transactions']?.delta;
-            // const rbfTxids = data.rbfLatestSummary?.map(item => item.txid);
             if (delta) {
-                for (const tx of delta.added) {
-                    await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
+                if (delta.removed?.length) {
+                    await handle_removed_txs(delta.removed);
                 }
-                for (const tx of delta.changed) {
-                    await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
+                if (delta.changed?.length) {
+                    delta.changed.forEach(async item => {
+                        const txid = item[0];
+                        const feeRate = item[1];
+                        await MempoolTx.update({
+                            feeRate
+                        }, {
+                            where: { 
+                                txid,
+                                feeRate: {
+                                    [Op.lt]: feeRate
+                                }
+                            }
+                        });
+                    });
                 }
-                for (const txid of delta.removed) {
-                    // if (rbfTxids?.includes(txid)) {
-                    //     continue;
-                    // }
-                    await RedisHelper.zadd(txid_key, Date.now(), txid);
+                if (delta.added?.length) {
+                    await handle_mempool_txs(delta.added.map(item => item[0]));
                 }
             }
-            // if (rbfTxids?.length) {
-            //     await RedisHelper.zrem(txid_key, rbfTxids);
-            //     await MempoolTx.destroy({
-            //         where: {
-            //             txid: rbfTxids
-            //         }
-            //     });
-            // }
         } catch (e) {
             console.error('parse mempool message occur error', e);
             await DateUtil.sleep(3000);
@@ -342,7 +388,7 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
     rws.onmessage = (event) => {
         try {
             // console.log(`receive message: ${event.data}`);
-            onmessage(`${block}:${event.data}`);
+            onmessage(event.data);
         } catch(e) {
             console.error(`handle ${event} error`, e);
         }
@@ -357,27 +403,20 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
 
 export function start(monitor_new_block_only = false) {
     if (!monitor_new_block_only) {
-        const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
-        for (let i = 0; i < concurrent; i++) {
-            handle_mempool_tx().catch(err => {
-                console.error(`[${i}]handle mempool tx error`, err);
-            });
-        }
-        handle_mempool_message().catch(err => {
-            console.error('handle mempool message queue error', err);
-        });
-        const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
         try_scan_mempool_tx().finally(() => {
             for (let i = 0; i < blocks; i++) {
-                connect_mempool(i, async data => {
-                    await RedisHelper.lpush(message_key, data);
+                handle_mempool_message(i).catch(err => {
+                    console.error('handle mempool message queue error', err);
+                });
+                connect_mempool(i, data => {
+                    block_message_queues[i].put(data);
                 });
             }
         });
         return;
     }
     connect_mempool(0, async data => {
-        data = JSON.parse(data.substring(data.indexOf(':') + 1));
+        data = JSON.parse(data);
         if (data.block) { // 出新块
             await handle_new_block(data.block, false);
         }
