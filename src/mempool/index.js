@@ -350,7 +350,7 @@ export function start(monitor_new_block_only = false) {
         return;
     }
     connect_mempool(0, async data => {
-        data = JSON.parse(data);
+        data = JSON.parse(data.substring(data.indexOf(':') + 1));
         if (data.block) { // 出新块
             await handle_new_block(data.block, false);
         }
