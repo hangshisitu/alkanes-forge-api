@@ -413,7 +413,7 @@ export default class MarketService {
 
     static async putSignedBuying(signedPsbt) {
         const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
-        if (error.includes('bad-txns-inputs-missingorspent')
+        if (error && error.includes('bad-txns-inputs-missingorspent')
             || error.includes('TX decode failed')
             || error.includes('txn-mempool-conflict')) {
             await MarketService.checkListingSpent(signedPsbt);

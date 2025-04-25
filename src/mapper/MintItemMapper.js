@@ -22,6 +22,7 @@ export default class MintItemMapper {
               SELECT
                 batch_index as batchIndex,
                 SUBSTRING_INDEX(GROUP_CONCAT(id ORDER BY mint_index DESC), ',', 1) AS id,
+                SUBSTRING_INDEX(GROUP_CONCAT(mint_hash ORDER BY mint_index DESC), ',', 1) AS mintHash,
                 SUBSTRING_INDEX(GROUP_CONCAT(input_utxo ORDER BY mint_index DESC), ',', 1) AS inputUtxo,
                 SUM(tx_size) AS totalTxSize
               FROM mint_item

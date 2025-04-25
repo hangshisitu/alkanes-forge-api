@@ -260,6 +260,12 @@ export default class MintService {
 
         const mintItems = [];
         for (const subOrder of subOrders) {
+            // 检查是否已确认
+            const txStatus = await MempoolUtil.getTxStatus(subOrder.mintHash);
+            if (txStatus) {
+                continue;
+            }
+
             const totalTxSize = subOrder.totalTxSize;
             const maxFeerate = mintOrder.prepaid / totalTxSize + mintOrder.feerate;
             if (feerate > maxFeerate) {
@@ -296,7 +302,7 @@ export default class MintService {
             }
 
             const {txid, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, config.network, false, false);
-            if (error) {
+            if (MintService.shouldThrowError(error)) {
                 throw new Error(error);
             }
 
@@ -347,7 +353,7 @@ export default class MintService {
 
         const totalMints = mintOrder.submittedAmount + totalItemList.length;
         const mintStatus = totalMints === mintOrder.mintAmount ? Constants.MINT_ORDER_STATUS.MINTING : Constants.MINT_ORDER_STATUS.PARTIAL;
-        await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, mintOrder.submittedAmount + totalItemList.length, mintStatus);
+        await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), mintStatus);
         await MintItemMapper.bulkUpsertItem(totalItemList);
     }
 
@@ -418,9 +424,7 @@ export default class MintService {
             }
 
             const {txid, txSize, error} = await UnisatAPI.transfer(privateKey, [mintUtxo], outputList, mintAddress, mintOrder.feerate, config.network, false, false);
-            if (error && !((error.includes('Transaction') && error.includes('already'))
-                || error.includes('bad-txns-inputs-missingorspent')
-                || error.includes('txn-mempool-conflict'))) {
+            if (MintService.shouldThrowError(error)) {
                 throw new Error(error);
             }
 
@@ -440,5 +444,14 @@ export default class MintService {
             });
         }
         return itemList;
+    }
+
+    static shouldThrowError(error) {
+        if (!error) return false;
+        return !(
+            (error.includes('Transaction') && error.includes('already')) ||
+            error.includes('bad-txns-inputs-missingorspent') ||
+            error.includes('txn-mempool-conflict')
+        );
     }
 }
