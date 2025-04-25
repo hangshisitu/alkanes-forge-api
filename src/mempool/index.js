@@ -7,6 +7,7 @@ import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import WebSocket from 'ws';
+import {Op} from "sequelize";
 
 const message_key = 'mempool:message';
 const txid_key = 'mempool:txid';
@@ -110,31 +111,36 @@ async function detect_tx_status(txs) {
 }
 
 async function scan_mempool_tx() {
-    let offset = 0;
     const size = 100;
-    let txids = [];
+    let minId = 0;
     while (true) {
         const txs = await MempoolTx.findAll({
-            offset: offset,
-            limit: size
+            offset: 0,
+            limit: size,
+            where: {
+                id: {
+                    [Op.gt]: minId
+                }
+            },
+            order: [
+                ['id', 'ASC']
+            ]
         });
         if (txs.length === 0) {
             break;
         }
+        minId = txs[txs.length - 1].id;
         const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
         const promises = [];
         for (let i = 0; i < concurrent; i++) {
             promises.push(detect_tx_status(txs));
         }
         const results = await Promise.all(promises);
-        txids = results.flat();
-        if (txids.length >= size) {
+        const txids = results.flat();
+        if (txids.length) {
             await delete_mempool_txs(txids);
-            txids = [];
         }
-        offset += size;
     }
-    await delete_mempool_txs(txids);
 }
 
 async function try_scan_mempool_tx() {
@@ -210,7 +216,7 @@ async function handle_mempool_tx() {
                         }
                         if (!feeRate) {
                             const electrsTx = await ElectrsAPI.getTx(txid);
-                            if (!electrsTx) {
+                            if (!electrsTx || electrsTx.status.confirmed) {
                                 await MempoolTx.destroy({
                                     where: { txid }
                                 });
@@ -282,6 +288,7 @@ async function handle_mempool_message() {
                 }
             }
             const delta = data['projected-block-transactions']?.delta;
+            const rbfTxids = data.rbfLatestSummary?.map(item => item.txid);
             if (delta) {
                 for (const tx of delta.added) {
                     await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
@@ -290,8 +297,19 @@ async function handle_mempool_message() {
                     await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
                 }
                 for (const txid of delta.removed) {
+                    if (rbfTxids?.includes(txid)) {
+                        continue;
+                    }
                     await RedisHelper.zadd(txid_key, Date.now(), txid);
                 }
+            }
+            if (rbfTxids?.length) {
+                await RedisHelper.zrem(txid_key, rbfTxids);
+                await MempoolTx.destroy({
+                    where: {
+                        txid: rbfTxids
+                    }
+                });
             }
         } catch (e) {
             console.error('parse mempool message occur error', e);
