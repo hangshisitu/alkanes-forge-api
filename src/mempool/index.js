@@ -143,6 +143,12 @@ async function handle_mempool_tx() {
         const txid = results[0].value;
 
         try {
+            const mempoolTx = await MempoolTx.findOne({
+                where: { txid }
+            });
+            if (mempoolTx) {
+                continue;
+            }
             const hex = await ElectrsAPI.getTxHex(txid);
             if (!hex) {
                 continue;
@@ -216,8 +222,12 @@ async function handle_mempool_message() {
                 await DateUtil.sleep(500);
                 continue;
             }
-            data = JSON.parse(data);
+            const idx = data.indexOf(':');
+            data = JSON.parse(data.substring(idx + 1));
             if (data.block) { // 出新块, 将已确认的从数据库中删除
+                if (parseInt(data.substring(0, idx)) !== 0) {
+                    continue;
+                }
                 await remove_by_block_height(data.block.id);
                 const txs = data['projected-block-transactions']?.blockTransactions;
                 if (txs?.length) {
@@ -252,7 +262,7 @@ function connect_mempool(block, onmessage) {
         startClosed: true
     });
     rws.onopen = () => {
-        if (connect_count > 0) {
+        if (connect_count > 0 && block === 0) {
             try_scan_mempool_tx();  
         }
         connect_count ++;      
@@ -265,7 +275,7 @@ function connect_mempool(block, onmessage) {
     rws.onmessage = (event) => {
         try {
             // console.log(`receive message: ${event.data}`);
-            onmessage(event.data);
+            onmessage(`${block}:${event.data}`);
         } catch(e) {
             console.error(`handle ${event} error`, e);
         }
