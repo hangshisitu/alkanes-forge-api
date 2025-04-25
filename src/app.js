@@ -239,6 +239,23 @@ router
         }
     })
 
+    .post('/token/prices', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const tokenList = await TokenInfoMapper.getTokenPrice(params.ids);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': tokenList
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post('/token/page', async ctx => {
         try {
             const params = ctx.request.body;

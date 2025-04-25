@@ -243,6 +243,30 @@ export default class TokenInfoMapper {
         return result;
     }
 
+    static async getTokenPrice(ids) {
+        const cacheKey = 'token:price:data';
+        let tokenList;
+
+        // 1. 尝试从缓存读取
+        const cacheData = await RedisHelper.get(cacheKey);
+        if (cacheData) {
+            tokenList = JSON.parse(cacheData);
+        } else {
+            tokenList = await TokenInfo.findAll({
+                attributes: ['id', 'name', 'image', 'floorPrice', 'priceChange24h', 'marketCap']
+            });
+            // 缓存全部token信息，单位：秒（如10s）
+            await RedisHelper.setEx(cacheKey, 10, JSON.stringify(tokenList));
+        }
+
+        // 2. 若ids传入，需要进行过滤
+        if (Array.isArray(ids) && ids.length > 0) {
+            tokenList = tokenList.filter(token => ids.includes(token.id));
+        }
+
+        return tokenList;
+    }
+
     static async getById(id) {
         return TokenInfo.findByPk(id, {
             attributes: {
