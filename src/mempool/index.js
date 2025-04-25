@@ -288,7 +288,7 @@ async function handle_mempool_message() {
                 }
             }
             const delta = data['projected-block-transactions']?.delta;
-            const rbfTxids = data.rbfLatestSummary?.map(item => item.txid);
+            // const rbfTxids = data.rbfLatestSummary?.map(item => item.txid);
             if (delta) {
                 for (const tx of delta.added) {
                     await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
@@ -297,20 +297,20 @@ async function handle_mempool_message() {
                     await RedisHelper.zadd(txid_key, Date.now(), tx[0]);
                 }
                 for (const txid of delta.removed) {
-                    if (rbfTxids?.includes(txid)) {
-                        continue;
-                    }
+                    // if (rbfTxids?.includes(txid)) {
+                    //     continue;
+                    // }
                     await RedisHelper.zadd(txid_key, Date.now(), txid);
                 }
             }
-            if (rbfTxids?.length) {
-                await RedisHelper.zrem(txid_key, rbfTxids);
-                await MempoolTx.destroy({
-                    where: {
-                        txid: rbfTxids
-                    }
-                });
-            }
+            // if (rbfTxids?.length) {
+            //     await RedisHelper.zrem(txid_key, rbfTxids);
+            //     await MempoolTx.destroy({
+            //         where: {
+            //             txid: rbfTxids
+            //         }
+            //     });
+            // }
         } catch (e) {
             console.error('parse mempool message occur error', e);
             await DateUtil.sleep(3000);
