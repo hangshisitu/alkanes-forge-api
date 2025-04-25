@@ -320,6 +320,17 @@ async function handle_removed_txs(txids) {
     }
 }
 
+async function flat_rbf_latest(replaces, txids) {
+    if (!replaces?.length) {
+        return;
+    }
+    replaces.forEach(replace => {
+        txids.push(replace.tx.txid);
+        flat_rbf_latest(replace.replaces, txids);
+    });
+
+}
+
 async function handle_mempool_message(block_index) {
     while (true) {
         try {
@@ -357,6 +368,15 @@ async function handle_mempool_message(block_index) {
                     await handle_mempool_txs(delta.added.map(item => item[0]));
                 }
             }
+            const rbfLatest = data.rbfLatest;
+            if (rbfLatest?.length) {
+                const txids = [];
+                rbfLatest.forEach(item => {
+                    flat_rbf_latest(item.replaces, txids);
+                });
+                await handle_mempool_txs(txids);
+                console.log(`handle rbf latest txs: ${txids.length}`);
+            }
         } catch (e) {
             console.error('parse mempool message occur error', e);
             await DateUtil.sleep(3000);
@@ -381,9 +401,9 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
         connect_count ++;      
         console.log(`connect mempool block: ${block}, connect_count: ${connect_count}`);
         rws.send(`{"action":"init"}`);
-        rws.send(`{"action":"want","data":["blocks","mempool-blocks"]}`);
-        rws.send(`{"track-rbf-summary":true}`);
         rws.send(`{"track-mempool-block":${block}}`);
+        rws.send(`{"action":"want","data":["blocks","mempool-blocks"]}`);
+        rws.send(`{"track-rbf":"all"}`);
     };
     rws.onmessage = (event) => {
         try {
@@ -442,4 +462,3 @@ export function onNewBlock(callback) {
 // console.log(decodeLEB128Array([2,234,3,77,0,0,0,0,0,0,0,0,0,0,0]));
 
 // await scan_mempool_tx();
-
