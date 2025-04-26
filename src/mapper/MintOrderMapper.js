@@ -124,4 +124,10 @@ export default class MintOrderMapper {
             }
         });
     }
+
+    static async getAllOrdersByMintStatus(mintStatus) {
+        return await MintOrder.findAll({
+            where: { mintStatus }
+        });
+    }
 }

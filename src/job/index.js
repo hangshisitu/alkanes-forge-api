@@ -133,12 +133,12 @@ function refreshTokenStats() {
 }
 
 let isRefreshMergeMintOrder = false;
-function refreshMergeMintOrder() {
+function refreshMergeMintOrder(mintStatus) {
     MempoolIndex.onNewBlock(async block => {
         if (block?.id) {
             await MintService.updateMintItemByBlock(block.id);
         }
-        MintService.batchHandleMergeOrder();
+        MintService.batchHandleMergeOrder(mintStatus);
     });
     schedule.scheduleJob('*/30 * * * * *', async () => {
         if (isRefreshMergeMintOrder) {
@@ -150,7 +150,7 @@ function refreshMergeMintOrder() {
             const execStartTime = Date.now();
             
             console.log(`refreshMergeMintOrder start`);
-            await MintService.batchHandleMergeOrder();
+            await MintService.batchHandleMergeOrder(mintStatus);
             console.log(`refreshMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
             console.error('refreshMergeMintOrder error', err);
@@ -168,7 +168,8 @@ export function jobs() {
 }
 
 export function jobMintStatus() {
-    refreshMergeMintOrder();
+    refreshMergeMintOrder(Constants.MINT_ORDER_STATUS.PARTIAL);
+    refreshMergeMintOrder(Constants.MINT_ORDER_STATUS.MINTING);
     // 最后启动内存池监控
     MempoolIndex.start(true);
 }

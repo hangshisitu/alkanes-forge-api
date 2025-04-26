@@ -778,8 +778,8 @@ export default class MintService {
         });
     }
 
-    static async batchHandleMergeOrder() {
-        let orderList = await MintOrderMapper.getAllMintingOrders();
+    static async batchHandleMergeOrder(mintStatus) {
+        const orderList = await MintOrderMapper.getAllOrdersByMintStatus(mintStatus);
         if (orderList.length === 0) {
             return;
         }
@@ -792,7 +792,9 @@ export default class MintService {
                 if (!tx.status.confirmed) {
                     return;
                 }
-                await MintService.checkMergeOrderFirstBatch(order.id);
+                if (Constants.MINT_ORDER_STATUS.PARTIAL === mintStatus || order.mintAmount <= mintAmountPerBatch) {
+                    await MintService.checkMergeOrderFirstBatch(order.id);
+                }
                 if (order.mintAmount <= mintAmountPerBatch) {
                     const completedCount = await MintItemMapper.getCompletedMintCount(order.id);
                     if (completedCount >= order.mintAmount) {
