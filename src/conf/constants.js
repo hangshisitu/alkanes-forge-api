@@ -88,6 +88,7 @@ export const Constants = Object.freeze({
         PARTIAL: 'partial',    // 部分铸造中
         MINTING: 'minting',    // 全部铸造中
         COMPLETED: 'completed',    // 全部铸造完成
+        CANCELLED: 'cancelled',    // 已取消
     },
 
     // 铸造状态

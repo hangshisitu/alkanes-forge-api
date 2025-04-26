@@ -5,6 +5,7 @@ import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import FeeUtil from "./FeeUtil.js";
 import MempoolUtil from "./MempoolUtil.js";
 import config from "../conf/config.js";
+import BaseUtil from "./BaseUtil.js";
 
 bitcoin.initEccLib(ecc);
 
@@ -64,7 +65,12 @@ export default class PsbtUtil {
             }
         }
 
+        const inputSum = inputList.reduce((sum, input) => sum + input.value, 0);
+        const outputSum = outputList.reduce((sum, output) => sum + output.value, 0);
+        const fee = inputSum - outputSum;
+
         return {
+            fee: fee,
             hex: psbt.toHex(),
             base64: psbt.toBase64(),
             signingIndexes: signingIndexesArr
@@ -248,26 +254,32 @@ export default class PsbtUtil {
 
     static convertPsbtHex(hex_data) {
         let txid;
+        let txSize;
         if (hex_data.startsWith('cH')) {
             const psbt = bitcoin.Psbt.fromBase64(hex_data);
             psbt.finalizeAllInputs();
             hex_data = psbt.toHex();
 
-            txid = psbt.extractTransaction().getId();
+            const tx = psbt.extractTransaction();
+            txid = tx.getId();
+            txSize = BaseUtil.divCeil(tx.weight(), 4);
         }
         else if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
             const tx = psbt.extractTransaction();
             hex_data = tx.toHex();
 
-            txid = psbt.extractTransaction().getId();
+            txid = tx.getId();
+            txSize = BaseUtil.divCeil(tx.weight(), 4);
         } else {
             const tx = bitcoin.Transaction.fromHex(hex_data);
             txid = tx.getId();
+            txSize = BaseUtil.divCeil(tx.weight(), 4);
         }
         return {
             txid,
-            hex: hex_data
+            hex: hex_data,
+            txSize: txSize
         }
     }
 }

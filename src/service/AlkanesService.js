@@ -379,7 +379,7 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const {txid: mintTxid, error} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, config.network, false, false);
+            const {txid: mintTxid, error} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, false, false);
             if (error) {
                 throw new Error(error);
             }

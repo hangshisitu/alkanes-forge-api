@@ -582,10 +582,44 @@ router
             }
         }
     })
+    .post('/inscribe/cancelMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintService.cancelMergeOrder(params.orderId);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post('/inscribe/orderPage', async ctx => {
         try {
             const params = ctx.request.body;
             const result = await MintOrderMapper.orderPage(params.page, params.size, params.receiveAddress);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post('/inscribe/orderInfo', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await MintService.orderInfo(params.orderId);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

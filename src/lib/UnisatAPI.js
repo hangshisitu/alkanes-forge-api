@@ -11,9 +11,9 @@ import BaseUtil from "../utils/BaseUtil.js";
 
 export default class UnisatAPI {
 
-    static async transfer(privateKey, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = true) {
+    static async transfer(privateKey, inputList, outputList, changeAddress, feerate, isP2tr = false, checkFee = true) {
         const keyPair = AddressUtil.convertKeyPair(privateKey);
-        const {hex, txSize} = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, checkFee);
+        const {hex, txSize} = await this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, isP2tr, checkFee);
         const {txid, error} = await UnisatAPI.unisatPush(hex);
         return {
             txid,
@@ -22,13 +22,13 @@ export default class UnisatAPI {
         }
     }
 
-    static async createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr = false, checkFee = false) {
+    static async createPsbt(keyPair, inputList, outputList, changeAddress, feerate, isP2tr = false, checkFee = false) {
         const myXOnlyPubkey = toXOnly(keyPair.publicKey);
         const tweakedChildNode = keyPair.tweak(
             bitcoin.crypto.taggedHash('TapTweak', myXOnlyPubkey)
         );
 
-        const psbt = new bitcoin.Psbt({network});
+        const psbt = new bitcoin.Psbt({network: config.network});
         if (checkFee) {
             psbt.setMaximumFeeRate(500000000);
         } else {
@@ -36,7 +36,7 @@ export default class UnisatAPI {
         }
         for (const input of inputList) {
             const vin = {hash: input.txid, index: input.vout, sequence: 0xfffffffd};
-            const script = bitcoin.address.toOutputScript(input.address, network);
+            const script = bitcoin.address.toOutputScript(input.address, config.network);
 
             // 处理不同类型的脚本
             if (psbtUtils.isP2TR(script)) {
@@ -104,7 +104,7 @@ export default class UnisatAPI {
                     address: changeAddress,
                     value: changeValue
                 });
-                return this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, network, isP2tr, false);
+                return this.createPsbt(keyPair, inputList, outputList, changeAddress, feerate, isP2tr, false);
             }
         }
 
@@ -279,15 +279,17 @@ export default class UnisatAPI {
         let lastError = '';
         for (let i = 0; i < 2; i++) {
             try {
-                await MempoolUtil.postTx(hex);
+                txid = await MempoolUtil.postTx(hex);
                 return {
-                    txid
+                    txid,
+                    txSize: txInfo.txSize
                 }
             } catch (err) {
                 lastError = err.message;
                 if (lastError.includes('Transaction') && lastError.includes('already')) {
                     return {
-                        txid
+                        txid,
+                        txSize: txInfo.txSize
                     };
                 }
 

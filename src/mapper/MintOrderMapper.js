@@ -38,10 +38,11 @@ export default class MintOrderMapper {
     }
 
     static async getById(id) {
-        return MintOrder.findByPk(id, {
+        return await MintOrder.findByPk(id, {
             attributes: {
                 exclude: ['createdAt', 'updatedAt']
-            }
+            },
+            raw: true
         });
     }
 

@@ -39,8 +39,8 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-console.log(Buffer.from('85deacf85e4ad561708144cbba4a80d5d5cf42e48a2b2e669e8627a47d0464ec', 'hex').reverse().toString('hex'))
-console.log(new BigNumber('0x61a8').toNumber());
+console.log(Buffer.from('77278a4bd0f026e6dabeafd05b78ef899941ee3cf6f90285d11ec2a174938d76', 'hex').reverse().toString('hex'))
+console.log(new BigNumber('0x221b262dd8000').toNumber());
 
 // 查询代币信息
 // const alkanes = await AlkanesService.getAlkanesById('2:456');

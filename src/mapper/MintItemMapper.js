@@ -2,6 +2,7 @@ import MintItem from "../models/MintItem.js";
 import sequelize from "../lib/SequelizeHelper.js";
 import {QueryTypes} from "sequelize";
 import {Constants} from "../conf/constants.js";
+import TokenInfo from "../models/TokenInfo.js";
 
 export default class MintItemMapper {
 
@@ -34,6 +35,19 @@ export default class MintItemMapper {
                 mintStatus: Constants.MINT_STATUS.MINTING
             },
             type: QueryTypes.SELECT,
+            raw: true
+        });
+    }
+
+    static async selectMintTxs(orderId, mintStatus) {
+        const whereClause = {orderId: orderId};
+        if (mintStatus) {
+            whereClause.mintStatus = mintStatus;
+        }
+        return await MintItem.findAll({
+            where: whereClause,
+            order: [["txSize", "DESC"], ["mintIndex", "ASC"]],
+            attributes: ['mintHash', 'txSize'],
             raw: true
         });
     }

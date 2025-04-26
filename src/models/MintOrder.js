@@ -19,6 +19,12 @@ const MintOrder = sequelize.define('MintOrder', {
         comment: '资产唯一标识',
         field: 'alkanes_id'
     },
+    alkanesName: {
+        type: DataTypes.STRING(128),
+        allowNull: false,
+        comment: '代币名称',
+        field: 'alkanes_name'
+    },
     mintAddress: {
         type: DataTypes.STRING(128),
         allowNull: false,
@@ -86,6 +92,27 @@ const MintOrder = sequelize.define('MintOrder', {
         defaultValue: 0,
         comment: '找零金额(聪,预存剩余)',
         field: 'change'
+    },
+    networkFee: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '网络费(聪)',
+        field: 'network_fee'
+    },
+    serviceFee: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '服务费(聪)',
+        field: 'service_fee'
+    },
+    totalFee: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        comment: '总费用(聪)',
+        field: 'total_fee'
     },
     mintAmount: {
         type: DataTypes.INTEGER,
