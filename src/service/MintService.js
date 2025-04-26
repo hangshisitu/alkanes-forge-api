@@ -462,15 +462,15 @@ export default class MintService {
         }
         
         for (const batchIndex in groupedItems) {
-            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE, true);
         }
     }
 
-    static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE) {
+    static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE, ignoreStatus = false) {
         if (model === Constants.MINT_MODEL.MERGE) { // 顺序广播
             for (const item of items) {
                 const { orderId, batchIndex, mintIndex } = item;
-                if (item.mintStatus !== Constants.MINT_STATUS.WAITING) {
+                if (!ignoreStatus && item.mintStatus !== Constants.MINT_STATUS.WAITING) {
                     continue;
                 }
                 const {error} = await UnisatAPI.unisatPush(item.psbt);
@@ -483,7 +483,7 @@ export default class MintService {
             }
         } else if (model === Constants.MINT_MODEL.NORMAL) { // 并发广播
             await BaseUtil.concurrentExecute(items, async item => {
-                if (item.mintStatus !== Constants.MINT_STATUS.WAITING) {
+                if (!ignoreStatus && item.mintStatus !== Constants.MINT_STATUS.WAITING) {
                     return;
                 }
                 const {error} = await UnisatAPI.unisatPush(item.psbt);
