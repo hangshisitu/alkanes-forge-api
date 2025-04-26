@@ -1,20 +1,11 @@
 import redisClient from './RedisHelper.js';
-
-const random_string = (len) => {
-    const $chars = 'QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm0123456789';
-    const maxPos = $chars.length;
-    let pwd = '';
-    for (let i = 0; i < len; i++) {
-        pwd += $chars.charAt(Math.floor(Math.random() * maxPos));
-    }
-    return pwd;
-};
+import BaseUtil from "../utils/BaseUtil.js";
 
 class RedisLock {
     constructor(key, ttl = 30) {
         this.key = key;
         this.ttl = ttl;
-        this.value = random_string(16);
+        this.value = BaseUtil.genId();
         this.renewalTimer = null;
     }
 
@@ -67,7 +58,7 @@ class RedisLock {
         `;
         const result = await redisClient.eval(script, {
             keys: [this.key],
-            arguments: [this.value, this.ttl * 1000]
+            arguments: [this.value, String(this.ttl * 1000)]
         });
         return result === 1;
     }
@@ -87,9 +78,11 @@ class RedisLock {
                 if (!renewed) {
                     console.warn(`Lock renewal failed for key: ${this.key}`);
                     this.stopRenewal();
+                } else {
+                    console.log(`Lock renewed for key: ${this.key}`);
                 }
             } catch (error) {
-                console.error(`Error renewing lock: ${error.message}`);
+                console.error(`Error renewing lock: ${error.message}`, error);
                 this.stopRenewal();
             }
         }, interval * 1000);

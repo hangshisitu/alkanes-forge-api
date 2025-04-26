@@ -87,4 +87,17 @@ export default class MintItemMapper {
             { where: { orderId, mintStatus: acceptStatus } }
         );
     }
+
+    static async getCompletedMintCount(orderId) {
+        return await MintItem.count({
+            where: { orderId, mintStatus: Constants.MINT_STATUS.COMPLETED }
+        });
+    }
+
+    static async updateItemStatusByTxids(txids, acceptStatus, newStatus) {
+        await MintItem.update(
+            { mintStatus: newStatus },
+            { where: { mintHash: txids, mintStatus: acceptStatus } }
+        );
+    }
 }

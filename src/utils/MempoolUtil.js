@@ -108,6 +108,22 @@ export default class MempoolUtil {
         return tx;
     }
 
+    static async getTxEx(txid) {
+        try {
+            const start = new Date().getTime()
+            console.debug(`getTx start`)
+            const tx = await transactions.getTx({txid});
+            const end = new Date().getTime()
+            console.debug(`getTx cost: ${end - start}ms`)
+            return tx;
+        } catch (err) {
+            if (err.response.status === 404) {
+                return null;
+            }
+            throw err;
+        }
+    }
+
     static async getTxOutspend(txid, vout) {
         const start = new Date().getTime()
         console.info(`getTxOutspend start`)

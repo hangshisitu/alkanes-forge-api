@@ -134,7 +134,10 @@ function refreshTokenStats() {
 
 let isRefreshMergeMintOrder = false;
 function refreshMergeMintOrder() {
-    MempoolIndex.onNewBlock(() => {
+    MempoolIndex.onNewBlock(async block => {
+        if (block?.id) {
+            await MintService.updateMintItemByBlock(block.id);
+        }
         MintService.batchHandleMergeOrder();
     });
     schedule.scheduleJob('*/30 * * * * *', async () => {

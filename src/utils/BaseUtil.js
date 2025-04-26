@@ -54,7 +54,7 @@ export default class BaseUtil {
         return firstChar + rest;
     }
 
-    static async concurrentExecute(collection, handler, concurrency = 16) {
+    static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4) {
 
         async function execute() {
             const results = [];
@@ -70,7 +70,7 @@ export default class BaseUtil {
 
         const promises = [];
 
-        for (let i = 0; i < concurrency; i += concurrency) {
+        for (let i = 0; i < concurrency; i ++) {
             promises.push(execute());
         }
 

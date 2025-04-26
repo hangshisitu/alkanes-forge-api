@@ -386,7 +386,7 @@ export default class MintService {
         if (!mintOrder) {
             throw new Error('Not found order, please refresh and try again.');
         }
-        if (mintOrder.status === Constants.MINT_ORDER_STATUS.COMPLETED) {
+        if (mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
             throw new Error('Mint is completed, please refresh and try again.');
         }
 
@@ -511,8 +511,9 @@ export default class MintService {
     static async submitRemain0(mintOrder, tx) {
         // 提交剩余的交易
         await RedisLock.withLock(RedisHelper.genKey(`submitRemain0:${mintOrder.id}`), async () => {
+            console.log(`submit remain for merge order ${mintOrder.id}, status: ${mintOrder.mintStatus}`);
             let totalItemList = [];
-            if (mintOrder.status === Constants.MINT_ORDER_STATUS.PARTIAL) {
+            if (mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.PARTIAL) {
                 const orderId = mintOrder.id;
                 const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, mintAmountPerBatch);
                 const totalItemList = [];
@@ -530,6 +531,7 @@ export default class MintService {
                     await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), Constants.MINT_ORDER_STATUS.MINTING, {transaction, acceptStatus: Constants.MINT_STATUS.PARTIAL});
                     await MintItemMapper.bulkUpsertItem(totalItemList, {transaction});
                 });
+                console.log(`update order ${orderId} status to ${Constants.MINT_ORDER_STATUS.MINTING}`);
             } else {
                 totalItemList = await MintItemMapper.getMintItemsByOrderId(mintOrder.id);
                 totalItemList = totalItemList.filter(item => item.batchIndex > 0);
@@ -544,6 +546,7 @@ export default class MintService {
             }
             
             for (const batchIndex in groupedItems) {
+                console.log(`broadcast batch ${batchIndex} for merge order ${mintOrder.id}`);
                 MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
             }
             
@@ -551,10 +554,17 @@ export default class MintService {
             if (mintingItems.length > 0) {
                 const results = await BaseUtil.concurrentExecute(mintingItems, async (item) => {
                     try {
-                        const txStatus = await MempoolUtil.getTxStatus(item.mintHash);
+                        const mintTx = await MempoolUtil.getTxEx(item.mintHash);
+                        if (!mintTx) {
+                            // 交易不存在, 重新广播
+                            const {error} = await UnisatAPI.unisatPush(item.psbt);
+                            if (MintService.shouldThrowError(error)) {
+                                console.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
+                            }
+                        }
                         return {
                             id: item.id,
-                            status: txStatus
+                            status: mintTx?.status?.confirmed ?? false
                         }
                     } catch(e) {
                         return {
@@ -571,11 +581,13 @@ export default class MintService {
                 }
                 if (completedItemIds.length > 0) {
                     await MintItemMapper.updateItemStatus(completedItemIds, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+                    console.log(`update order ${mintOrder.id} mint item[${completedItemIds.length}] status to ${Constants.MINT_STATUS.COMPLETED}`);
                 }
             }
             const completedMintCount = MintItemMapper.getCompletedMintCount(mintOrder.id);
             if (completedMintCount >= mintOrder.mintAmount) {
                 await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
+                console.log(`update order ${mintOrder.id} status to ${Constants.MINT_ORDER_STATUS.COMPLETED}`);
             }
         }, {
             throwErrorIfFailed: false
@@ -584,7 +596,7 @@ export default class MintService {
 
     static async submitRemain(orderId) {
         const mintOrder = await MintOrderMapper.getById(orderId);
-        if (!mintOrder || mintOrder.status === Constants.MINT_ORDER_STATUS.COMPLETED) {
+        if (!mintOrder || mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
             return;
         }
 
@@ -719,35 +731,80 @@ export default class MintService {
         );
     }
 
-    static async batchHandleMergeOrder() {
-        let minId = 0;
-        while (true) {
-            // 分页获取状态处于MINTING和PARTIAL的订单
-            const orderList = await MintOrderMapper.getMintingOrders(minId, 100);
-            if (orderList.length === 0) {
-                break;
+    static async checkMergeOrderFirstBatch(orderId) {
+        const itemList = await MintItemMapper.getMintItemsByOrderId(orderId, 0);
+        if (itemList.length === 0) {
+            return;
+        }
+        await BaseUtil.concurrentExecute(itemList, async (item) => {
+            if (item.mintStatus === Constants.MINT_STATUS.COMPLETED) {
+                return;
             }
-            minId = orderList[orderList.length - 1].id;
-            await BaseUtil.concurrentExecute(orderList, async (order) => {
-                try {
-                    const tx = await MempoolUtil.getTx(order.paymentHash);
-                    if (!tx.status.confirmed) {
-                        return;
-                    }
-                    if (order.mintAmount <= mintAmountPerBatch) {
+            if (item.mintStatus === Constants.MINT_STATUS.WAITING) {
+                const {error} = await UnisatAPI.unisatPush(item.psbt);
+                if (MintService.shouldThrowError(error)) {
+                    console.error(`submit batch order ${orderId} batch 0 mint ${item.mintIndex} item ${item.id} error: ${error}`);
+                    throw new Error(error);
+                }
+                console.log(`minted batch order ${orderId} batch 0 mint ${item.mintIndex} item ${item.id}`);
+                await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
+                return;
+            }
+            const tx = await MempoolUtil.getTxEx(item.mintHash);
+            if (!tx) {
+                console.log(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash}`);
+                const {error} = await UnisatAPI.unisatPush(item.psbt);
+                if (MintService.shouldThrowError(error)) {
+                    console.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
+                }
+            }
+            if (tx.status.confirmed) {
+                await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+            }
+        });
+    }
+
+    static async batchHandleMergeOrder() {
+        let orderList = await MintOrderMapper.getAllMintingOrders();
+        if (orderList.length === 0) {
+            return;
+        }
+        orderList.sort((a, b) => b.feerate - a.feerate);
+
+        await BaseUtil.concurrentExecute(orderList, async (order) => {
+            try {
+                console.log(`start handle merge order ${order.id}`);
+                const tx = await MempoolUtil.getTx(order.paymentHash);
+                if (!tx.status.confirmed) {
+                    return;
+                }
+                await MintService.checkMergeOrderFirstBatch(order.id);
+                if (order.mintAmount <= mintAmountPerBatch) {
+                    const completedCount = await MintItemMapper.getCompletedMintCount(order.id);
+                    if (completedCount >= order.mintAmount) {
+                        console.log(`completed merge order ${order.id}, mint amount: ${order.mintAmount}`);
                         await MintItemMapper.updateStatusByOrderId(order.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
                         await MintOrderMapper.updateStatus(order.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
-                        return;
                     }
-                    if (order.mintStatus === Constants.MINT_ORDER_STATUS.PARTIAL) {
-                        await MintService.submitRemain0(order, tx);
-                    }
-                } catch(err) {
-                    console.error(`handle merge order ${order.id} first batch error: ${err}`);
+                    return;
                 }
-            });
-        }
+                await MintService.submitRemain0(order, tx);
+            } catch(err) {
+                console.error(`handle merge order ${order.id} error: ${err}`);
+            }
+        });
         
+    }
+
+    static async updateMintItemByBlock(blockHash) {
+        try {
+            const txids = await MempoolUtil.getBlockTxIds(blockHash);
+            await BaseUtil.concurrentExecute(BaseUtil.splitByBatchSize(txids, 100), async (txids) => {
+                await MintItemMapper.updateItemStatusByTxids(txids, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+            });
+        } catch(err) {
+            console.error(`update mint item by block ${blockHash} error`, err);
+        } 
     }
 
 }

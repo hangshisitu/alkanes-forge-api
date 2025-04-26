@@ -103,4 +103,14 @@ export default class MintOrderMapper {
             { where: { id, mintStatus: acceptStatus } }
         );
     }
+
+    static async getAllMintingOrders() {
+        return await MintOrder.findAll({
+            where: {
+                mintStatus: {
+                    [Op.in]: [Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.PARTIAL]
+                },
+            }
+        });
+    }
 }
