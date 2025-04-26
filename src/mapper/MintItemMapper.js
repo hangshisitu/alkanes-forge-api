@@ -58,7 +58,7 @@ export default class MintItemMapper {
         return await MintItem.findAll({
             where: whereClause,
             order: [["txSize", "DESC"], ["mintIndex", "ASC"]],
-            attributes: ['mintHash', 'txSize', 'mintStatus'],
+            attributes: ['batchIndex', 'mintIndex', 'mintHash', 'txSize', 'mintStatus'],
             raw: true
         });
     }

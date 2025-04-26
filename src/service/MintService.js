@@ -161,7 +161,8 @@ export default class MintService {
 
         mintTxs.push({
             mintHash: txid,
-            txSize: txSize
+            txSize: txSize,
+            mintStatus: Constants.MINT_STATUS.WAITING
         });
 
         const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
@@ -237,7 +238,7 @@ export default class MintService {
             }
             
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
-            inputTxid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
+            inputTxid = txInfo.txid;
 
             mintTxs.push({
                 mintHash: inputTxid,
@@ -298,6 +299,12 @@ export default class MintService {
         }
 
         const mintTxs = await MintItemMapper.selectMintTxs(orderId);
+        mintTxs.sort((a, b) => {
+            if (a.batchIndex !== b.batchIndex) {
+                return a.batchIndex - b.batchIndex; // 先按批次升序排序
+            }
+            return a.mintIndex - b.mintIndex; // 批次相同，再按mintIndex升序排序
+        });
         return {
             ...mintOrder,
             mintTxs
@@ -447,11 +454,11 @@ export default class MintService {
             }
 
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
-            const txid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
+            const txid = txInfo.txid;
             console.log(`accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
             mintItems.push({
                 id: subOrder.id,
-                mintHash: PsbtUtil.convertPsbtHex(txInfo.hex).txid,
+                mintHash: txid,
                 psbt: txInfo.hex,
             });
 
@@ -682,7 +689,7 @@ export default class MintService {
                 });
             }
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [mintUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
-            inputTxid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
+            inputTxid = txInfo.txid;
 
             itemList.push({
                 id: BaseUtil.genId(),

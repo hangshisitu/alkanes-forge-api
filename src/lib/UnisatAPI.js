@@ -109,6 +109,7 @@ export default class UnisatAPI {
         }
 
         return {
+            txid: tx.getId(),
             hex: tx.toHex(),
             txSize: BaseUtil.divCeil(tx.weight(), 4)
         };
