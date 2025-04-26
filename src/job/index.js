@@ -165,6 +165,9 @@ export function jobs() {
     refreshTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
+}
+
+export function jobMintStatus() {
     refreshMergeMintOrder();
     // 最后启动内存池监控
     MempoolIndex.start(true);

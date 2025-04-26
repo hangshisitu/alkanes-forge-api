@@ -5,7 +5,7 @@ import bodyParser from 'koa-bodyparser';
 import * as util from 'util'
 import AlkanesService from "./service/AlkanesService.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
-import {jobs} from "./job/index.js";
+import {jobs, jobMintStatus} from "./job/index.js";
 import MarketService from "./service/MarketService.js";
 import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
@@ -683,6 +683,11 @@ if (process.env.port) {
 if (process.env.jobEnable === 'true') {
     jobs();
     console.log(`Jobs started.`)
+}
+
+if (process.env.jobMintStatusEnable === 'true') {
+    jobMintStatus();
+    console.log(`jobMintStatus started.`)
 }
 
 if (process.env.mempoolEnable === 'true') {

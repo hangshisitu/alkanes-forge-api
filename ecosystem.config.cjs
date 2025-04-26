@@ -49,6 +49,18 @@ module.exports = {
             },
         },
         {
+            name: 'alkanes-job-mintStatus',
+            script: 'src/app.js',
+            env: {
+                NODE_ENV: 'dev',
+                jobMintStatusEnable: true
+            },
+            env_pro: {
+                NODE_ENV: 'pro',
+                jobMintStatusEnable: true
+            },
+        },
+        {
             name: 'alkanes-mempool',
             script: 'src/app.js',
             env: {
@@ -59,6 +71,6 @@ module.exports = {
                 NODE_ENV: 'pro',
                 mempoolEnable: true
             },
-        }
+        },
     ],
 };
