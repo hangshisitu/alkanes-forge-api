@@ -10,6 +10,7 @@ import MintItemMapper from "../mapper/MintItemMapper.js";
 import BaseUtil from "../utils/BaseUtil.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
+import sequelize from "../lib/SequelizeHelper.js";
 
 export default class MintService {
 
@@ -227,36 +228,37 @@ export default class MintService {
                     value: changeValue
                 });
             }
+            
+            const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
+            inputTxid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
 
-            const {txid, txSize, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
-            if (error) {
-                throw new Error(error);
-            }
-
-            console.log(`mint index ${i} tx: ${txid}`);
             mintTxs.push({
-                mintHash: txid,
-                txSize
+                mintHash: inputTxid,
+                txSize: txInfo.txSize
             });
-            inputTxid = txid;
 
             itemList.push({
                 id: BaseUtil.genId(),
                 orderId: orderId,
                 inputUtxo: `${inputUtxo.txid}:${inputUtxo.vout}:${inputUtxo.value}`,
-                txSize: txSize,
+                txSize: txInfo.txSize,
+                psbt: txInfo.hex,
                 batchIndex: 0,
                 mintIndex: i,
                 receiveAddress: receiveAddress,
                 mintHash: inputTxid,
-                mintStatus: Constants.MINT_STATUS.MINTING
+                mintStatus: Constants.MINT_STATUS.WAITING
             });
         }
 
         const submittedAmount = mintTxs.length;
         const mintStatus = submittedAmount === mintOrder.mintAmount ? Constants.MINT_ORDER_STATUS.MINTING : Constants.MINT_ORDER_STATUS.PARTIAL;
-        await MintOrderMapper.updateOrder(orderId, txid, submittedAmount, mintStatus);
-        await MintItemMapper.bulkUpsertItem(itemList);
+        await sequelize.transaction(async (transaction) => {
+            await MintOrderMapper.updateOrder(orderId, txid, submittedAmount, mintStatus, {transaction});
+            await MintItemMapper.bulkUpsertItem(itemList, {transaction});
+        });
+
+        MintService.submitBatchItems(itemList, Constants.MINT_MODEL.MERGE);
 
         return {
             id: orderId,
@@ -425,15 +427,13 @@ export default class MintService {
                 });
             }
 
-            const {txid, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
-            if (MintService.shouldThrowError(error)) {
-                throw new Error(error);
-            }
-
+            const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
+            const txid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
             console.log(`accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
             mintItems.push({
                 id: subOrder.id,
-                mintHash: txid
+                mintHash: PsbtUtil.convertPsbtHex(txInfo.hex).txid,
+                psbt: txInfo.hex,
             });
 
             // 如果第一批未结束，其他暂不需要加速
@@ -442,8 +442,53 @@ export default class MintService {
             }
         }
 
-        await MintItemMapper.batchUpdateHash(mintItems);
-        await MintOrderMapper.updateOrderFeerate(orderId, feerate);
+        await sequelize.transaction(async (transaction) => {
+            await MintItemMapper.batchUpdateHash(mintItems, {transaction});
+            await MintOrderMapper.updateOrderFeerate(orderId, feerate, {transaction});
+        });
+
+        const itemList = await MintItemMapper.getMintItemsByOrderId(orderId); // 如果第一批没确认, 则取到的是第一批, 如果确认了, 取到的是后面的N批
+        
+        const groupedItems = {};
+        for (const item of itemList) {
+            if (!groupedItems[item.batchIndex]) {
+                groupedItems[item.batchIndex] = [];
+            }
+            groupedItems[item.batchIndex].push(item);
+        }
+        
+        for (const batchIndex in groupedItems) {
+            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+        }
+    }
+
+    static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE) {
+        if (model === Constants.MINT_MODEL.MERGE) { // 顺序广播
+            for (const item of items) {
+                const { orderId, batchIndex, mintIndex } = item;
+                if (item.mintStatus !== Constants.MINT_STATUS.WAITING) {
+                    continue;
+                }
+                const {error} = await UnisatAPI.unisatPush(item.psbt);
+                if (error) {
+                    console.error(`submit batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id} error: ${error}`);
+                    throw new Error(error);
+                }
+                console.log(`minted batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id}`);
+                await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
+            }
+        } else if (model === Constants.MINT_MODEL.NORMAL) { // 并发广播
+            await Promise.all(items.map(async item => {
+                const {error} = await UnisatAPI.unisatPush(item.psbt);
+                if (error) {
+                    console.error(`submit batch order ${item.orderId} item ${item.id} error: ${error}`);
+                    return;
+                }
+                await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
+            }));
+        } else {
+            throw new Error(`Invalid model: ${model}`);
+        }
     }
 
     static async submitRemain(orderId) {
@@ -468,14 +513,28 @@ export default class MintService {
                 value: tx.vout[i].value
             };
             const itemList = await MintService.submitBatch(mintOrder, inputUtxo, i, batchList[i]);
-            console.log(`submit the ${i} batch of ${itemList.length}/${batchList[i]} mints.`);
             totalItemList.push(...itemList);
         }
 
         const totalMints = mintOrder.submittedAmount + totalItemList.length;
         const mintStatus = totalMints === mintOrder.mintAmount ? Constants.MINT_ORDER_STATUS.MINTING : Constants.MINT_ORDER_STATUS.PARTIAL;
-        await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), mintStatus);
-        await MintItemMapper.bulkUpsertItem(totalItemList);
+        
+        await sequelize.transaction(async (transaction) => {
+            await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), mintStatus, {transaction});
+            await MintItemMapper.bulkUpsertItem(totalItemList, {transaction});
+        });
+        
+        const groupedItems = {};
+        for (const item of totalItemList) {
+            if (!groupedItems[item.batchIndex]) {
+                groupedItems[item.batchIndex] = [];
+            }
+            groupedItems[item.batchIndex].push(item);
+        }
+        
+        for (const batchIndex in groupedItems) {
+            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+        }
     }
 
     static async submitBatch(mintOrder, inputUtxo, batchIndex, mintAmount) {
@@ -543,24 +602,19 @@ export default class MintService {
                     value: changeValue
                 });
             }
-
-            const {txid, txSize, error} = await UnisatAPI.transfer(privateKey, [mintUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
-            if (MintService.shouldThrowError(error)) {
-                throw new Error(error);
-            }
-
-            console.log(`mint the ${batchIndex} batch of index ${i} tx: ${txid}`);
-            inputTxid = txid;
+            const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [mintUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
+            inputTxid = PsbtUtil.convertPsbtHex(txInfo.hex).txid;
 
             itemList.push({
                 id: BaseUtil.genId(),
                 orderId: mintOrder.id,
                 inputUtxo: `${mintUtxo.txid}:${mintUtxo.vout}:${mintUtxo.value}`,
-                txSize: txSize,
+                txSize: txInfo.txSize,
                 batchIndex: batchIndex,
                 mintIndex: i,
                 receiveAddress: receiveAddress,
                 mintHash: inputTxid,
+                psbt: txInfo.hex,
                 mintStatus: Constants.MINT_STATUS.MINTING
             });
         }

@@ -661,7 +661,6 @@ if (process.env.port) {
 }
 
 if (process.env.jobEnable === 'true') {
-    mempool.start(true);
     jobs();
     console.log(`Jobs started.`)
 }

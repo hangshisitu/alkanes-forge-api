@@ -56,6 +56,13 @@ const MintOrder = sequelize.define('MintItem', {
         comment: '铸造哈希',
         field: 'mint_hash'
     },
+    psbt: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        defaultValue: '',
+        comment: '铸造交易PSBT',
+        field: 'psbt'
+    },
     mintStatus: {
         type: DataTypes.STRING(16),
         defaultValue: '',

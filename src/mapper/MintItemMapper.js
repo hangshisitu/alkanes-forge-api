@@ -6,7 +6,7 @@ import TokenInfo from "../models/TokenInfo.js";
 
 export default class MintItemMapper {
 
-    static async bulkUpsertItem(itemList) {
+    static async bulkUpsertItem(itemList, options = {transaction: null}) {
         if (!itemList || itemList.length === 0) {
             return [];
         }
@@ -14,7 +14,18 @@ export default class MintItemMapper {
         const uniqueKeyFields = ['input_utxo'];
         return await MintItem.bulkCreate(itemList, {
             updateOnDuplicate: Object.keys(itemList[0]).filter(key => !uniqueKeyFields.includes(key)),
-            returning: false
+            returning: false,
+            transaction: options.transaction
+        });
+    }
+
+    static async getMintItemsByOrderId(orderId, batchIndex = null) {
+        const where = {orderId: orderId};
+        if (batchIndex != null) {
+            where.batchIndex = batchIndex;
+        }
+        return await MintItem.findAll({
+            where
         });
     }
 
@@ -52,14 +63,21 @@ export default class MintItemMapper {
         });
     }
 
-    static async batchUpdateHash(mintItems) {
+    static async batchUpdateHash(mintItems, options = {transaction: null}) {
         await Promise.all(
             mintItems.map(item =>
                 MintItem.update(
-                    { mintHash: item.mintHash },
-                    { where: { id: item.id } }
+                    { mintHash: item.mintHash, psbt: item.psbt },
+                    { where: { id: item.id }, transaction: options.transaction }
                 )
             )
+        );
+    }
+
+    static async updateItemStatus(itemId, acceptStatus, newStatus) {
+        await MintItem.update(
+            { mintStatus: newStatus },
+            { where: { id: itemId, mintStatus: acceptStatus } }
         );
     }
 }

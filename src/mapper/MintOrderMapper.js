@@ -46,7 +46,7 @@ export default class MintOrderMapper {
         });
     }
 
-    static async updateOrder(orderId, paymentHash, submittedAmount, mintStatus) {
+    static async updateOrder(orderId, paymentHash, submittedAmount, mintStatus, options = {transaction: null}) {
         await MintOrder.update(
             {
                 paymentHash: paymentHash,
@@ -56,12 +56,13 @@ export default class MintOrderMapper {
             {
                 where: {
                     id: orderId
-                }
-            }
+                },
+                transaction: options.transaction
+            },
         );
     }
 
-    static async updateOrderFeerate(orderId, change, latestFeerate) {
+    static async updateOrderFeerate(orderId, change, latestFeerate, options = {transaction: null}) {
         await MintOrder.update(
             {
                 change: change,
@@ -70,7 +71,8 @@ export default class MintOrderMapper {
             {
                 where: {
                     id: orderId
-                }
+                },
+                transaction: options.transaction
             }
         );
     }

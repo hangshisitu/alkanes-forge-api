@@ -8,6 +8,8 @@ import TokenStatsService from "../service/TokenStatsService.js";
 import {Constants} from "../conf/constants.js";
 import TokenInfoService from "../service/TokenInfoService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import * as MempoolIndex from "../mempool/index.js";
+import MintService from "../service/MintService.js";
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
@@ -130,10 +132,43 @@ function refreshTokenStats() {
     });
 }
 
+let isRefreshMergeMintOrderFirstBatch = false;
+function refreshMergeMintOrderFirstBatch() {
+    schedule.scheduleJob('*/30 * * * * *', async () => {
+        if (isRefreshMergeMintOrderFirstBatch) {
+            return;
+        }
+
+        try {
+            isRefreshMergeMintOrderFirstBatch = true;
+            const execStartTime = Date.now();
+            
+            console.log(`refreshMergeMintOrderFirstBatch start`);
+            await MintService.batchSubmitMergeOrderFirstBatch();
+            console.log(`refreshMergeMintOrderFirstBatch finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            console.error('refreshMergeMintOrderFirstBatch error', err);
+        } finally {
+            isRefreshMergeMintOrderFirstBatch = false;
+        }
+    });
+}
+
+function refreshMergeMintOrder() {
+    MintService.batchSubmitMergeOrder().then(() => {
+        refreshMergeMintOrderFirstBatch();
+    });
+    MempoolIndex.onNewBlock(() => {
+        MintService.batchSubmitMergeOrder();
+    });
+}
 
 export function jobs() {
     refreshBlockHeight();
     refreshTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
+    refreshMergeMintOrder();
+    // 最后启动内存池监控
+    MempoolIndex.start(true);
 }
