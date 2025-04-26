@@ -11,6 +11,10 @@ import BaseUtil from "../utils/BaseUtil.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import sequelize from "../lib/SequelizeHelper.js";
+import RedisLock from "../lib/RedisLock.js";
+import RedisHelper from "../lib/RedisHelper.js";
+
+const mintAmountPerBatch = 25;
 
 export default class MintService {
 
@@ -34,7 +38,7 @@ export default class MintService {
         const lastMintSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: toAddress}, {script: transferProtostone}]);
         const lastMintFee = Math.ceil(lastMintSize * feerate) + postage;
 
-        const batchList = BaseUtil.splitByBatchSize(mints, 25);
+        const batchList = BaseUtil.splitByBatchSize(mints, mintAmountPerBatch);
         // 检查是否需要加速
         const diffFeerate = maxFeerate - feerate;
 
@@ -186,7 +190,7 @@ export default class MintService {
             mintStatus: Constants.MINT_STATUS.MINTING
         }];
 
-        const maxMintAmount = Math.min(mintOrder.mintAmount, 25);
+        const maxMintAmount = Math.min(mintOrder.mintAmount, mintAmountPerBatch);
         for (let i = 1; i < maxMintAmount; i++) {
             const inputUtxo = {
                 txid: inputTxid,
@@ -307,7 +311,7 @@ export default class MintService {
         }
 
         const mintTxs = await MintItemMapper.selectMintTxs(orderId, Constants.MINT_STATUS.MINTING);
-        if (!mintTxs || mintTxs.length === 0 || mintTxs.length > 25) {
+        if (!mintTxs || mintTxs.length === 0 || mintTxs.length > mintAmountPerBatch) {
             throw new Error('All minting has been broadcast, no refundable amount.');
         }
 
@@ -470,7 +474,7 @@ export default class MintService {
                     continue;
                 }
                 const {error} = await UnisatAPI.unisatPush(item.psbt);
-                if (error) {
+                if (MintService.shouldThrowError(error)) {
                     console.error(`submit batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id} error: ${error}`);
                     throw new Error(error);
                 }
@@ -478,17 +482,94 @@ export default class MintService {
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
             }
         } else if (model === Constants.MINT_MODEL.NORMAL) { // 并发广播
-            await Promise.all(items.map(async item => {
+            await BaseUtil.concurrentExecute(items, async item => {
+                if (item.mintStatus !== Constants.MINT_STATUS.WAITING) {
+                    return;
+                }
                 const {error} = await UnisatAPI.unisatPush(item.psbt);
-                if (error) {
+                if (MintService.shouldThrowError(error)) {
                     console.error(`submit batch order ${item.orderId} item ${item.id} error: ${error}`);
                     return;
                 }
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
-            }));
+            }, 4);
         } else {
             throw new Error(`Invalid model: ${model}`);
         }
+    }
+
+    static async submitRemain0(mintOrder, tx) {
+        // 提交剩余的交易
+        await RedisLock.withLock(RedisHelper.genKey(`submitRemain0:${mintOrder.id}`), async () => {
+            let totalItemList = [];
+            if (mintOrder.status === Constants.MINT_ORDER_STATUS.PARTIAL) {
+                const orderId = mintOrder.id;
+                const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, mintAmountPerBatch);
+                const totalItemList = [];
+                for (let i = 1; i < batchList.length; i++) {
+                    const inputUtxo = {
+                        txid: mintOrder.paymentHash,
+                        vout: i,
+                        value: tx.vout[i].value
+                    };
+                    const itemList = await MintService.submitBatch(mintOrder, inputUtxo, i, batchList[i]);
+                    totalItemList.push(...itemList);
+                }
+                
+                await sequelize.transaction(async (transaction) => {
+                    await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), Constants.MINT_ORDER_STATUS.MINTING, {transaction, acceptStatus: Constants.MINT_STATUS.PARTIAL});
+                    await MintItemMapper.bulkUpsertItem(totalItemList, {transaction});
+                });
+            } else {
+                totalItemList = await MintItemMapper.getMintItemsByOrderId(mintOrder.id);
+                totalItemList = totalItemList.filter(item => item.batchIndex > 0);
+            }
+            
+            const groupedItems = {};
+            for (const item of totalItemList) {
+                if (!groupedItems[item.batchIndex]) {
+                    groupedItems[item.batchIndex] = [];
+                }
+                groupedItems[item.batchIndex].push(item);
+            }
+            
+            for (const batchIndex in groupedItems) {
+                MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+            }
+            
+            const mintingItems = totalItemList.filter(item => item.mintStatus === Constants.MINT_STATUS.MINTING);
+            if (mintingItems.length > 0) {
+                const results = await BaseUtil.concurrentExecute(mintingItems, async (item) => {
+                    try {
+                        const txStatus = await MempoolUtil.getTxStatus(item.mintHash);
+                        return {
+                            id: item.id,
+                            status: txStatus
+                        }
+                    } catch(e) {
+                        return {
+                            id: item.id,
+                            status: false
+                        }
+                    }
+                });
+                const completedItemIds = [];
+                for (const result of results) {
+                    if (result.status) {
+                        completedItemIds.push(result.id);
+                    }
+                }
+                if (completedItemIds.length > 0) {
+                    await MintItemMapper.updateItemStatus(completedItemIds, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+                }
+            }
+            const completedMintCount = MintItemMapper.getCompletedMintCount(mintOrder.id);
+            if (completedMintCount >= mintOrder.mintAmount) {
+                await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
+            }
+        }, {
+            throwErrorIfFailed: false
+        });
     }
 
     static async submitRemain(orderId) {
@@ -503,38 +584,7 @@ export default class MintService {
             return;
         }
 
-        // 提交剩余的交易
-        const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, 25);
-        let totalItemList = [];
-        for (let i = 1; i < batchList.length; i++) {
-            const inputUtxo = {
-                txid: mintOrder.paymentHash,
-                vout: i,
-                value: tx.vout[i].value
-            };
-            const itemList = await MintService.submitBatch(mintOrder, inputUtxo, i, batchList[i]);
-            totalItemList.push(...itemList);
-        }
-
-        const totalMints = mintOrder.submittedAmount + totalItemList.length;
-        const mintStatus = totalMints === mintOrder.mintAmount ? Constants.MINT_ORDER_STATUS.MINTING : Constants.MINT_ORDER_STATUS.PARTIAL;
-        
-        await sequelize.transaction(async (transaction) => {
-            await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), mintStatus, {transaction});
-            await MintItemMapper.bulkUpsertItem(totalItemList, {transaction});
-        });
-        
-        const groupedItems = {};
-        for (const item of totalItemList) {
-            if (!groupedItems[item.batchIndex]) {
-                groupedItems[item.batchIndex] = [];
-            }
-            groupedItems[item.batchIndex].push(item);
-        }
-        
-        for (const batchIndex in groupedItems) {
-            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
-        }
+        await MintService.submitRemain0(mintOrder, tx);
     }
 
     static async submitBatch(mintOrder, inputUtxo, batchIndex, mintAmount) {
@@ -658,4 +708,36 @@ export default class MintService {
             || error.includes('txn-mempool-conflict')
         );
     }
+
+    static async batchHandleMergeOrder() {
+        let minId = 0;
+        while (true) {
+            // 分页获取状态处于MINTING和PARTIAL的订单
+            const orderList = await MintOrderMapper.getMintingOrders(minId, 100);
+            if (orderList.length === 0) {
+                break;
+            }
+            minId = orderList[orderList.length - 1].id;
+            await BaseUtil.concurrentExecute(orderList, async (order) => {
+                try {
+                    const tx = await MempoolUtil.getTx(order.paymentHash);
+                    if (!tx.status.confirmed) {
+                        return;
+                    }
+                    if (order.mintAmount <= mintAmountPerBatch) {
+                        await MintItemMapper.updateStatusByOrderId(order.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+                        await MintOrderMapper.updateStatus(order.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
+                        return;
+                    }
+                    if (order.mintStatus === Constants.MINT_ORDER_STATUS.PARTIAL) {
+                        await MintService.submitRemain0(order, tx);
+                    }
+                } catch(err) {
+                    console.error(`handle merge order ${order.id} first batch error: ${err}`);
+                }
+            });
+        }
+        
+    }
+
 }

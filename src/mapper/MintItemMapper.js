@@ -80,4 +80,11 @@ export default class MintItemMapper {
             { where: { id: itemId, mintStatus: acceptStatus } }
         );
     }
+
+    static async updateStatusByOrderId(orderId, acceptStatus, newStatus) {
+        await MintItem.update(
+            { mintStatus: newStatus },
+            { where: { orderId, mintStatus: acceptStatus } }
+        );
+    }
 }

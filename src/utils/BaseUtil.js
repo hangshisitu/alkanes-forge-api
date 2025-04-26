@@ -54,4 +54,29 @@ export default class BaseUtil {
         return firstChar + rest;
     }
 
+    static async concurrentExecute(collection, handler, concurrency = 16) {
+
+        async function execute() {
+            const results = [];
+            while (true) {
+                const element = collection.shift();
+                if (!element) {
+                    break;
+                }
+                results.push(await handler(element));
+            }
+            return results;
+        }
+
+        const promises = [];
+
+        for (let i = 0; i < concurrency; i += concurrency) {
+            promises.push(execute());
+        }
+
+        const results = await Promise.all(promises);
+        return results.flat();
+    }
+    
+
 }

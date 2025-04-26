@@ -46,7 +46,13 @@ export default class MintOrderMapper {
         });
     }
 
-    static async updateOrder(orderId, paymentHash, submittedAmount, mintStatus, options = {transaction: null}) {
+    static async updateOrder(orderId, paymentHash, submittedAmount, mintStatus, options = {transaction: null, acceptStatus: null}) {
+        const where = {
+            id: orderId
+        };
+        if (options.acceptStatus) {
+            where.mintStatus = options.acceptStatus;
+        }
         await MintOrder.update(
             {
                 paymentHash: paymentHash,
@@ -54,9 +60,7 @@ export default class MintOrderMapper {
                 mintStatus: mintStatus
             },
             {
-                where: {
-                    id: orderId
-                },
+                where,
                 transaction: options.transaction
             },
         );
@@ -74,6 +78,29 @@ export default class MintOrderMapper {
                 },
                 transaction: options.transaction
             }
+        );
+    }
+
+    static async getMintingOrders(minId, size) {
+        return await MintOrder.findAll({
+            where: {
+                mintStatus: {
+                    [Op.in]: [Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.PARTIAL]
+                },
+                id: {
+                    [Op.gt]: minId
+                }
+            },
+            order: [["id", "ASC"]],
+            limit: size,
+            offset: 0
+        });
+    }
+
+    static async updateStatus(id, acceptStatus, newStatus) {
+        await MintOrder.update(
+            { mintStatus: newStatus },
+            { where: { id, mintStatus: acceptStatus } }
         );
     }
 }

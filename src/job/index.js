@@ -132,34 +132,28 @@ function refreshTokenStats() {
     });
 }
 
-let isRefreshMergeMintOrderFirstBatch = false;
-function refreshMergeMintOrderFirstBatch() {
+let isRefreshMergeMintOrder = false;
+function refreshMergeMintOrder() {
+    MempoolIndex.onNewBlock(() => {
+        MintService.batchHandleMergeOrder();
+    });
     schedule.scheduleJob('*/30 * * * * *', async () => {
-        if (isRefreshMergeMintOrderFirstBatch) {
+        if (isRefreshMergeMintOrder) {
             return;
         }
 
         try {
-            isRefreshMergeMintOrderFirstBatch = true;
+            isRefreshMergeMintOrder = true;
             const execStartTime = Date.now();
             
-            console.log(`refreshMergeMintOrderFirstBatch start`);
-            await MintService.batchSubmitMergeOrderFirstBatch();
-            console.log(`refreshMergeMintOrderFirstBatch finish, cost ${Date.now() - execStartTime}ms.`);
+            console.log(`refreshMergeMintOrder start`);
+            await MintService.batchHandleMergeOrder();
+            console.log(`refreshMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshMergeMintOrderFirstBatch error', err);
+            console.error('refreshMergeMintOrder error', err);
         } finally {
-            isRefreshMergeMintOrderFirstBatch = false;
+            isRefreshMergeMintOrder = false;
         }
-    });
-}
-
-function refreshMergeMintOrder() {
-    MintService.batchSubmitMergeOrder().then(() => {
-        refreshMergeMintOrderFirstBatch();
-    });
-    MempoolIndex.onNewBlock(() => {
-        MintService.batchSubmitMergeOrder();
     });
 }
 
