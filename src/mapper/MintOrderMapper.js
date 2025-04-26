@@ -97,10 +97,21 @@ export default class MintOrderMapper {
         });
     }
 
-    static async updateStatus(id, acceptStatus, newStatus) {
+    static async updateStatus(id, acceptStatus, newStatus, completedAmount = null) {
+        const updateData = { mintStatus: newStatus };
+        if (completedAmount !== null) {
+            updateData.completedAmount = completedAmount;
+        }
         await MintOrder.update(
-            { mintStatus: newStatus },
+            updateData,
             { where: { id, mintStatus: acceptStatus } }
+        );
+    }
+
+    static async updateCompletedAmount(id, completedAmount) {
+        await MintOrder.update(
+            { completedAmount },
+            { where: { id } }
         );
     }
 

@@ -77,6 +77,25 @@ export default class BaseUtil {
         const results = await Promise.all(promises);
         return results.flat();
     }
+
+    static async concurrentExecuteQueue(queue, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4) {
+        
+        async function execute() {
+            while (true) {
+                const element = await queue.get();
+                if (!element) {
+                    continue;
+                }
+                await handler(element);
+            }
+        }
+        
+        const promises = [];
+        for (let i = 0; i < concurrency; i ++) {
+            promises.push(execute());
+        }
+        await Promise.all(promises);
+    }
     
 
 }

@@ -13,8 +13,10 @@ import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import sequelize from "../lib/SequelizeHelper.js";
 import * as RedisLock from "../lib/RedisLock.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
+import {Queue} from "../utils/index.js";
 
 const mintAmountPerBatch = 25;
+const broadcastQueue = new Queue();
 
 export default class MintService {
 
@@ -239,7 +241,8 @@ export default class MintService {
 
             mintTxs.push({
                 mintHash: inputTxid,
-                txSize: txInfo.txSize
+                txSize: txInfo.txSize,
+                mintStatus: Constants.MINT_STATUS.WAITING
             });
 
             itemList.push({
@@ -262,8 +265,7 @@ export default class MintService {
             await MintOrderMapper.updateOrder(orderId, txid, submittedAmount, mintStatus, {transaction});
             await MintItemMapper.bulkUpsertItem(itemList, {transaction});
         });
-
-        await MintService.submitBatchItems(itemList, Constants.MINT_MODEL.MERGE);
+        broadcastQueue.put([itemList, Constants.MINT_MODEL.MERGE]);
 
         return {
             id: orderId,
@@ -475,7 +477,7 @@ export default class MintService {
         }
         
         for (const batchIndex in groupedItems) {
-            MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE, true);
+            broadcastQueue.put([groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE]);
         }
     }
 
@@ -549,7 +551,7 @@ export default class MintService {
             
             for (const batchIndex in groupedItems) {
                 console.log(`broadcast batch ${batchIndex} for merge order ${mintOrder.id}`);
-                MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+                await MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
             }
             
             const mintingItems = totalItemList.filter(item => item.mintStatus === Constants.MINT_STATUS.MINTING);
@@ -586,10 +588,13 @@ export default class MintService {
                     console.log(`update order ${mintOrder.id} mint item[${completedItemIds.length}] status to ${Constants.MINT_STATUS.COMPLETED}`);
                 }
             }
-            const completedMintCount = MintItemMapper.getCompletedMintCount(mintOrder.id);
+            const completedMintCount = await MintItemMapper.getCompletedMintCount(mintOrder.id);
+            console.log(`mint order ${mintOrder.id} completed mint count: ${completedMintCount}, mint amount: ${mintOrder.mintAmount}`);
             if (completedMintCount >= mintOrder.mintAmount) {
-                await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
+                await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED, completedMintCount);
                 console.log(`update order ${mintOrder.id} status to ${Constants.MINT_ORDER_STATUS.COMPLETED}`);
+            } else if (completedMintCount > 0) {
+                await MintItemMapper.updateCompletedAmount(mintOrder.id, completedMintCount);
             }
         }, {
             throwErrorIfFailed: false
@@ -809,4 +814,12 @@ export default class MintService {
         } 
     }
 
+    static async handleBroadcastQueue() {
+        await BaseUtil.concurrentExecuteQueue(broadcastQueue, async ([items, model]) => {
+            await MintService.submitBatchItems(items, model);
+        });
+    }
+
 }
+
+MintService.handleBroadcastQueue();
