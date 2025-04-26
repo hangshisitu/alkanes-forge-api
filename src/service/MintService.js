@@ -152,7 +152,7 @@ export default class MintService {
         }
 
         const mintTxs = [];
-        const {txid, txSize, error} = await UnisatAPI.unisatPush(psbt);
+        const {txid, hex, txSize, error} = await UnisatAPI.unisatPush(psbt);
         if (error) {
             throw new Error(error);
         }
@@ -187,6 +187,7 @@ export default class MintService {
             receiveAddress: receiveAddress,
             txSize: BaseUtil.divCeil(originalTx.weight(), 4),
             mintHash: txid,
+            psbt: hex,
             mintStatus: Constants.MINT_STATUS.MINTING
         }];
 
@@ -262,7 +263,7 @@ export default class MintService {
             await MintItemMapper.bulkUpsertItem(itemList, {transaction});
         });
 
-        MintService.submitBatchItems(itemList, Constants.MINT_MODEL.MERGE);
+        await MintService.submitBatchItems(itemList, Constants.MINT_MODEL.MERGE);
 
         return {
             id: orderId,
@@ -399,6 +400,7 @@ export default class MintService {
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
         const mintItems = [];
+        let totalChangeValue = 0;
         for (const subOrder of subOrders) {
             // 检查是否已确认
             const txStatus = await MempoolUtil.getTxStatus(subOrder.mintHash);
@@ -439,6 +441,7 @@ export default class MintService {
                     address: mintOrder.paymentAddress,
                     value: changeValue
                 });
+                totalChangeValue += changeValue;
             }
 
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
@@ -458,7 +461,7 @@ export default class MintService {
 
         await sequelize.transaction(async (transaction) => {
             await MintItemMapper.batchUpdateHash(mintItems, {transaction});
-            await MintOrderMapper.updateOrderFeerate(orderId, feerate, {transaction});
+            await MintOrderMapper.updateOrderFeerate(orderId, totalChangeValue, feerate, {transaction});
         });
 
         const itemList = await MintItemMapper.getMintItemsByOrderId(orderId); // 如果第一批没确认, 则取到的是第一批, 如果确认了, 取到的是后面的N批
@@ -512,11 +515,10 @@ export default class MintService {
         // 提交剩余的交易
         await RedisLock.withLock(RedisHelper.genKey(`submitRemain0:${mintOrder.id}`), async () => {
             console.log(`submit remain for merge order ${mintOrder.id}, status: ${mintOrder.mintStatus}`);
-            let totalItemList = [];
+            const totalItemList = [];
             if (mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.PARTIAL) {
                 const orderId = mintOrder.id;
                 const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, mintAmountPerBatch);
-                const totalItemList = [];
                 for (let i = 1; i < batchList.length; i++) {
                     const inputUtxo = {
                         txid: mintOrder.paymentHash,
@@ -533,8 +535,8 @@ export default class MintService {
                 });
                 console.log(`update order ${orderId} status to ${Constants.MINT_ORDER_STATUS.MINTING}`);
             } else {
-                totalItemList = await MintItemMapper.getMintItemsByOrderId(mintOrder.id);
-                totalItemList = totalItemList.filter(item => item.batchIndex > 0);
+                const itemList = await MintItemMapper.getMintItemsByOrderId(mintOrder.id);
+                totalItemList.push(...itemList.filter(item => item.batchIndex > 0));
             }
             
             const groupedItems = {};
@@ -687,7 +689,7 @@ export default class MintService {
                 receiveAddress: receiveAddress,
                 mintHash: inputTxid,
                 psbt: txInfo.hex,
-                mintStatus: Constants.MINT_STATUS.MINTING
+                mintStatus: Constants.MINT_STATUS.WAITING
             });
         }
         return itemList;

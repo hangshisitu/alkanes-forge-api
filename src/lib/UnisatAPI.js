@@ -282,6 +282,7 @@ export default class UnisatAPI {
                 txid = await MempoolUtil.postTx(hex);
                 return {
                     txid,
+                    hex,
                     txSize: txInfo.txSize
                 }
             } catch (err) {
@@ -289,6 +290,7 @@ export default class UnisatAPI {
                 if (lastError.includes('Transaction') && lastError.includes('already')) {
                     return {
                         txid,
+                        hex,
                         txSize: txInfo.txSize
                     };
                 }
@@ -299,6 +301,7 @@ export default class UnisatAPI {
         }
         return {
             txid,
+            hex,
             error: lastError
         }
     }
