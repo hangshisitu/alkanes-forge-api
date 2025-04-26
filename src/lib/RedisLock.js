@@ -1,5 +1,4 @@
-import { redisClient } from './RedisHelper.js';
-import { v4 as uuidv4 } from 'uuid';
+import redisClient from './RedisHelper.js';
 
 const random_string = (len) => {
     const $chars = 'QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm0123456789';
@@ -158,5 +157,3 @@ export async function withLock(key, fn, options = {}) {
         }
     }
 }
-
-export { RedisLock }; 

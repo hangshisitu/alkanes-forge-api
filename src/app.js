@@ -582,6 +582,26 @@ router
             }
         }
     })
+    .post('/inscribe/preCancelMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const {mintOrder, refundValue} = await MintService.preCancelMergeOrder(params.orderId);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': {
+                    ...mintOrder,
+                    refundValue
+                }
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post('/inscribe/cancelMergeOrder', async ctx => {
         try {
             const params = ctx.request.body;

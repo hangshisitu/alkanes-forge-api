@@ -11,8 +11,8 @@ import BaseUtil from "../utils/BaseUtil.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import sequelize from "../lib/SequelizeHelper.js";
-import RedisLock from "../lib/RedisLock.js";
-import RedisHelper from "../lib/RedisHelper.js";
+import * as RedisLock from "../lib/RedisLock.js";
+import * as RedisHelper from "../lib/RedisHelper.js";
 
 const mintAmountPerBatch = 25;
 
@@ -301,7 +301,7 @@ export default class MintService {
         }
     }
 
-    static async cancelMergeOrder(orderId) {
+    static async preCancelMergeOrder(orderId) {
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             throw new Error('Not found order, please refresh and try again.');
@@ -339,10 +339,20 @@ export default class MintService {
                 address: mintOrder.mintAddress
             });
             totalInputValue += tx.vout[i].value;
-
         }
-        const refundValue = totalInputValue - networkFee;
-        if (refundValue < 546) {
+        let refundValue = totalInputValue - networkFee;
+        refundValue = refundValue < 546 ? 0 : refundValue;
+
+        return {
+            mintOrder: mintOrder,
+            inputList,
+            refundValue
+        }
+    }
+
+    static async cancelMergeOrder(orderId) {
+        const {mintOrder, inputList, refundValue} = await MintService.preCancelMergeOrder(orderId);
+        if (refundValue === 0) {
             throw new Error('No refundable amount.');
         }
 

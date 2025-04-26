@@ -18,7 +18,7 @@ export async function setEx(key, ttl, value) {
     return await redisClient.setEx(genKey(key), ttl, value);
 }
 
-function genKey(key) {
+export function genKey(key) {
     return KEY_PREFIX + key;
 }
 
@@ -65,3 +65,5 @@ export async function zpopmin(key, count = 1) {
 export async function zrem(key, value) {
     return await redisClient.zRem(genKey(key), value);
 }
+
+export default redisClient;
