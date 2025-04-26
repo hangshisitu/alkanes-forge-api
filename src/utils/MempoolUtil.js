@@ -222,4 +222,8 @@ export default class MempoolUtil {
         const response = await axios.get(`https://${mempoolHost}/api/v1/prices`);
         return response.data['USD'];
     }
+
+    static async getBlockTxIds(hash) {
+        return await blocks.getBlockTxids({hash});
+    }
 }
