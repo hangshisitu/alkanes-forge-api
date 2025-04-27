@@ -531,6 +531,23 @@ router
     })
 
     // 铸造接口
+    .post('/inscribe/estCreateMergeOrder', async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await MintService.estCreateMergeOrder(params.fundAddress, params.fundPublicKey, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            console.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post('/inscribe/preCreateMergeOrder', async ctx => {
         try {
             const params = ctx.request.body;

@@ -1,5 +1,4 @@
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import ElectrsAPI from '../lib/ElectrsApi.js';
 import MempoolTx from '../models/MempoolTx.js';
 import axios from 'axios';
 import config from "../conf/config.js";
@@ -80,7 +79,7 @@ async function delete_mempool_txs(txids) {
 }
 
 async function remove_by_block_height(hash) {
-    const blockTxids = await ElectrsAPI.getBlockTxids(hash);
+    const blockTxids = await MempoolTx.getBlockTxids(hash);
     if (!blockTxids?.length) {
         return;
     }
@@ -99,7 +98,7 @@ async function detect_tx_status(txs) {
         }
         const txid = tx.txid;
         try {
-            const mempoolTx = await ElectrsAPI.getTx(txid);
+            const mempoolTx = await MempoolTx.getTx(txid);
             if (!mempoolTx) {
                 ret_txids.push(txid);
             } else if (mempoolTx.status.confirmed) {
@@ -184,7 +183,7 @@ async function handle_mempool_txs(txids) {
 }
 
 async function handle_mempool_tx(txid) {
-    const hex = await ElectrsAPI.getTxHex(txid);
+    const hex = await MempoolTx.getTxHex(txid);
     if (!hex) {
         console.error(`no hex found: ${txid}, delete from db`);
         await MempoolTx.destroy({
@@ -229,7 +228,7 @@ async function handle_mempool_tx(txid) {
                     address = PsbtUtil.script2Address(tx.outs[0].script);
                 }
                 if (!feeRate) {
-                    const electrsTx = await ElectrsAPI.getTx(txid);
+                    const electrsTx = await MempoolTx.getTx(txid);
                     if (!electrsTx || electrsTx.status.confirmed) {
                         await MempoolTx.destroy({
                             where: { txid }

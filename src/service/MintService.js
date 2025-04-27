@@ -20,12 +20,12 @@ const broadcastQueue = new Queue();
 
 export default class MintService {
 
-    static async preCreateMergeOrder(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, maxFeerate = 0) {
+    // 公共内部函数：计算订单各项费用与输出列表
+    static async calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate) {
         const tokenInfo = await TokenInfoMapper.getById(id);
         if (!tokenInfo || tokenInfo.mintActive === 0) {
             throw new Error(`Token ${id} minting is unavailable`);
         }
-
         const mintProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
         const transferProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.MERGE);
 
@@ -36,40 +36,33 @@ export default class MintService {
         const mintSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: mintAddress}, {script: transferProtostone}]);
         const mintFee = Math.ceil(mintSize * feerate);
 
-        // 第一次Mint在转账交易完成，最后一笔Mint需要重新计算（接收地址类型变化会导致费用不一致）
         const lastMintSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: toAddress}, {script: transferProtostone}]);
         const lastMintFee = Math.ceil(lastMintSize * feerate) + postage;
 
         const batchList = BaseUtil.splitByBatchSize(mints, mintAmountPerBatch);
-        // 检查是否需要加速
         const diffFeerate = maxFeerate - feerate;
 
         const fundOutputList = [];
-        const firstBatchFee = Math.ceil(mintFee * (batchList[0] - 2)) + lastMintFee;
         // 第一组
+        const firstBatchFee = Math.ceil(mintFee * (batchList[0] - 2)) + lastMintFee;
         fundOutputList.push({
             address: mintAddress,
-            value: firstBatchFee
+            value: firstBatchFee,
         });
 
-        let totalPrepaid = 0;
-        // 继续处理剩余组数
         for (let i = 1; i < batchList.length; i++) {
             let batchMintFee = mintFee * (batchList[i] - 1) + lastMintFee;
+            let prepaid = 0;
             if (diffFeerate > 0.1) {
                 // 计算加速所需花费
                 const batchMintSize = mintSize * (batchList[i] - 1) + lastMintSize;
-                // 如果有预留，需要考虑找零的输出
                 const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress);
-                const prepaid = Math.ceil(diffFeerate * (batchMintSize + additionalSize));
-                batchMintFee += prepaid;
-
-                totalPrepaid += prepaid;
+                prepaid = Math.ceil(diffFeerate * (batchMintSize + additionalSize));
             }
-
             fundOutputList.push({
                 address: mintAddress,
-                value: batchMintFee
+                value: batchMintFee,
+                prepaid: prepaid
             });
         }
 
@@ -77,47 +70,127 @@ export default class MintService {
             script: mintProtostone,
             value: 0
         });
-
         // 手续费
         const serviceFee = MintService.calculateServiceFee(batchList);
         fundOutputList.push({
             address: config.revenueAddress.inscribe,
-            value: serviceFee
+            value: serviceFee,
         });
+        return {
+            batchList,
+            mintAddress,
+            orderId,
+            fundOutputList,
+            mintFee,
+            mintSize,
+            lastMintFee,
+            lastMintSize,
+            transferProtostone,
+            mintProtostone,
+            serviceFee,
+            diffFeerate
+        };
+    }
 
+    // 费用测算函数
+    static async estCreateMergeOrder(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, maxFeerate = 0) {
+        const {
+            batchList,
+            fundOutputList,
+            mintSize,
+            lastMintSize,
+            serviceFee,
+            diffFeerate
+        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate, mintAmountPerBatch);
+
+        // 交易打包相关费用估算
         const transferSize = FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]);
-
-        // 1. 计算可加速部分的总Tx size
         const totalTxSize = mintSize * (batchList[0] - 2) + lastMintSize + transferSize;
 
-        // 2. 计算预存金额
+        // 需要单独计算第一批的加速费
         let prepaid = 0;
         if (diffFeerate > 0.1) {
-            // 如果有预留，需要考虑找零的输出
             const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress);
             prepaid = Math.ceil(diffFeerate * (totalTxSize + additionalSize));
         }
 
-        let transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
+        // 预存的加速飞
+        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + output.prepaid || 0, 0);
+        totalPrepaid += prepaid;
 
+        // 所有需要支付的费用
         const totalFee = fundOutputList.reduce((sum, output) => sum + output.value, 0);
-        const needAmount = totalFee + transferFee + 3000; // 预留3000空间，避免找零
+        const transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
+
+        const totalPostage = postage * batchList.length;
+        // 扣掉服务费与预留聪就是网络费
+        const networkFee = totalFee - serviceFee - totalPostage + transferFee;
+
+        return {
+            serviceFee,
+            networkFee,
+            totalPrepaid,
+            totalFee: serviceFee + networkFee + totalPrepaid + totalPostage
+        };
+    }
+
+    // 订单实际构建函数
+    static async preCreateMergeOrder(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, maxFeerate = 0, mintAmountPerBatch = 1) {
+        const {
+            batchList,
+            mintAddress,
+            orderId,
+            fundOutputList,
+            mintSize,
+            lastMintSize,
+            serviceFee,
+            diffFeerate
+        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate, mintAmountPerBatch);
+
+        // 交易打包相关费用估算
+        const transferSize = FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]);
+        const totalTxSize = mintSize * (batchList[0] - 2) + lastMintSize + transferSize;
+
+        // 需要单独计算第一批的加速费
+        let prepaid = 0;
+        if (diffFeerate > 0.1) {
+            const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress);
+            prepaid = Math.ceil(diffFeerate * (totalTxSize + additionalSize));
+        }
+
+        // 将预付费追加到付款输出
+        fundOutputList.map(output => output.value += output.prepaid || 0);
+
+        let transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
+        const totalFee = fundOutputList.reduce((sum, output) => sum + output.value, 0);
+        const needAmount = totalFee + transferFee + 3000; // 预留空间
+
+        // 查找UTXO
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, needAmount, feerate, true);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
+        // 如果实际付款的UTXO超过1个，需要追加对应的加速费
         if (utxoList.length > 1) {
-            const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress) * utxoList.length - 1;
+            const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress) * (utxoList.length - 1);
             prepaid += Math.ceil(additionalSize * diffFeerate);
-        }
-        fundOutputList[0].value += prepaid;
 
-        totalPrepaid += prepaid;
+            // 更新第一批的金额
+            fundOutputList[0].prepaid += prepaid;
+            fundOutputList[0].value += prepaid;
+        }
+
+        // 总加速费
+        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + output.prepaid || 0, 0);
+        // 网络费 = 所有支出费用 - 服务费 - 加速费 - 预留聪
         let networkFee = fundOutputList.reduce((sum, output) => sum + output.value, 0);
-        networkFee = networkFee - totalPrepaid - serviceFee - postage * batchList.length;
+        networkFee = networkFee - serviceFee - totalPrepaid - postage * batchList.length;
 
         const psbt = await PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate);
+        // 追加订单付款的这一笔Gas费
         networkFee += psbt.fee;
 
+        // 保存订单
+        const tokenInfo = await TokenInfoMapper.getById(id);
         const mintOrder = {
             id: orderId,
             model: Constants.MINT_MODEL.MERGE,
@@ -144,6 +217,7 @@ export default class MintService {
         psbt.prepaid = totalPrepaid;
         psbt.serviceFee = serviceFee;
         psbt.networkFee = networkFee;
+        psbt.totalFee = serviceFee + networkFee + totalPrepaid + postage * batchList.length;
         return psbt;
     }
 
@@ -236,7 +310,7 @@ export default class MintService {
                     value: changeValue
                 });
             }
-            
+
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintAddress, mintOrder.feerate, false, false);
             inputTxid = txInfo.txid;
 
@@ -382,7 +456,10 @@ export default class MintService {
         })
 
         const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
-        const {txid, error} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintOrder.mintAddress, 0, false, false);
+        const {
+            txid,
+            error
+        } = await UnisatAPI.transfer(privateKey, inputList, outputList, mintOrder.mintAddress, 0, false, false);
         if (error) {
             throw new Error(error);
         }
@@ -405,6 +482,10 @@ export default class MintService {
             throw new Error('Mint is completed, please refresh and try again.');
         }
 
+        if (feerate > mintOrder.maxFeerate) {
+            throw new Error(`Exceeding the maximum accelerator rate: ${maxFeerate}`);
+        }
+
         const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
@@ -418,11 +499,6 @@ export default class MintService {
             }
 
             const totalTxSize = subOrder.totalTxSize;
-            const maxFeerate = mintOrder.prepaid / totalTxSize + mintOrder.feerate;
-            if (feerate > maxFeerate) {
-                throw new Error(`Exceeding the maximum accelerator rate: ${maxFeerate}`);
-            }
-
             const originalFee = totalTxSize * mintOrder.feerate;
             const newFee = totalTxSize * feerate;
             const additionalFee = Math.ceil(newFee - originalFee);
@@ -440,8 +516,8 @@ export default class MintService {
                 value: mintOrder.postage
             }];
             outputList.push({
-               script: transferProtostone,
-               value: 0
+                script: transferProtostone,
+                value: 0
             });
 
             const changeValue = inputUtxo.value - mintOrder.postage - additionalFee;
@@ -474,7 +550,7 @@ export default class MintService {
         });
 
         const itemList = await MintItemMapper.getMintItemsByOrderId(orderId); // 如果第一批没确认, 则取到的是第一批, 如果确认了, 取到的是后面的N批
-        
+
         const groupedItems = {};
         for (const item of itemList) {
             if (!groupedItems[item.batchIndex]) {
@@ -482,7 +558,7 @@ export default class MintService {
             }
             groupedItems[item.batchIndex].push(item);
         }
-        
+
         for (const batchIndex in groupedItems) {
             broadcastQueue.put([groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE]);
         }
@@ -491,7 +567,7 @@ export default class MintService {
     static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE, ignoreStatus = false) {
         if (model === Constants.MINT_MODEL.MERGE) { // 顺序广播
             for (const item of items) {
-                const { orderId, batchIndex, mintIndex } = item;
+                const {orderId, batchIndex, mintIndex} = item;
                 if (!ignoreStatus && item.mintStatus !== Constants.MINT_STATUS.WAITING) {
                     continue;
                 }
@@ -537,9 +613,12 @@ export default class MintService {
                     const itemList = await MintService.submitBatch(mintOrder, inputUtxo, i, batchList[i]);
                     totalItemList.push(...itemList);
                 }
-                
+
                 await sequelize.transaction(async (transaction) => {
-                    await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), Constants.MINT_ORDER_STATUS.MINTING, {transaction, acceptStatus: Constants.MINT_STATUS.PARTIAL});
+                    await MintOrderMapper.updateOrder(orderId, mintOrder.paymentHash, Math.min(mintOrder.submittedAmount + totalItemList.length, mintOrder.mintAmount), Constants.MINT_ORDER_STATUS.MINTING, {
+                        transaction,
+                        acceptStatus: Constants.MINT_STATUS.PARTIAL
+                    });
                     await MintItemMapper.bulkUpsertItem(totalItemList, {transaction});
                 });
                 console.log(`update order ${orderId} status to ${Constants.MINT_ORDER_STATUS.MINTING}`);
@@ -547,7 +626,7 @@ export default class MintService {
                 const itemList = await MintItemMapper.getMintItemsByOrderId(mintOrder.id);
                 totalItemList.push(...itemList.filter(item => item.batchIndex > 0));
             }
-            
+
             const groupedItems = {};
             for (const item of totalItemList) {
                 if (!groupedItems[item.batchIndex]) {
@@ -555,12 +634,12 @@ export default class MintService {
                 }
                 groupedItems[item.batchIndex].push(item);
             }
-            
+
             for (const batchIndex in groupedItems) {
                 console.log(`broadcast batch ${batchIndex} for merge order ${mintOrder.id}`);
                 await MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
             }
-            
+
             const mintingItems = totalItemList.filter(item => item.mintStatus === Constants.MINT_STATUS.MINTING);
             if (mintingItems.length > 0) {
                 const results = await BaseUtil.concurrentExecute(mintingItems, async (item) => {
@@ -577,7 +656,7 @@ export default class MintService {
                             id: item.id,
                             status: mintTx?.status?.confirmed ?? false
                         }
-                    } catch(e) {
+                    } catch (e) {
                         return {
                             id: item.id,
                             status: false
@@ -601,7 +680,7 @@ export default class MintService {
                 await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED, completedMintCount);
                 console.log(`update order ${mintOrder.id} status to ${Constants.MINT_ORDER_STATUS.COMPLETED}`);
             } else if (completedMintCount > 0) {
-                await MintItemMapper.updateCompletedAmount(mintOrder.id, completedMintCount);
+                await MintOrderMapper.updateCompletedAmount(mintOrder.id, completedMintCount);
             }
         }, {
             throwErrorIfFailed: false
@@ -633,7 +712,7 @@ export default class MintService {
         let inputTxid = inputUtxo.txid;
         const itemList = [];
         for (let i = 0; i < mintAmount; i++) {
-            const vout =  i === 0 ? inputUtxo.vout : 0;
+            const vout = i === 0 ? inputUtxo.vout : 0;
             const mintUtxo = {
                 txid: inputTxid,
                 vout: vout,
@@ -805,11 +884,11 @@ export default class MintService {
                     return;
                 }
                 await MintService.submitRemain0(order, tx);
-            } catch(err) {
+            } catch (err) {
                 console.error(`handle merge order ${order.id} error: ${err}`);
             }
         });
-        
+
     }
 
     static async updateMintItemByBlock(blockHash) {
@@ -818,9 +897,9 @@ export default class MintService {
             await BaseUtil.concurrentExecute(BaseUtil.splitByBatchSize(txids, 100), async (txids) => {
                 await MintItemMapper.updateItemStatusByTxids(txids, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
             });
-        } catch(err) {
+        } catch (err) {
             console.error(`update mint item by block ${blockHash} error`, err);
-        } 
+        }
     }
 
     static async handleBroadcastQueue() {

@@ -49,7 +49,7 @@ export default class UnisatAPI {
             } else if (psbtUtils.isP2SHScript(script)) {
                 vin.witnessUtxo = {script: script, value: input.value};
             } else {
-                const txHex = await this.getTxHex(input.txid);
+                const txHex = await MempoolUtil.getTxHex(input.txid);
                 vin.nonWitnessUtxo = Buffer.from(txHex, 'hex');
             }
             psbt.addInput(vin);

@@ -31,11 +31,7 @@ const {bitcoin: {blocks}} = mempoolJS({
     
 export default class MempoolUtil {
     static async getAddress(address) {
-        const start = new Date().getTime()
-        const balanceInfo = await addresses.getAddress({address});
-        const end = new Date().getTime()
-        console.info(`getAddress address: ${address} cost: ${end - start}ms`)
-        return balanceInfo;
+        return await addresses.getAddress({address});
     }
 
     static async getUtxoByAddress(address, confirmed = false) {
@@ -68,54 +64,28 @@ export default class MempoolUtil {
 
 
     static async getAddressTxs(address) {
-        const start = new Date().getTime()
-        const txs = await addresses.getAddressTxs({address});
-        const end = new Date().getTime()
-        console.info(`getAddressTxs cost: ${end - start}ms`)
-        return txs;
+        return await addresses.getAddressTxs({address});
     }
 
     static async getAddressTxsChain(address, last_seen_txid) {
-        console.info(`address ${address} ${last_seen_txid}`)
-        const start = new Date().getTime()
         const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/address/${address}/txs/chain/${last_seen_txid}`
-        console.info(`url: ${url}`)
         const resp = await axios.get(url, {
             timeout: 10000
         })
-
-        // const txs = await addresses.getAddressTxsChain({address,last_seen_txid});
-        const end = new Date().getTime()
-        console.info(`getAddressTxsChain cost: ${end - start}ms`)
         return resp.data;
     }
 
     static async getTxHex(txid) {
-        const start = new Date().getTime()
-        console.debug(`getTxHex start`)
-        const txHex = await transactions.getTxHex({txid});
-        const end = new Date().getTime()
-        console.debug(`getTxHex cost: ${end - start}ms`)
-        return txHex;
+        return await transactions.getTxHex({txid});
     }
 
     static async getTx(txid) {
-        const start = new Date().getTime()
-        console.debug(`getTx start`)
-        const tx = await transactions.getTx({txid});
-        const end = new Date().getTime()
-        console.debug(`getTx cost: ${end - start}ms`)
-        return tx;
+        return await transactions.getTx({txid});
     }
 
     static async getTxEx(txid) {
         try {
-            const start = new Date().getTime()
-            console.debug(`getTx start`)
-            const tx = await transactions.getTx({txid});
-            const end = new Date().getTime()
-            console.debug(`getTx cost: ${end - start}ms`)
-            return tx;
+            return await transactions.getTx({txid});
         } catch (err) {
             if (err.response.status === 404) {
                 return null;
@@ -125,69 +95,43 @@ export default class MempoolUtil {
     }
 
     static async getTxOutspend(txid, vout) {
-        const start = new Date().getTime()
-        console.info(`getTxOutspend start`)
-        const txOutspend = await transactions.getTxOutspend({
+        return await transactions.getTxOutspend({
             txid,
             vout
         });
-        const end = new Date().getTime()
-        console.info(`getTxOutspend  txId: ${txid} vout: ${vout} ${JSON.stringify(txOutspend)} cost: ${end - start}ms`)
-        return txOutspend;
     }
 
     static async getTxOutspends(txid) {
-        const start = new Date().getTime()
-        const txOutspend = await transactions.getTxOutspends({txid});
-        const end = new Date().getTime()
-        console.info(`getTxOutspend  txId: ${txid} ${JSON.stringify(txOutspend)} cost: ${end - start}ms`)
-        return txOutspend;
+        return await transactions.getTxOutspends({txid});
     }
 
     static async getTxStatus(txid) {
-        const start = Date.now()
         const txStatus = await transactions.getTxStatus({txid});
-        console.info(`getTxStatus  txId: ${txid} ${JSON.stringify(txStatus)} cost: ${Date.now() - start}ms`)
         return txStatus.confirmed;
     }
 
     static async getTxStatusEx(txid) {
-        const start = new Date().getTime()
         const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/tx/${txid}/status`
-        console.info(`url: ${url}`)
         const resp = await axios.get(url, {
             timeout: 10000
         })
-
-        const end = new Date().getTime()
-        console.info(`getTxStatus  txId: ${txid} ${JSON.stringify(resp.data)} cost: ${Date.now() - start}ms`)
         return resp.data;
     }
 
     static async postTxEx(txHex) {
-        const start = new Date().getTime()
         const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/tx`
         const resp = await axios.post(url, txHex, {
             timeout: 10000
         })
-
-        const end = new Date().getTime()
-        console.info(`postTxEx cost: ${end - start}ms, txid: ${resp.data}`)
         return resp.data;
     }
 
     static async getFeesRecommended() {
-        const start = Date.now()
-        const feeRate = await fees.getFeesRecommended();
-        console.info(`getFeesRecommended feeRate: ${JSON.stringify(feeRate)} cost: ${Date.now() - start}ms`)
-        return feeRate;
+        return await fees.getFeesRecommended();
     }
 
     static async getFeesMempoolBlocks() {
-        const start = Date.now()
-        const blocks = await fees.getFeesMempoolBlocks();
-        console.info(`getFeesMempoolBlocks blocks: ${JSON.stringify(blocks)} cost: ${Date.now() - start}ms`)
-        return blocks;
+        return await fees.getFeesMempoolBlocks();
     }
 
     static async postTx(hex) {
