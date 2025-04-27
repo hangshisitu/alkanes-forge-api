@@ -79,6 +79,17 @@ export default class MempoolUtil {
         return await transactions.getTxHex({txid});
     }
 
+    static async getTxHexEx(txid) {
+        try {
+            return await transactions.getTxHex({txid});
+        } catch (err) {
+            if (err.response.status === 404) {
+                return null;
+            }
+            throw err;
+        }
+    }
+
     static async getTx(txid) {
         return await transactions.getTx({txid});
     }
@@ -168,6 +179,13 @@ export default class MempoolUtil {
     }
 
     static async getBlockTxIds(hash) {
-        return await blocks.getBlockTxids({hash});
+        try {
+            return await blocks.getBlockTxids({hash});
+        } catch (err) {
+            if (err.response.status === 404) {
+                return [];
+            }
+            throw err;
+        }
     }
 }

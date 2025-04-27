@@ -4,6 +4,7 @@ import axios from 'axios';
 import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
 import PsbtUtil from "../utils/PsbtUtil.js";
+import MempoolUtil from '../utils/MempoolUtil.js';
 import WebSocket from 'ws';
 import {Op} from "sequelize";
 import {Queue} from "../utils/index.js";
@@ -79,7 +80,7 @@ async function delete_mempool_txs(txids) {
 }
 
 async function remove_by_block_height(hash) {
-    const blockTxids = await MempoolTx.getBlockTxids(hash);
+    const blockTxids = await MempoolUtil.getBlockTxIds(hash);
     if (!blockTxids?.length) {
         return;
     }
@@ -98,7 +99,7 @@ async function detect_tx_status(txs) {
         }
         const txid = tx.txid;
         try {
-            const mempoolTx = await MempoolTx.getTx(txid);
+            const mempoolTx = await MempoolUtil.getTxEx(txid);
             if (!mempoolTx) {
                 ret_txids.push(txid);
             } else if (mempoolTx.status.confirmed) {
@@ -183,7 +184,7 @@ async function handle_mempool_txs(txids) {
 }
 
 async function handle_mempool_tx(txid) {
-    const hex = await MempoolTx.getTxHex(txid);
+    const hex = await MempoolUtil.getTxHexEx(txid);
     if (!hex) {
         console.error(`no hex found: ${txid}, delete from db`);
         await MempoolTx.destroy({
@@ -228,7 +229,7 @@ async function handle_mempool_tx(txid) {
                     address = PsbtUtil.script2Address(tx.outs[0].script);
                 }
                 if (!feeRate) {
-                    const electrsTx = await MempoolTx.getTx(txid);
+                    const electrsTx = await MempoolUtil.getTxEx(txid);
                     if (!electrsTx || electrsTx.status.confirmed) {
                         await MempoolTx.destroy({
                             where: { txid }
@@ -387,6 +388,9 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
         } catch(e) {
             console.error(`handle ${event} error`, e);
         }
+    };
+    rws.onerror = (event) => {
+        console.error(`handle ws error`, event);
     };
     rws.onclose = () => {
         console.error('disconnect from mempool');
