@@ -188,4 +188,8 @@ export default class MempoolUtil {
             throw err;
         }
     }
+
+    static async getOutspend(txid, vout) {
+        return await transactions.getTxOutspend({txid, vout});
+    }
 }

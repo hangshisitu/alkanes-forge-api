@@ -664,6 +664,7 @@ export default class MintService {
                             if (MintService.shouldThrowError(error)) {
                                 console.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
                             }
+                            await MintService.tryFixMintItemHash(error, item);
                         }
                         return {
                             id: item.id,
@@ -842,6 +843,24 @@ export default class MintService {
         );
     }
 
+    static async tryFixMintItemHash(error, item) {
+        if (error.includes('bad-txns-inputs-missingorspent')) {
+            console.log(`[fix]check order ${item.orderId} item ${item.id} tx ${item.mintHash}`);
+            const [inputTxid, inputVout,] = item.inputUtxo.split(':');
+            const outspend = await MempoolUtil.getOutspend(inputTxid, inputVout);
+            if (outspend?.spent) {
+                const actualTxid = outspend.txid;
+                if (actualTxid !== item.mintHash) {
+                    console.log(`[fix]update order ${item.orderId} item ${item.id} tx ${item.mintHash} to ${actualTxid}`);
+                    await MintItemMapper.updateItemMintHash(item.id, actualTxid, {
+                        acceptStatus: Constants.MINT_STATUS.MINTING,
+                        mintStatus: outspend.status?.confirmed ? Constants.MINT_STATUS.COMPLETED : Constants.MINT_STATUS.MINTING
+                    });
+                }
+            }
+        }
+    }
+
     static async checkMergeOrderFirstBatch(orderId) {
         const itemList = await MintItemMapper.getMintItemsByOrderId(orderId, 0);
         if (itemList.length === 0) {
@@ -868,6 +887,7 @@ export default class MintService {
                 if (MintService.shouldThrowError(error)) {
                     console.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
                 }
+                await MintService.tryFixMintItemHash(error, item);
                 return;
             }
             if (tx.status.confirmed) {

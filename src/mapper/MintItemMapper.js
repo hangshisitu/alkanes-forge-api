@@ -101,4 +101,19 @@ export default class MintItemMapper {
             { where: { mintHash: txids, mintStatus: acceptStatus } }
         );
     }
+
+    static async updateItemMintHash(id, mintHash, {mintStatus = null, acceptStatus = null}) {
+        const updateData = { mintHash: mintHash };
+        if (mintStatus) {
+            updateData.mintStatus = mintStatus;
+        }
+        const where = { id };
+        if (acceptStatus) {
+            where.mintStatus = acceptStatus;
+        }
+        await MintItem.update(
+            updateData,
+            { where }
+        );
+    }
 }
