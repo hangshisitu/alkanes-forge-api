@@ -40,6 +40,7 @@ export default class MintItemMapper {
               FROM mint_item
               WHERE order_id = :orderId and mint_status = :mintStatus
               GROUP BY batch_index
+              ORDER BY mint_index asc
             `, {
             replacements: {
                 orderId,

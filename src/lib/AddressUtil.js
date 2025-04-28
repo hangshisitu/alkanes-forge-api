@@ -3,6 +3,7 @@ import * as ecc from 'tiny-secp256k1';
 import {ECPairFactory} from "ecpair";
 import config from "../conf/config.js";
 import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
+import {createHash} from "crypto";
 
 export default class AddressUtil {
 
@@ -19,6 +20,12 @@ export default class AddressUtil {
         const rootKey = AddressUtil.convertKeyPair(privateKey);
         const {address} = bitcoin.payments.p2tr({network: bitcoin.networks.bitcoin, internalPubkey: Buffer.from(toXOnly(rootKey.publicKey))});
         return address;
+    }
+
+    static generatePrivateKeyFromString(inputString) {
+        const hash = createHash("sha256").update(inputString).digest("hex");
+        const privateKey = Buffer.from(hash, "hex");
+        return privateKey.toString("hex");
     }
 
     static convertKeyPair(privateKey) {

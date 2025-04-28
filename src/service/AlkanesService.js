@@ -3,7 +3,6 @@ import UnisatAPI from "../lib/UnisatAPI.js";
 import axios from "axios";
 import asyncPool from "tiny-async-pool";
 import {encipher, encodeRunestoneProtostone, ProtoStone} from "alkanes";
-import {createHash} from "crypto";
 import BigNumber from "bignumber.js";
 import {u128, u32} from '@magiceden-oss/runestone-lib/dist/src/integer/index.js';
 import {ProtoruneRuneId} from 'alkanes/lib/protorune/protoruneruneid.js'
@@ -322,7 +321,7 @@ export default class AlkanesService {
             value: 0
         });
 
-        const privateKey = AlkanesService.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
+        const privateKey = AddressUtil.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
         const mintSize = FeeUtil.estTxSize([{address: mintAddress}], outputList);
         const mintFee = Math.ceil(mintSize * feerate) + postage;
@@ -368,7 +367,7 @@ export default class AlkanesService {
         });
 
         const txidList = [];
-        const privateKey = AlkanesService.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
+        const privateKey = AddressUtil.generatePrivateKeyFromString(`${fundAddress}-${toAddress}-${id}-${mints}`);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
         const mintFee = Math.ceil(FeeUtil.estTxSize([{address: mintAddress}], outputList) * feerate) + postage;
 
@@ -652,12 +651,6 @@ export default class AlkanesService {
                 }),
             ],
         }).encodedRunestone;
-    }
-
-    static generatePrivateKeyFromString(inputString) {
-        const hash = createHash("sha256").update(inputString).digest("hex");
-        const privateKey = Buffer.from(hash, "hex");
-        return privateKey.toString("hex");
     }
 
     static calculateProgress(id, minted, cap) {

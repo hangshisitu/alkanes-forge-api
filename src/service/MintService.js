@@ -30,7 +30,7 @@ export default class MintService {
         const transferProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.MERGE);
 
         const orderId = BaseUtil.genId();
-        const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
+        const privateKey = MintService.getMintPrivateKey(orderId);
         const mintAddress = AddressUtil.fromP2wpkhAddress(privateKey);
 
         const mintSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: mintAddress}, {script: transferProtostone}]);
@@ -115,7 +115,7 @@ export default class MintService {
         }
 
         // 预存的加速飞
-        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + output.prepaid || 0, 0);
+        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + (output.prepaid || 0), 0);
         totalPrepaid += prepaid;
 
         // 所有需要支付的费用
@@ -156,10 +156,11 @@ export default class MintService {
         if (diffFeerate > 0.1) {
             const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress);
             prepaid = Math.ceil(diffFeerate * (totalTxSize + additionalSize));
+            fundOutputList[0].prepaid = prepaid;
         }
 
         // 将预付费追加到付款输出
-        fundOutputList.map(output => output.value += output.prepaid || 0);
+        fundOutputList.map(output => output.value += (output.prepaid || 0));
 
         let transferFee = Math.ceil(FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]) * feerate);
         const totalFee = fundOutputList.reduce((sum, output) => sum + output.value, 0);
@@ -172,15 +173,15 @@ export default class MintService {
         // 如果实际付款的UTXO超过1个，需要追加对应的加速费
         if (utxoList.length > 1) {
             const additionalSize = FeeUtil.getAdditionalOutputSize(fundAddress) * (utxoList.length - 1);
-            prepaid += Math.ceil(additionalSize * diffFeerate);
+            const additionalPrepaid = Math.ceil(additionalSize * diffFeerate);
 
-            // 更新第一批的金额
-            fundOutputList[0].prepaid += prepaid;
-            fundOutputList[0].value += prepaid;
+            // 追加第一批加速费
+            fundOutputList[0].prepaid += additionalPrepaid;
+            fundOutputList[0].value += additionalPrepaid;
         }
 
         // 总加速费
-        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + output.prepaid || 0, 0);
+        let totalPrepaid = fundOutputList.reduce((sum, output) => sum + (output.prepaid || 0), 0);
         // 网络费 = 所有支出费用 - 服务费 - 加速费 - 预留聪
         let networkFee = fundOutputList.reduce((sum, output) => sum + output.value, 0);
         networkFee = networkFee - serviceFee - totalPrepaid - postage * batchList.length;
@@ -239,7 +240,7 @@ export default class MintService {
             mintStatus: Constants.MINT_STATUS.WAITING
         });
 
-        const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
+        const privateKey = MintService.getMintPrivateKey(orderId);
         const mintAddress = mintOrder.mintAddress;
 
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
@@ -455,7 +456,7 @@ export default class MintService {
             value: 0
         })
 
-        const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
+        const privateKey = MintService.getMintPrivateKey(orderId);
         const {
             txid,
             error
@@ -473,9 +474,6 @@ export default class MintService {
         if (!mintOrder) {
             throw new Error('Not found order, please refresh and try again.');
         }
-        if (mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
-            throw new Error('Mint is completed, please refresh and try again.');
-        }
 
         const subOrders = await MintItemMapper.selectMintingItems(orderId);
         if (!subOrders || subOrders.length === 0) {
@@ -483,10 +481,10 @@ export default class MintService {
         }
 
         if (feerate > mintOrder.maxFeerate) {
-            throw new Error(`Exceeding the maximum accelerator rate: ${maxFeerate}`);
+            throw new Error(`Exceeding the maximum accelerator rate: ${mintOrder.maxFeerate}`);
         }
 
-        const privateKey = AlkanesService.generatePrivateKeyFromString(orderId);
+        const privateKey = MintService.getMintPrivateKey(orderId);
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
         const mintItems = [];
@@ -571,12 +569,12 @@ export default class MintService {
                 if (!ignoreStatus && item.mintStatus !== Constants.MINT_STATUS.WAITING) {
                     continue;
                 }
-                const {error} = await UnisatAPI.unisatPush(item.psbt);
+                const {txid, error} = await UnisatAPI.unisatPush(item.psbt);
                 if (MintService.shouldThrowError(error)) {
                     console.error(`submit batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id} error: ${error}`);
                     throw new Error(error);
                 }
-                console.log(`minted batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id}`);
+                console.log(`minted batch order ${orderId} batch ${batchIndex} mint ${mintIndex} tx ${txid}`);
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
             }
         } else if (model === Constants.MINT_MODEL.NORMAL) { // 并发广播
@@ -693,7 +691,12 @@ export default class MintService {
             return;
         }
 
-        const tx = await MempoolUtil.getTx(mintOrder.paymentHash);
+        const tx = await MempoolUtil.getTxEx(mintOrder.paymentHash);
+        if (!tx) {
+            console.error(`tx ${mintOrder.paymentHash} for order ${mintOrder.id} not found.`);
+            return;
+        }
+
         if (!tx.status.confirmed) {
             console.log(`order ${orderId} payment tx ${mintOrder.paymentHash} not confirmed.`);
             return;
@@ -704,7 +707,7 @@ export default class MintService {
 
     static async submitBatch(mintOrder, inputUtxo, batchIndex, mintAmount) {
         const mintAddress = mintOrder.mintAddress;
-        const privateKey = AlkanesService.generatePrivateKeyFromString(mintOrder.id);
+        const privateKey = MintService.getMintPrivateKey(mintOrder.id);
         const mintProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.NORMAL);
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
@@ -850,6 +853,7 @@ export default class MintService {
                 if (MintService.shouldThrowError(error)) {
                     console.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
                 }
+                return;
             }
             if (tx.status.confirmed) {
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
@@ -867,7 +871,12 @@ export default class MintService {
         await BaseUtil.concurrentExecute(orderList, async (order) => {
             try {
                 console.log(`start handle merge order ${order.id}`);
-                const tx = await MempoolUtil.getTx(order.paymentHash);
+                const tx = await MempoolUtil.getTxEx(order.paymentHash);
+                if (!tx) {
+                    console.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                    return;
+                }
+
                 if (!tx.status.confirmed) {
                     return;
                 }
@@ -885,7 +894,7 @@ export default class MintService {
                 }
                 await MintService.submitRemain0(order, tx);
             } catch (err) {
-                console.error(`handle merge order ${order.id} error: ${err}`);
+                console.error(`handle merge order ${order.id} error`, err);
             }
         });
 
@@ -906,6 +915,10 @@ export default class MintService {
         await BaseUtil.concurrentExecuteQueue(broadcastQueue, async ([items, model]) => {
             await MintService.submitBatchItems(items, model);
         });
+    }
+    
+    static getMintPrivateKey(orderId) {
+        return AddressUtil.generatePrivateKeyFromString(`idclub:alkanes:${(process.env.NODE_ENV || 'dev')}:${orderId}`);
     }
 
 }
