@@ -133,19 +133,8 @@ export default class MempoolTxMapper {
                     });
                 }
             }
-
-            // 从数据库计算中位数feeRate (MySQL兼容版本)
-            const [countResult] = await sequelize.query(`
-                SELECT COUNT(*) as total_count
-                FROM mempool_tx
-                WHERE alkanes_id = :alkanesId
-            `, {
-                replacements: { alkanesId },
-                type: QueryTypes.SELECT
-            });
-
-            const totalCount = countResult.total_count;
-            const medianOffset = Math.floor(totalCount / 2);
+            
+            const medianOffset = Math.floor(data.count / 2);
 
             const medianResult = await sequelize.query(`
                 SELECT fee_rate
