@@ -132,9 +132,12 @@ class LoggerUtil {
     static formatLogMessage(level, args) {
         const timestamp = DateUtil.now();
         const context = LoggerUtil.getContext();
-        const contextStr = Object.keys(context).length > 0 
-            ? ` [${Object.entries(context).map(([k, v]) => `${k}=${v}`).join(', ')}]` 
-            : '';
+
+        let contextStr = '';
+        if (Object.keys(context).length > 0) {
+            // 只取 context 的值，用 | 分割，并用 [] 包裹
+            contextStr = ` [${Object.values(context).join('|')}]`;
+        }
         
         return `[${timestamp}] [${level.toUpperCase()}]${contextStr} ${args.map(arg => 
             typeof arg === 'object' ? JSON.stringify(arg) : arg
