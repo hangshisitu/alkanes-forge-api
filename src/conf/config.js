@@ -31,7 +31,14 @@ console.log = function(...args) {
 
 // 重写 console.error
 console.error = function(...args) {
-    originalError.apply(console, [LoggerUtil.formatLogMessage('error', args)]);
+    // Check if the last argument is an Error object
+    if (args.length > 0 && args[args.length - 1] instanceof Error) {
+        const error = args[args.length - 1];
+        const messageArgs = args.slice(0, args.length - 1);
+        originalError.apply(console, [LoggerUtil.formatLogMessage('error', messageArgs), error]);
+    } else {
+        originalError.apply(console, [LoggerUtil.formatLogMessage('error', args)]);
+    }
 };
 
 // 重写 console.warn
