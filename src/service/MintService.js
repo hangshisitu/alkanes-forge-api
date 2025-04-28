@@ -905,7 +905,9 @@ export default class MintService {
                     if (completedCount >= order.mintAmount) {
                         console.log(`completed merge order ${order.id}, mint amount: ${order.mintAmount}`);
                         await MintItemMapper.updateStatusByOrderId(order.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
-                        await MintOrderMapper.updateStatus(order.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED);
+                        await MintOrderMapper.updateStatus(order.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED, completedCount);
+                    } else if (completedCount > 0) {
+                        await MintOrderMapper.updateCompletedAmount(order.id, completedCount);
                     }
                     return;
                 }
