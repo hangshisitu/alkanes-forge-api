@@ -14,7 +14,7 @@ import sequelize from "../lib/SequelizeHelper.js";
 import * as RedisLock from "../lib/RedisLock.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Queue} from "../utils/index.js";
-import LoggerUtil from "../utils/LoggerUtil.js";
+
 
 const mintAmountPerBatch = 25;
 const broadcastQueue = new Queue();
@@ -870,7 +870,6 @@ export default class MintService {
         orderList.sort((a, b) => b.feerate - a.feerate);
 
         await BaseUtil.concurrentExecute(orderList, async (order) => {
-            LoggerUtil.put('traceId', BaseUtil.genId());
             try {
                 console.log(`start handle merge order ${order.id}`);
                 const tx = await MempoolUtil.getTxEx(order.paymentHash);
@@ -897,8 +896,6 @@ export default class MintService {
                 await MintService.submitRemain0(order, tx);
             } catch (err) {
                 console.error(`handle merge order ${order.id} error`, err);
-            } finally {
-                LoggerUtil.clear();
             }
         });
 

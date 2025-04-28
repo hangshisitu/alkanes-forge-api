@@ -16,7 +16,6 @@ import BaseService from "./service/BaseService.js";
 import * as mempool from "./mempool/index.js";
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
-import LoggerUtil from './utils/LoggerUtil.js';
 import BaseUtil from './utils/BaseUtil.js';
 import {Constants} from "./conf/constants.js";
 import UserService from "./service/UserService.js";
@@ -86,7 +85,6 @@ app.use(bodyParser({
 
 // logger
 app.use(async (ctx, next) => {
-    LoggerUtil.put('traceId', BaseUtil.genId());
     try {
         const start = Date.now();
         const bodyParams = JSON.stringify(ctx.request.body) || '';
@@ -96,7 +94,7 @@ app.use(async (ctx, next) => {
         const walletType = ctx.request.headers['wallet-type'] || '';
         console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms ${walletType} params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`);
     } finally {
-        LoggerUtil.clear();
+        
     }
     router
         // 基础接口
