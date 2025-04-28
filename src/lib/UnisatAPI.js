@@ -17,6 +17,7 @@ export default class UnisatAPI {
         const {txid, error} = await UnisatAPI.unisatPush(hex);
         return {
             txid,
+            hex,
             error,
             txSize
         }

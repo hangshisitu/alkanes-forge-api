@@ -107,5 +107,49 @@ export const Constants = Object.freeze({
         BTC_PRICE_USD: 'btc_price_usd',
         MEMPOOL_FEES_RECOMMENDED: 'mempool_fees_recommended',
         MEMPOOL_FEES_MEMPOOL_BLOCKS: 'mempool_fees_mempool_blocks'
+    },
+
+    API: {
+        TOKEN: {
+            ALL: '/token/all',
+            PRICE: '/token/prices',
+            PAGE: '/token/page',
+            INFO: '/token/info',
+            MEMPOOL: '/token/mempool'
+        },
+
+        MARKET: {
+            ASSETS: '/market/assets',
+            LISTING: '/market/listing',
+            CREATE_UNSIGNED_LISTING: '/market/createUnsignedListing',
+            PUT_SIGNED_LISTING: '/market/putSignedListing',
+            CREATE_UNSIGNED_UPDATE: '/market/createUnsignedUpdate',
+            PUT_SIGNED_UPDATE: '/market/putSignedUpdate',
+            CREATE_UNSIGNED_DELISTING: '/market/createUnsignedDelisting',
+            PUT_SIGNED_DELISTING: '/market/putSignedDelisting',
+            CREATE_UNSIGNED_BUYING: '/market/createUnsignedBuying',
+            PUT_SIGNED_BUYING: '/market/putSignedBuying',
+            EVENTS: '/market/events',
+            TOKEN_STATS: '/market/tokenStats',
+        },
+
+        INSCRIBE: {
+            EST_CREATE_MERGE_ORDER: '/inscribe/estCreateMergeOrder',
+            PRE_CREATE_MERGE_ORDER: '/inscribe/preCreateMergeOrder',
+            CREATE_MERGE_ORDER: '/inscribe/createMergeOrder',
+            ACCELERATE_MERGE_ORDER: '/inscribe/accelerateMergeOrder',
+            PRE_CANCEL_MERGE_ORDER: '/inscribe/preCancelMergeOrder',
+            CANCEL_MERGE_ORDER: '/inscribe/cancelMergeOrder',
+            ORDER_PAGE: '/inscribe/orderPage',
+            ORDER_INFO: '/inscribe/orderInfo',
+        },
+
+        USER: {
+            NONCE: '/user/nonce',
+            LOGIN: '/user/login',
+            BTC_BALANCE: '/user/btcBalance',
+            ALKANES_BALANCE: '/user/alkanesBalance',
+            TRANSFER_ALKANES: '/user/transferAlkanes',
+        }
     }
 });

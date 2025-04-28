@@ -5,10 +5,6 @@ import UnisatAPI from "../lib/UnisatAPI.js";
 
 export default class BaseService {
 
-    static async getIndexHeight() {
-        return await RedisHelper.get(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT);
-    }
-
     static async getConfig() {
         const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const indexHeight = await RedisHelper.get(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT);

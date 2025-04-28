@@ -500,7 +500,6 @@ export default class MintService {
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
         const mintItems = [];
-        const groupedItems = {};
         let totalChangeValue = 0;
         for (const subOrder of subOrders) {
             // 检查是否已确认
@@ -540,36 +539,23 @@ export default class MintService {
                 totalChangeValue += changeValue;
             }
 
-            const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
-            const txid = txInfo.txid;
+            const {txid, hex, error} = await UnisatAPI.transfer(privateKey, [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
+            if (MintService.shouldThrowError(error)) {
+                throw new Error(error);
+            }
+
             console.log(`pre accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
             const item = {
                 id: subOrder.id,
                 mintHash: txid,
-                psbt: txInfo.hex,
+                psbt: hex,
             };
             mintItems.push(item);
-            if (!groupedItems[subOrder.batchIndex]) {
-                groupedItems[subOrder.batchIndex] = [];
-            }
-            groupedItems[subOrder.batchIndex].push(item);
+
             // 如果第一批未结束，其他暂不需要加速
             if (subOrder.batchIndex === 0) {
                 break;
             }
-        }
-
-        const errors = [];
-
-        await BaseUtil.concurrentExecute(Object.keys(groupedItems), async items => {
-            await MintService.submitBatchItems(items, Constants.MINT_MODEL.MERGE, false, true, errors);
-        }, null, errors);
-
-        if (errors.length > 0) {
-            errors.forEach(([error, item]) => {
-                console.error(`accelerate order ${orderId} batch ${item.batchIndex} mint ${item.mintHash} item ${item.id} error: ${error}`);
-            });
-            throw new Error('Accelerate failed, please refresh and try again.');
         }
 
         await sequelize.transaction(async (transaction) => {
@@ -699,26 +685,6 @@ export default class MintService {
         }, {
             throwErrorIfFailed: false,
         });
-    }
-
-    static async submitRemain(orderId) {
-        const mintOrder = await MintOrderMapper.getById(orderId);
-        if (!mintOrder || mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
-            return;
-        }
-
-        const tx = await MempoolUtil.getTxEx(mintOrder.paymentHash);
-        if (!tx) {
-            console.error(`tx ${mintOrder.paymentHash} for order ${mintOrder.id} not found.`);
-            return;
-        }
-
-        if (!tx.status.confirmed) {
-            console.log(`order ${orderId} payment tx ${mintOrder.paymentHash} not confirmed.`);
-            return;
-        }
-
-        await MintService.submitRemain0(mintOrder, tx);
     }
 
     static async submitBatch(mintOrder, inputUtxo, batchIndex, mintAmount) {

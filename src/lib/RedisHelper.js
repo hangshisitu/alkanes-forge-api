@@ -18,6 +18,10 @@ export async function setEx(key, ttl, value) {
     return await redisClient.setEx(genKey(key), ttl, value);
 }
 
+export async function expire(key, ttl) {
+    return await redisClient.expire(key, ttl);
+}
+
 export function genKey(key) {
     return KEY_PREFIX + key;
 }

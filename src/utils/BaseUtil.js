@@ -1,4 +1,5 @@
 import {customAlphabet} from "nanoid";
+import {Verifier} from "bip322-js";
 
 export default class BaseUtil {
 
@@ -58,6 +59,7 @@ export default class BaseUtil {
         if (!concurrency || concurrency <= 0) {
             concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4;
         }
+
         async function execute() {
             const results = [];
             while (true) {
@@ -82,7 +84,7 @@ export default class BaseUtil {
 
         const promises = [];
 
-        for (let i = 0; i < concurrency; i ++) {
+        for (let i = 0; i < concurrency; i++) {
             promises.push(execute());
         }
 
@@ -91,7 +93,7 @@ export default class BaseUtil {
     }
 
     static async concurrentExecuteQueue(queue, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4) {
-        
+
         async function execute() {
             while (true) {
                 const element = await queue.get();
@@ -101,13 +103,16 @@ export default class BaseUtil {
                 await handler(element);
             }
         }
-        
+
         const promises = [];
-        for (let i = 0; i < concurrency; i ++) {
+        for (let i = 0; i < concurrency; i++) {
             promises.push(execute());
         }
         await Promise.all(promises);
     }
-    
+
+    static verifySignature(address, message, signature) {
+        return Verifier.verifySignature(address, message, signature);
+    }
 
 }
