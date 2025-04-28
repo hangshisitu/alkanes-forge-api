@@ -3,6 +3,8 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import BigNumber from "bignumber.js";
 import AlkanesService from "./AlkanesService.js";
+import jwt from 'jsonwebtoken';
+import {Constants} from "../conf/constants.js";
 
 const SIGN_MESSAGE = 'idclub.io wants you to sign in with your Bitcoin account:\n' +
     '{address}\n' +
@@ -34,9 +36,12 @@ export default class UserService {
         if (!result) {
             throw new Error('Signature verification failed');
         }
-        const token = BaseUtil.genId(32);
-        await RedisHelper.setEx(`token:${token}`, 60 * 120, address);
-        return token;
+
+        return jwt.sign(
+            {address},
+            Constants.JWT.SECRET,
+            {expiresIn: Constants.JWT.TOKEN_EXPIRE}
+        );
     }
 
     static async getAlkanesBalance(address) {

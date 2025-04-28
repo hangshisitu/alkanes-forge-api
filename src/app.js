@@ -5,7 +5,7 @@ import bodyParser from 'koa-bodyparser';
 import * as util from 'util'
 import AlkanesService from "./service/AlkanesService.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
-import {jobs, jobMintStatus} from "./job/index.js";
+import {jobMintStatus, jobs} from "./job/index.js";
 import MarketService from "./service/MarketService.js";
 import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
@@ -18,9 +18,9 @@ import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
 import LoggerUtil from './utils/LoggerUtil.js';
 import BaseUtil from './utils/BaseUtil.js';
-import * as RedisHelper from "./lib/RedisHelper.js";
 import {Constants} from "./conf/constants.js";
 import UserService from "./service/UserService.js";
+import jwt from 'jsonwebtoken';
 
 const app = new Koa();
 const router = new Router();
@@ -39,10 +39,11 @@ const AUTH_PATHS = [
     Constants.API.INSCRIBE.CANCEL_MERGE_ORDER,
 ];
 
-async function redisTokenAuth(ctx, next) {
+async function jwtAuth(ctx, next) {
     if (!AUTH_PATHS.includes(ctx.path)) {
         return await next();
     }
+
     const token = (ctx.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
     if (!token) {
         ctx.body = {
@@ -52,19 +53,17 @@ async function redisTokenAuth(ctx, next) {
         };
         return;
     }
-    const address = await RedisHelper.get(`token:${token}`);
-    if (!address) {
+
+    try {
+        jwt.verify(token, Constants.JWT.SECRET);
+        await next();
+    } catch (err) {
         ctx.body = {
             code: 40101,
-            msg: 'Your session has expired, please login again.',
+            msg: 'Token invalid or expired, please login again.',
             data: null
         };
-        return;
     }
-
-    // 每次访问自动延长有效期
-    await RedisHelper.expire(`token:${token}`, 60 * 60 * 2);
-    await next();
 }
 
 app.use(
@@ -820,7 +819,7 @@ app.use(async (ctx, next) => {
 });
 
 app.use(bodyParser());
-app.use(redisTokenAuth);
+app.use(jwtAuth);
 
 if (process.env.port) {
     app.use(router.routes());

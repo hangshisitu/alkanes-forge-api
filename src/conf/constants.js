@@ -1,4 +1,9 @@
 export const Constants = Object.freeze({
+    JWT: {
+        SECRET: 'Yc9FTUPI3MNaaJwSkZunCbnWmQUGytDs',
+        TOKEN_EXPIRE: '24h'
+    },
+
     LISTING_STATUS: {
         LIST: 1,    // 已上架
         SOLD: 2,    // 已售出
