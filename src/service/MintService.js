@@ -650,7 +650,6 @@ export default class MintService {
             }
 
             for (const batchIndex in groupedItems) {
-                console.log(`broadcast batch ${batchIndex} for merge order ${mintOrder.id}`);
                 await MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
             }
 
