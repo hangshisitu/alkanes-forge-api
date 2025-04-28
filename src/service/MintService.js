@@ -23,7 +23,6 @@ export default class MintService {
 
     // 公共内部函数：计算订单各项费用与输出列表
     static async calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const tokenInfo = await TokenInfoMapper.getById(id);
         if (!tokenInfo || tokenInfo.mintActive === 0) {
             console.error(`calc merge order outputs token ${id} minting is unavailable.`);
@@ -226,7 +225,6 @@ export default class MintService {
     }
 
     static async createMergeOrder(orderId, psbt) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             console.error(`create merge order ${orderId} not found.`);
@@ -393,7 +391,6 @@ export default class MintService {
     }
 
     static async preCancelMergeOrder(orderId) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             console.error(`pre cancel merge order ${orderId} not found.`);
@@ -446,7 +443,6 @@ export default class MintService {
     }
 
     static async cancelMergeOrder(orderId) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const {mintOrder, inputList, refundValue} = await MintService.preCancelMergeOrder(orderId);
         if (refundValue === 0) {
             console.error(`cancel merge order ${orderId} refund value is 0.`);
@@ -483,7 +479,6 @@ export default class MintService {
     }
 
     static async accelerateMergeOrder(orderId, feerate) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             console.error(`accelerate merge order ${orderId} not found.`);
@@ -707,7 +702,6 @@ export default class MintService {
     }
 
     static async submitRemain(orderId) {
-        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder || mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
             return;

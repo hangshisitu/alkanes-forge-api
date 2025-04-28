@@ -17,7 +17,7 @@ import * as mempool from "./mempool/index.js";
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
 import LoggerUtil from './utils/LoggerUtil.js';
-
+import BaseUtil from './utils/BaseUtil.js';
 const app = new Koa();
 const router = new Router();
 
@@ -45,6 +45,7 @@ app.use(bodyParser({
 
 // logger
 app.use(async (ctx, next) => {
+    LoggerUtil.put('traceId', BaseUtil.genId());
     try {
         const start = Date.now();
         const bodyParams = JSON.stringify(ctx.request.body) || '';
