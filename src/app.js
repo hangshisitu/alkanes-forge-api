@@ -142,7 +142,7 @@ app.use(async (ctx, next) => {
             }
         })
 
-        待废弃接口
+        // 废弃接口
         .post('/balance', async ctx => {
             try {
                 const params = ctx.request.body;
@@ -197,7 +197,7 @@ app.use(async (ctx, next) => {
         .post('/alkanesBalance', async ctx => {
             try {
                 const params = ctx.request.body;
-                const alkanesList = await AlkanesService.getAlkanesBalance(params.address);
+                const alkanesList = await UserService.getAlkanesBalance(params.address);
                 ctx.body = {
                     'code': 0,
                     'msg': 'ok',
