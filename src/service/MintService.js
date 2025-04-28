@@ -897,9 +897,7 @@ export default class MintService {
                 if (!tx.status.confirmed) {
                     return;
                 }
-                if (Constants.MINT_ORDER_STATUS.PARTIAL === mintStatus || order.mintAmount <= mintAmountPerBatch) {
-                    await MintService.checkMergeOrderFirstBatch(order.id);
-                }
+                await MintService.checkMergeOrderFirstBatch(order.id);
                 if (order.mintAmount <= mintAmountPerBatch) {
                     const completedCount = await MintItemMapper.getCompletedMintCount(order.id);
                     if (completedCount >= order.mintAmount) {
