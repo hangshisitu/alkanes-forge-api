@@ -127,7 +127,8 @@ export default class MintOrderMapper {
 
     static async getAllOrdersByMintStatus(mintStatus) {
         return await MintOrder.findAll({
-            where: { mintStatus }
+            where: { mintStatus },
+            order: [["latestFeerate", "DESC"]]
         });
     }
 }
