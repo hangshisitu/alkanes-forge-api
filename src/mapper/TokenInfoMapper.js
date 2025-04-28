@@ -3,7 +3,6 @@ import Sequelize, {Op, QueryTypes} from "sequelize";
 import sequelize from "../lib/SequelizeHelper.js";
 import {Constants} from "../conf/constants.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
-import MempoolTxMapper from "./MempoolTxMapper.js";
 import BigNumber from "bignumber.js";
 export default class TokenInfoMapper {
 

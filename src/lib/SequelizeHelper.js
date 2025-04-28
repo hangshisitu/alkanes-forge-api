@@ -7,8 +7,8 @@ const sequelize = new Sequelize(config.database.database, config.database.userna
     dialect: 'mysql',
     logging: false,
     pool: {
-        max: 32,         // 根据业务流量调整
-        min: 2,          // 保持一定数量的活跃连接
+        max: 128,         // 根据业务流量调整
+        min: 16,          // 保持一定数量的活跃连接
         acquire: 30000,  // 连接获取的超时时间（毫秒）
         idle: 10000      // 空闲时间（毫秒）自动释放连接
     },
