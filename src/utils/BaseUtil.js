@@ -54,16 +54,28 @@ export default class BaseUtil {
         return firstChar + rest;
     }
 
-    static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4) {
-
+    static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4, errors = null) {
+        if (!concurrency || concurrency <= 0) {
+            concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4;
+        }
         async function execute() {
             const results = [];
             while (true) {
+                if (errors?.length > 0) {
+                    break;
+                }
                 const element = collection.shift();
                 if (!element) {
                     break;
                 }
-                results.push(await handler(element));
+                try {
+                    results.push(await handler(element));
+                } catch (error) {
+                    errors?.push([error, element]);
+                    if (errors) {
+                        break;
+                    }
+                }
             }
             return results;
         }

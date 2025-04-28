@@ -16,6 +16,7 @@ import BaseService from "./service/BaseService.js";
 import * as mempool from "./mempool/index.js";
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
+import LoggerUtil from './utils/LoggerUtil.js';
 
 const app = new Koa();
 const router = new Router();
@@ -44,13 +45,17 @@ app.use(bodyParser({
 
 // logger
 app.use(async (ctx, next) => {
-    const start = Date.now();
-    const bodyParams = JSON.stringify(ctx.request.body) || '';
-    await next();
-    const ms = Date.now() - start;
-    const content = JSON.stringify(ctx.response.body) || '';
-    const walletType = ctx.request.headers['wallet-type'] || '';
-    console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms ${walletType} params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`)
+    try {
+        const start = Date.now();
+        const bodyParams = JSON.stringify(ctx.request.body) || '';
+        await next();
+        const ms = Date.now() - start;
+        const content = JSON.stringify(ctx.response.body) || '';
+        const walletType = ctx.request.headers['wallet-type'] || '';
+        console.log(`request ${ctx.method} ${ctx.url} cost: ${ms}ms ${walletType} params: ${ctx.querystring} boday: ${bodyParams} response: ${content}`);
+    } finally {
+        LoggerUtil.clear();
+    }
 });
 
 router

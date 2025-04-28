@@ -14,6 +14,7 @@ import sequelize from "../lib/SequelizeHelper.js";
 import * as RedisLock from "../lib/RedisLock.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Queue} from "../utils/index.js";
+import LoggerUtil from "../utils/LoggerUtil.js";
 
 const mintAmountPerBatch = 25;
 const broadcastQueue = new Queue();
@@ -22,8 +23,10 @@ export default class MintService {
 
     // 公共内部函数：计算订单各项费用与输出列表
     static async calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const tokenInfo = await TokenInfoMapper.getById(id);
         if (!tokenInfo || tokenInfo.mintActive === 0) {
+            console.error(`calc merge order outputs token ${id} minting is unavailable.`);
             throw new Error(`Token ${id} minting is unavailable`);
         }
         const mintProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
@@ -223,14 +226,17 @@ export default class MintService {
     }
 
     static async createMergeOrder(orderId, psbt) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
+            console.error(`create merge order ${orderId} not found.`);
             throw new Error('Not found order, please refresh and try again.');
         }
 
         const mintTxs = [];
         const {txid, hex, txSize, error} = await UnisatAPI.unisatPush(psbt);
         if (error) {
+            console.error(`push tx for merge order ${orderId} error: ${error}`);
             throw new Error(error);
         }
 
@@ -387,16 +393,20 @@ export default class MintService {
     }
 
     static async preCancelMergeOrder(orderId) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
+            console.error(`pre cancel merge order ${orderId} not found.`);
             throw new Error('Not found order, please refresh and try again.');
         }
         if (mintOrder.mintStatus !== Constants.MINT_ORDER_STATUS.PARTIAL) {
+            console.error(`pre cancel merge order ${orderId} mint status is not partial.`);
             throw new Error('All minting has been broadcast, no refundable amount.');
         }
 
         const mintTxs = await MintItemMapper.selectMintTxs(orderId, Constants.MINT_STATUS.MINTING);
         if (!mintTxs || mintTxs.length === 0 || mintTxs.length > mintAmountPerBatch) {
+            console.error(`pre cancel merge order ${orderId} mint txs is not valid.`);
             throw new Error('All minting has been broadcast, no refundable amount.');
         }
 
@@ -436,8 +446,10 @@ export default class MintService {
     }
 
     static async cancelMergeOrder(orderId) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const {mintOrder, inputList, refundValue} = await MintService.preCancelMergeOrder(orderId);
         if (refundValue === 0) {
+            console.error(`cancel merge order ${orderId} refund value is 0.`);
             throw new Error('No refundable amount.');
         }
 
@@ -462,6 +474,7 @@ export default class MintService {
             error
         } = await UnisatAPI.transfer(privateKey, inputList, outputList, mintOrder.mintAddress, 0, false, false);
         if (error) {
+            console.error(`cancel merge order ${orderId} transfer error: ${error}`);
             throw new Error(error);
         }
 
@@ -470,17 +483,21 @@ export default class MintService {
     }
 
     static async accelerateMergeOrder(orderId, feerate) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
+            console.error(`accelerate merge order ${orderId} not found.`);
             throw new Error('Not found order, please refresh and try again.');
         }
 
         const subOrders = await MintItemMapper.selectMintingItems(orderId);
         if (!subOrders || subOrders.length === 0) {
+            console.error(`accelerate merge order ${orderId} mint is completed.`);
             throw new Error('Mint is completed, please refresh and try again.');
         }
 
         if (feerate > mintOrder.maxFeerate) {
+            console.error(`accelerate merge order ${orderId} feerate ${feerate} > maxFeerate ${mintOrder.maxFeerate}`);
             throw new Error(`Exceeding the maximum accelerator rate: ${mintOrder.maxFeerate}`);
         }
 
@@ -488,6 +505,7 @@ export default class MintService {
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
 
         const mintItems = [];
+        const groupedItems = {};
         let totalChangeValue = 0;
         for (const subOrder of subOrders) {
             // 检查是否已确认
@@ -529,40 +547,43 @@ export default class MintService {
 
             const txInfo = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(privateKey), [inputUtxo], outputList, mintOrder.paymentAddress, mintOrder.feerate, false, false);
             const txid = txInfo.txid;
-            console.log(`accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
-            mintItems.push({
+            console.log(`pre accelerate order ${orderId} ${subOrder.batchIndex} ${txid}`);
+            const item = {
                 id: subOrder.id,
                 mintHash: txid,
                 psbt: txInfo.hex,
-            });
-
+            };
+            mintItems.push(item);
+            if (!groupedItems[subOrder.batchIndex]) {
+                groupedItems[subOrder.batchIndex] = [];
+            }
+            groupedItems[subOrder.batchIndex].push(item);
             // 如果第一批未结束，其他暂不需要加速
             if (subOrder.batchIndex === 0) {
                 break;
             }
         }
 
+        const errors = [];
+
+        await BaseUtil.concurrentExecute(Object.keys(groupedItems), async items => {
+            await MintService.submitBatchItems(items, Constants.MINT_MODEL.MERGE, false, true, errors);
+        }, null, errors);
+
+        if (errors.length > 0) {
+            errors.forEach(([error, item]) => {
+                console.error(`accelerate order ${orderId} batch ${item.batchIndex} mint ${item.mintHash} item ${item.id} error: ${error}`);
+            });
+            throw new Error('Accelerate failed, please refresh and try again.');
+        }
+
         await sequelize.transaction(async (transaction) => {
             await MintItemMapper.batchUpdateHash(mintItems, {transaction});
             await MintOrderMapper.updateOrderFeerate(orderId, totalChangeValue, feerate, {transaction});
         });
-
-        const itemList = await MintItemMapper.getMintItemsByOrderId(orderId); // 如果第一批没确认, 则取到的是第一批, 如果确认了, 取到的是后面的N批
-
-        const groupedItems = {};
-        for (const item of itemList) {
-            if (!groupedItems[item.batchIndex]) {
-                groupedItems[item.batchIndex] = [];
-            }
-            groupedItems[item.batchIndex].push(item);
-        }
-
-        for (const batchIndex in groupedItems) {
-            broadcastQueue.put([groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE]);
-        }
     }
 
-    static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE, ignoreStatus = false) {
+    static async submitBatchItems(items, model = Constants.MINT_MODEL.MERGE, ignoreStatus = false, accelerate = false) {
         if (model === Constants.MINT_MODEL.MERGE) { // 顺序广播
             for (const item of items) {
                 const {orderId, batchIndex, mintIndex} = item;
@@ -571,10 +592,10 @@ export default class MintService {
                 }
                 const {txid, error} = await UnisatAPI.unisatPush(item.psbt);
                 if (MintService.shouldThrowError(error)) {
-                    console.error(`submit batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id} error: ${error}`);
+                    console.error(`${accelerate ? 'accelerate' : 'submit'} batch order ${orderId} batch ${batchIndex} mint ${mintIndex} item ${item.id} error: ${error}`);
                     throw new Error(error);
                 }
-                console.log(`minted batch order ${orderId} batch ${batchIndex} mint ${mintIndex} tx ${txid}`);
+                console.log(`${accelerate ? 'accelerate' : ''} minted batch order ${orderId} batch ${batchIndex} mint ${mintIndex} tx ${txid}`);
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
             }
         } else if (model === Constants.MINT_MODEL.NORMAL) { // 并发广播
@@ -584,7 +605,7 @@ export default class MintService {
                 }
                 const {error} = await UnisatAPI.unisatPush(item.psbt);
                 if (MintService.shouldThrowError(error)) {
-                    console.error(`submit batch order ${item.orderId} item ${item.id} error: ${error}`);
+                    console.error(`${accelerate ? 'accelerate' : 'submit'} batch order ${item.orderId} item ${item.id} error: ${error}`);
                     return;
                 }
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
@@ -681,11 +702,12 @@ export default class MintService {
                 await MintOrderMapper.updateCompletedAmount(mintOrder.id, completedMintCount);
             }
         }, {
-            throwErrorIfFailed: false
+            throwErrorIfFailed: false,
         });
     }
 
     static async submitRemain(orderId) {
+        LoggerUtil.put('traceId', BaseUtil.genId());
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder || mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.COMPLETED) {
             return;
@@ -869,6 +891,7 @@ export default class MintService {
         orderList.sort((a, b) => b.feerate - a.feerate);
 
         await BaseUtil.concurrentExecute(orderList, async (order) => {
+            LoggerUtil.put('traceId', BaseUtil.genId());
             try {
                 console.log(`start handle merge order ${order.id}`);
                 const tx = await MempoolUtil.getTxEx(order.paymentHash);
@@ -895,6 +918,8 @@ export default class MintService {
                 await MintService.submitRemain0(order, tx);
             } catch (err) {
                 console.error(`handle merge order ${order.id} error`, err);
+            } finally {
+                LoggerUtil.clear();
             }
         });
 
