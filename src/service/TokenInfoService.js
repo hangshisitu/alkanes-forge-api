@@ -340,10 +340,10 @@ export default class TokenInfoService {
         }
     }
 
-    static sortTokenList(tokenList, callback = null, idReverse = false) {
+    static sortTokenList(tokenList, callback = null, idReverse = false, sortId = true) {
         return tokenList.sort((a, b) => {
             const x = callback ? callback(a, b) : 0;
-            if (x === 0) {
+            if (x === 0 && sortId) {
                 const [aBlock, aTx] = a.id.split(':').map(Number);
                 const [bBlock, bTx] = b.id.split(':').map(Number);
                 
@@ -506,7 +506,7 @@ export default class TokenInfoService {
                 }
                 tokenList = this.sortTokenList(tokenList, (a, b) => {
                     return (mempoolDatas[b.id]?.count || 0) - (mempoolDatas[a.id]?.count || 0);
-                });
+                }, false, false);
                 break
 
             // 默认排序 - 进度降序
