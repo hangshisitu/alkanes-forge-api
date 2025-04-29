@@ -333,8 +333,8 @@ async function handle_mempool_message(block_index) {
             let updated = false;
             if (block_index === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
                 const count = await handle_new_block(data.block);
-                logger.info(`handle new block: ${data.block.height}, effect: ${count}`);
                 if (count > 0) {
+                    logger.info(`handle new block: ${data.block.height}, effect: ${count}`);
                     updated = true;
                 }
             }
@@ -368,8 +368,8 @@ async function handle_mempool_message(block_index) {
                 }
                 if (delta.added?.length) {
                     const count = await handle_mempool_txs(delta.added.map(item => item[0]));
-                    logger.info(`handle mempool added txs: ${count}`);
                     if (count > 0) {
+                        logger.info(`handle mempool added txs: ${count}`);
                         updated = true;
                     }
                 }
