@@ -280,7 +280,8 @@ export default class UnisatAPI {
         const hex = txInfo.hex;
 
         let lastError = '';
-        for (let i = 0; i < 2; i++) {
+        const retryCount = 3;
+        for (let i = 0; i < retryCount; i++) {
             try {
                 txid = await MempoolUtil.postTx(hex);
                 return {
@@ -297,9 +298,11 @@ export default class UnisatAPI {
                         txSize: txInfo.txSize
                     };
                 }
-
-                logger.error(`${txid} tx push error, hex: ${hex_data}, error: ${lastError}`);
-                await new Promise((resolve) => setTimeout(resolve, 200));
+                if (i === retryCount - 1) {
+                    logger.error(`${txid} tx push error, hex: ${hex_data}, error: ${lastError}`);
+                    break;
+                }
+                await BaseUtil.sleep(200);
             }
         }
         return {

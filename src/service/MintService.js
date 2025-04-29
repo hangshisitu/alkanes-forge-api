@@ -656,50 +656,6 @@ export default class MintService {
                     logger.error(`submit batch order ${mintOrder.id} batch ${items[0].batchIndex} error`, e);
                 }
             });
-
-            const mintingItems = totalItemList.filter(item => item.mintStatus === Constants.MINT_STATUS.MINTING);
-            if (mintingItems.length > 0) {
-                const results = await BaseUtil.concurrentExecute(mintingItems, async (item) => {
-                    try {
-                        const mintTx = await MempoolUtil.getTxEx(item.mintHash);
-                        if (!mintTx) {
-                            // 交易不存在, 重新广播
-                            const {error} = await UnisatAPI.unisatPush(item.psbt);
-                            if (MintService.shouldThrowError(error)) {
-                                logger.error(`re-broadcast order ${item.orderId} item ${item.id} tx ${item.mintHash} error`, error);
-                            }
-                            await MintService.tryFixMintItemHash(error, item);
-                        }
-                        return {
-                            id: item.id,
-                            status: mintTx?.status?.confirmed ?? false
-                        }
-                    } catch (e) {
-                        return {
-                            id: item.id,
-                            status: false
-                        }
-                    }
-                });
-                const completedItemIds = [];
-                for (const result of results) {
-                    if (result.status) {
-                        completedItemIds.push(result.id);
-                    }
-                }
-                if (completedItemIds.length > 0) {
-                    await MintItemMapper.updateItemStatus(completedItemIds, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
-                    logger.info(`update order ${mintOrder.id} mint item[${completedItemIds.length}] status to ${Constants.MINT_STATUS.COMPLETED}`);
-                }
-            }
-            const completedMintCount = await MintItemMapper.getCompletedMintCount(mintOrder.id);
-            logger.info(`mint order ${mintOrder.id} completed mint count: ${completedMintCount}, mint amount: ${mintOrder.mintAmount}`);
-            if (completedMintCount >= mintOrder.mintAmount) {
-                await MintOrderMapper.updateStatus(mintOrder.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED, completedMintCount);
-                logger.info(`update order ${mintOrder.id} status to ${Constants.MINT_ORDER_STATUS.COMPLETED}`);
-            } else if (completedMintCount > 0) {
-                await MintOrderMapper.updateCompletedAmount(mintOrder.id, completedMintCount);
-            }
         }, {
             throwErrorIfFailed: false,
         });
@@ -953,6 +909,13 @@ export default class MintService {
                 await BaseUtil.concurrentExecute(batchIndexes, async index => {
                     await MintService.checkMergeOrderBatch(order.id, index);
                 });
+                const completedCount = await MintItemMapper.getCompletedMintCount(order.id);
+                if (completedCount >= order.mintAmount) {
+                    logger.info(`completed merge minting order ${order.id}, mint amount: ${order.mintAmount}`);
+                    await MintOrderMapper.updateStatus(order.id, Constants.MINT_ORDER_STATUS.MINTING, Constants.MINT_ORDER_STATUS.COMPLETED, completedCount);
+                } else if (completedCount > 0) {
+                    await MintOrderMapper.updateCompletedAmount(order.id, completedCount);
+                }
             } catch (err) {
                 logger.error(`handle merge minting order ${order.id} error`, err);
             } finally {

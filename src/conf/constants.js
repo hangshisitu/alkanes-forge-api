@@ -73,6 +73,9 @@ export const Constants = Object.freeze({
         // 价格排序
         FLOOR_PRICE_DESC: 'floorPriceDesc',
         FLOOR_PRICE_ASC: 'floorPriceAsc',
+
+        // 内存池交易数量排序
+        MEMPOOL_TX_COUNT_DESC: 'mempoolTxCountDesc',
     },
 
     TOKEN_STATS_TIME_FRAME: {

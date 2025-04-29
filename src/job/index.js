@@ -133,34 +133,57 @@ function refreshTokenStats() {
     });
 }
 
-const isRefreshMergeMintOrder = {
-    [Constants.MINT_ORDER_STATUS.PARTIAL]: false,
-    [Constants.MINT_ORDER_STATUS.MINTING]: false,
-};
-function refreshMergeMintOrder(mintStatus) {
+
+let isRefreshPartialMergeMintOrder = false;
+function refreshPartialMergeMintOrder() {
     MempoolIndex.onNewBlock(async block => {
-        logger.info(`refreshMergeMintOrder onNewBlock, block: ${block?.height}, mintStatus: ${mintStatus}`);
-        if (block?.id && mintStatus === Constants.MINT_ORDER_STATUS.MINTING) {
-            await MintService.updateMintItemByBlock(block.id);
-        }
-        MintService.batchHandlePartialMergeOrder(mintStatus);
+        logger.info(`refreshPartialMergeMintOrder onNewBlock, block: ${block?.height}`);
+        MintService.batchHandlePartialMergeOrder();
     });
-    schedule.scheduleJob('*/30 * * * * *', async () => {
-        if (isRefreshMergeMintOrder[mintStatus]) {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isRefreshPartialMergeMintOrder) {
             return;
         }
 
         try {
-            isRefreshMergeMintOrder[mintStatus] = true;
+            isRefreshPartialMergeMintOrder = true;
             const execStartTime = Date.now();
             
-            logger.info(`refreshMergeMintOrder start, mintStatus: ${mintStatus}`);
-            await MintService.batchHandlePartialMergeOrder(mintStatus);
-            logger.info(`refreshMergeMintOrder finish, mintStatus: ${mintStatus}, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshPartialMergeMintOrder start`);
+            await MintService.batchHandlePartialMergeOrder();
+            logger.info(`refreshPartialMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}, error: ${err.message}`, err);
+            logger.error(`refreshPartialMergeMintOrder error, error: ${err.message}`, err);
         } finally {
-            isRefreshMergeMintOrder[mintStatus] = false;
+            isRefreshPartialMergeMintOrder = false;
+        }
+    });
+}
+
+let isRefreshMintingMergeMintOrder = false;
+function refreshMintingMergeMintOrder() {
+    MempoolIndex.onNewBlock(async block => {
+        logger.info(`refreshMintingMergeMintOrder onNewBlock, block: ${block?.height}`);
+        if (block?.id) {
+            await MintService.updateMintItemByBlock(block.id);
+        }
+        MintService.batchHandleMintingMergeOrder();
+    });
+    schedule.scheduleJob('*/30 * * * * *', async () => {
+        if (isRefreshMintingMergeMintOrder) {
+            return;
+        }
+
+        try {
+            isRefreshMintingMergeMintOrder = true;
+            const execStartTime = Date.now();
+            logger.info(`refreshMintingMergeMintOrder start`);
+            await MintService.batchHandleMintingMergeOrder();
+            logger.info(`refreshMintingMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshMintingMergeMintOrder error, error: ${err.message}`, err);
+        } finally {
+            isRefreshMintingMergeMintOrder = false;
         }
     });
 }
@@ -173,8 +196,8 @@ export function jobs() {
 }
 
 export function jobMintStatus() {
-    refreshMergeMintOrder(Constants.MINT_ORDER_STATUS.PARTIAL);
-    refreshMergeMintOrder(Constants.MINT_ORDER_STATUS.MINTING);
+    refreshPartialMergeMintOrder();
+    refreshMintingMergeMintOrder();
     // 最后启动内存池监控
     MempoolIndex.start(true);
 }
