@@ -44,7 +44,7 @@ function refreshBlockHeight() {
 
             logger.info(`isRefreshBlockConfig finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} btcPrice: ${btcPrice} fees: ${JSON.stringify(fees)} cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            logger.error('isRefreshBlockConfig error:', err.message);
+            logger.error(`isRefreshBlockConfig error: ${err.message}`);
         } finally {
             isRefreshBlockConfig = false;
         }
@@ -73,7 +73,7 @@ function refreshTokenInfo() {
             const allTokens = await TokenInfoService.refreshTokenInfo(indexHeight);
             logger.info(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            logger.error('refreshTokenInfo error:', err.message);
+            logger.error(`refreshTokenInfo error: ${err.message}`);
         } finally {
             isRefreshTokenInfo = false;
         }
@@ -103,7 +103,7 @@ function refreshStatsForTimeRange() {
             await TokenStatsService.refreshStatsForTimeRange(startTime, endTime);
             logger.info(`refreshStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            logger.error('refreshStatsForTimeRange error:', err.message);
+            logger.error(`refreshStatsForTimeRange error: ${err.message}`);
         } finally {
             isRefreshStatsForTimeRange = false;
         }
@@ -126,7 +126,7 @@ function refreshTokenStats() {
             await TokenInfoService.refreshTokenStats();
             logger.info(`refreshTokenStats finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            logger.error('refreshTokenStats error:', err.message);
+            logger.error(`refreshTokenStats error: ${err.message}`);
         } finally {
             isRefreshTokenStats = false;
         }
@@ -158,7 +158,7 @@ function refreshMergeMintOrder(mintStatus) {
             await MintService.batchHandleMergeOrder(mintStatus);
             logger.info(`refreshMergeMintOrder finish, mintStatus: ${mintStatus}, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}`, err);
+            logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}, error: ${err.message}`, err);
         } finally {
             isRefreshMergeMintOrder[mintStatus] = false;
         }

@@ -298,7 +298,7 @@ export default class UnisatAPI {
                     };
                 }
 
-                logger.error(`${txid} tx push error, hex: ${hex_data}`, lastError);
+                logger.error(`${txid} tx push error, hex: ${hex_data}, error: ${lastError}`);
                 await new Promise((resolve) => setTimeout(resolve, 200));
             }
         }

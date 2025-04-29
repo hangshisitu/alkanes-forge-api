@@ -64,7 +64,7 @@ export default class AlkanesService {
                 value: new BigNumber(alkane.value).toNumber(), // 固定8位精度
             }))
         } catch (err) {
-            logger.error(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err.message);
+            logger.error(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}, error: ${err.message}`, err);
             throw new Error('Get Alkane Balance Error');
         }
     }
@@ -226,7 +226,7 @@ export default class AlkanesService {
                                     .toFixed(),
                             }));
                     } catch (error) {
-                        logger.error(`Failed to process utxo ${utxo.txid}:`, error.message);
+                        logger.error(`Failed to process utxo ${utxo.txid}:`, error);
                         errors.push(`${utxo.txid}:${utxo.vout}`);
                         return null;
                     }
@@ -289,7 +289,7 @@ export default class AlkanesService {
             return tokenInfo;
 
         } catch (error) {
-            logger.error(`Get alkanes ${id} error:`, error.message);
+            logger.error(`Get alkanes ${id} error:`, error);
             return null;
         }
     }
@@ -501,7 +501,7 @@ export default class AlkanesService {
                     return parseInt(blockHeight) - 1;
                 }
             } catch (err) {
-                logger.error(`check metashrew_height error`, err.message);
+                logger.error(`check metashrew_height error`, err);
             }
         }
         throw new Error('check metashrew_height error');
@@ -528,10 +528,10 @@ export default class AlkanesService {
             return response.data.result
         } catch (error) {
             if (error.name === 'AbortError') {
-                logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error.message)
+                logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error)
                 throw new Error('Request timed out')
             } else {
-                logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error.message)
+                logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error)
                 throw error
             }
         }
