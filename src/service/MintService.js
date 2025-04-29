@@ -96,7 +96,7 @@ export default class MintService {
     }
 
     // 费用测算函数
-    static async estCreateMergeOrder(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, maxFeerate = 0) {
+    static async estCreateMergeOrder(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate = 0) {
         const {
             batchList,
             fundOutputList,

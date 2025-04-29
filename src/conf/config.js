@@ -8,7 +8,7 @@ import * as logger from './logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const env = process.env.NODE_ENV || 'm';
+const env = process.env.NODE_ENV || 'dev';
 const configPath = `${__dirname}/config.${env}.json`;
 logger.info(`config load, ${env} ---- ${configPath}`);
 

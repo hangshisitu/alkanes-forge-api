@@ -14,7 +14,7 @@ import * as logger from '../conf/logger.js';
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
-    schedule.scheduleJob('*/30 * * * * *', async () => {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
         if (isRefreshBlockConfig) {
             return;
         }

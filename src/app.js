@@ -22,6 +22,7 @@ import UserService from "./service/UserService.js";
 import jwt from 'jsonwebtoken';
 import * as logger from './conf/logger.js';
 import BaseUtil from './utils/BaseUtil.js';
+import * as RedisHelper from "./lib/RedisHelper.js";
 
 const app = new Koa();
 const router = new Router();
@@ -456,10 +457,17 @@ router
     .post(Constants.API.TOKEN.MEMPOOL, async ctx => {
         try {
             const params = ctx.request.body;
+            const mempoolInfo = await MempoolService.getMempoolData(params.id);
+            const mempoolBlocks = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_FEES_MEMPOOL_BLOCKS);
+            const block = mempoolBlocks ? JSON.parse(mempoolBlocks)[0] : null;
+
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
-                'data': await MempoolService.getMempoolData(params.id)
+                'data': {
+                    ...mempoolInfo,
+                    minimumFeeRate: block?.feeRange[0]
+                }
             }
         } catch (e) {
             logger.error(`${util.inspect(e)}`)
@@ -684,7 +692,7 @@ router
     .post(Constants.API.INSCRIBE.EST_CREATE_MERGE_ORDER, async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await MintService.estCreateMergeOrder(params.fundAddress, params.fundPublicKey, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
+            const psbt = await MintService.estCreateMergeOrder(params.fundAddress, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

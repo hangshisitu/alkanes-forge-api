@@ -40,7 +40,7 @@ const fundPublicKey = '021f5115cc6c98b12db4832b8490e1afbbe29664ac3bb1c575153f6c7
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('8839750fe4a6ce8c570d81d179518ce30695344cac68bf289091448c31f3c313', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('6cd6ab8530fc6a55177f57efd814c1b1d4d0aa878bda24dca7ae23e2eb8e21e1', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0x746a5288000').toNumber());
 
 // 查询代币信息
