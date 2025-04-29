@@ -133,7 +133,10 @@ function refreshTokenStats() {
     });
 }
 
-let isRefreshMergeMintOrder = false;
+const isRefreshMergeMintOrder = {
+    [Constants.MINT_ORDER_STATUS.PARTIAL]: false,
+    [Constants.MINT_ORDER_STATUS.MINTING]: false,
+};
 function refreshMergeMintOrder(mintStatus) {
     MempoolIndex.onNewBlock(async block => {
         logger.info(`refreshMergeMintOrder onNewBlock, block: ${block?.height}, mintStatus: ${mintStatus}`);
@@ -143,12 +146,12 @@ function refreshMergeMintOrder(mintStatus) {
         MintService.batchHandleMergeOrder(mintStatus);
     });
     schedule.scheduleJob('*/30 * * * * *', async () => {
-        if (isRefreshMergeMintOrder) {
+        if (isRefreshMergeMintOrder[mintStatus]) {
             return;
         }
 
         try {
-            isRefreshMergeMintOrder = true;
+            isRefreshMergeMintOrder[mintStatus] = true;
             const execStartTime = Date.now();
             
             logger.info(`refreshMergeMintOrder start, mintStatus: ${mintStatus}`);
@@ -157,7 +160,7 @@ function refreshMergeMintOrder(mintStatus) {
         } catch (err) {
             logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}`, err);
         } finally {
-            isRefreshMergeMintOrder = false;
+            isRefreshMergeMintOrder[mintStatus] = false;
         }
     });
 }
