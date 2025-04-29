@@ -1,5 +1,6 @@
 import Sequelize from 'sequelize';
 import config from "../conf/config.js";
+import * as logger from '../conf/logger.js';
 
 const sequelize = new Sequelize(config.database.database, config.database.username, config.database.password, {
     host: config.database.host,
@@ -21,7 +22,7 @@ const sequelize = new Sequelize(config.database.database, config.database.userna
     try {
         await sequelize.authenticate();
     } catch (error) {
-        console.error(`Unable to connect to the database`, error);
+        logger.error(`Unable to connect to the database`, error);
     }
 })();
 

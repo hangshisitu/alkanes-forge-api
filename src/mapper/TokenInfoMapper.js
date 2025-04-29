@@ -5,6 +5,7 @@ import {Constants} from "../conf/constants.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import BigNumber from "bignumber.js";
 import MempoolTxMapper from "./MempoolTxMapper.js";
+import * as logger from '../conf/logger.js';
 
 export default class TokenInfoMapper {
 
@@ -362,7 +363,7 @@ export default class TokenInfoMapper {
                 type: QueryTypes.INSERT
             });
         } catch (err) {
-            console.error('Batch update tokenInfo error:', err);
+            logger.error('Batch update tokenInfo error:', err);
             throw new Error(`Batch update tokenInfo error: ${err.message}`);
         }
     }
@@ -415,7 +416,7 @@ export default class TokenInfoMapper {
                 type: QueryTypes.INSERT
             });
         } catch (error) {
-            console.error('Batch update tokenStats error:', error);
+            logger.error('Batch update tokenStats error:', error);
             throw new Error('Batch update tokenStats error');
         }
     }

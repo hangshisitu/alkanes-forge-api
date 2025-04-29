@@ -10,17 +10,18 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import AlkanesService from "./AlkanesService.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
+import * as logger from '../conf/logger.js';
 
 export default class TokenInfoService {
 
     static async refreshTokenInfo(blockHeight) {
         // 1. 获取所有现有token
         const tokenList = await TokenInfoMapper.getAllTokens();
-        console.log(`found existing tokens: ${tokenList.length}`);
+        logger.info(`found existing tokens: ${tokenList.length}`);
 
         // 2. 获取需要更新的活跃token
         const activeTokens = tokenList.filter(token => token.mintActive);
-        console.log(`found active tokens: ${activeTokens.length}`);
+        logger.info(`found active tokens: ${activeTokens.length}`);
 
         // 3. 并行获取活跃token的最新数据
         const alkaneList = [];
@@ -60,7 +61,7 @@ export default class TokenInfoService {
                     // 合并原有字段
                     return { ...token, ...data };
                 } catch (error) {
-                    console.error(`Failed to fetch token ${token.id}:`, error.message);
+                    logger.error(`Failed to fetch token ${token.id}:`, error);
                     failedTokens.push(token.id);
                     return null;
                 }
@@ -72,9 +73,9 @@ export default class TokenInfoService {
         }
 
         if (failedTokens.length > 0) {
-            console.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
+            logger.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
         }
-        console.log(`updated active tokens: ${alkaneList.length}`);
+        logger.info(`updated active tokens: ${alkaneList.length}`);
 
         // 4. 确定新token的搜索范围
         let lastIndex = 0;
@@ -131,11 +132,11 @@ export default class TokenInfoService {
                     existingIds.add(tokenId);
                 }
             } catch (error) {
-                console.error(`Error checking new token ${tokenId}:`, error.message);
+                logger.error(`Error checking new token ${tokenId}:`, error);
                 break; // 遇到错误停止检查新token
             }
         }
-        console.log(`found new tokens: ${newAlkaneList.length}`);
+        logger.info(`found new tokens: ${newAlkaneList.length}`);
 
         // 6. 合并所有token数据
         const tokenMap = new Map();
@@ -188,7 +189,7 @@ export default class TokenInfoService {
             const statsMap24h = await MarketEventMapper.getStatsMapForHours(24);
 
             if (Object.keys(statsMap24h).length === 0) {
-                console.log('No 24-hour trading data found. Skipping updates.');
+                logger.info('No 24-hour trading data found. Skipping updates.');
                 return; // 如果没有 24 小时的交易数据，直接跳过更新流程
             }
 
@@ -287,13 +288,13 @@ export default class TokenInfoService {
             // Step 5: 批量更新代币的统计信息，包含交易量和交易次数
             if (tokenStatsList.length > 0) {
                 await TokenInfoMapper.batchUpdateTokenStatsInBatches(tokenStatsList);
-                console.log('Token stats updated successfully.');
+                logger.info('Token stats updated successfully.');
             } else {
-                console.log('No updates required for token stats.');
+                logger.info('No updates required for token stats.');
             }
 
         } catch (error) {
-            console.error('Error refreshing token stats:', error);
+            logger.error('Error refreshing token stats:', error);
         }
     }
 
@@ -307,7 +308,7 @@ export default class TokenInfoService {
 
             await TokenInfoMapper.updateFloorPrice(alkanesId, newFloorPrice);
         } catch (error) {
-            console.error(`Error updating floor price for ${alkanesId}:`, error.message);
+            logger.error(`Error updating floor price for ${alkanesId}:`, error);
         }
     }
 

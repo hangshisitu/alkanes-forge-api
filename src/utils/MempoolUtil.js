@@ -2,6 +2,7 @@ import mempoolJS from "@mempool/mempool.js";
 import config from '../conf/config.js'
 import axios from "axios";
 import UnisatAPI from "../lib/UnisatAPI.js";
+import * as logger from '../conf/logger.js';
 
 const mempoolHost = config['mempoolHost'];
 const {bitcoin: {addresses}} = mempoolJS({
@@ -39,7 +40,7 @@ export default class MempoolUtil {
             const start = new Date().getTime()
             const utxoList = await addresses.getAddressTxsUtxo({address});
             const end = new Date().getTime()
-            console.info(`getUtxoByAddress address: ${address} cost: ${end - start}ms`)
+            logger.info(`getUtxoByAddress address: ${address} cost: ${end - start}ms`)
 
             let filteredUtxoList = utxoList;
             if (confirmed) {

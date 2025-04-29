@@ -4,6 +4,7 @@ import {Constants} from "../conf/constants.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import BigNumber from "bignumber.js";
 import BaseUtil from "../utils/BaseUtil.js";
+import * as logger from '../conf/logger.js';
 
 export default class TokenStatsService {
 
@@ -60,7 +61,7 @@ export default class TokenStatsService {
                 .toNumber();
             await TokenInfoMapper.updateMarketCap(token.id, marketCap);
 
-            console.log(`UTC startTime: ${startTime.toISOString()}, endTime: ${endTime.toISOString()}, stats: ${JSON.stringify(stats)}`);
+            logger.info(`UTC startTime: ${startTime.toISOString()}, endTime: ${endTime.toISOString()}, stats: ${JSON.stringify(stats)}`);
         }
     }
 

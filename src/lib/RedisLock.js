@@ -1,5 +1,6 @@
 import redisClient from './RedisHelper.js';
 import BaseUtil from "../utils/BaseUtil.js";
+import * as logger from '../conf/logger.js';
 
 class RedisLock {
     constructor(key, ttl = 30) {
@@ -76,13 +77,13 @@ class RedisLock {
             try {
                 const renewed = await this.renew();
                 if (!renewed) {
-                    console.warn(`Lock renewal failed for key: ${this.key}`);
+                    logger.warn(`Lock renewal failed for key: ${this.key}`);
                     this.stopRenewal();
                 } else {
-                    console.log(`Lock renewed for key: ${this.key}`);
+                    logger.info(`Lock renewed for key: ${this.key}`);
                 }
             } catch (error) {
-                console.error(`Error renewing lock: ${error.message}`, error);
+                logger.error(`Error renewing lock: ${error.message}`, error);
                 this.stopRenewal();
             }
         }, interval * 1000);

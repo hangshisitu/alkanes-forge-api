@@ -8,6 +8,7 @@ import MempoolUtil from '../utils/MempoolUtil.js';
 import WebSocket from 'ws';
 import {Op} from "sequelize";
 import {Queue} from "../utils/index.js";
+import * as logger from '../conf/logger.js';
 
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
@@ -76,7 +77,7 @@ async function delete_mempool_txs(txids) {
     await MempoolTx.destroy({
         where: { txid: txids }
     });
-    console.log(`delete mempool txs: ${JSON.stringify(txids)}`);
+    logger.info(`delete mempool txs: ${JSON.stringify(txids)}`);
 }
 
 async function remove_by_block_height(hash) {
@@ -106,7 +107,7 @@ async function detect_tx_status(txs) {
                 ret_txids.push(txid);
             }
         } catch (e) {
-            console.error(`detect tx status error: ${txid}`, e);
+            logger.error(`detect tx status error: ${txid}`, e);
             await DateUtil.sleep(3000);
             continue;
         }
@@ -150,7 +151,7 @@ async function try_scan_mempool_tx() {
     try {
         await scan_mempool_tx();
     } catch (err) {
-        console.error('scan mempool tx error', err);
+        logger.error('scan mempool tx error', err);
     }
 }
 
@@ -159,7 +160,7 @@ async function parse_tx_hex(hex) {
         const response = await axios.post(`${config.api.protoruneParseEndpoint}/decode`, hex);
         return response.data;
     } catch (error) {
-        console.error(`parse tx hex error`, error);
+        logger.error(`parse tx hex error`, error);
     }
 }
 
@@ -175,7 +176,7 @@ async function handle_mempool_txs(txids) {
                 try {
                     await handle_mempool_tx(txid);
                 } catch (e) {
-                    console.error(`handle mempool tx error: ${txid}`, e);
+                    logger.error(`handle mempool tx error: ${txid}`, e);
                 }
             }
         })());
@@ -186,7 +187,7 @@ async function handle_mempool_txs(txids) {
 async function handle_mempool_tx(txid) {
     const hex = await MempoolUtil.getTxHexEx(txid);
     if (!hex) {
-        console.error(`no hex found: ${txid}, delete from db`);
+        logger.info(`no hex found: ${txid}, delete from db`);
         await MempoolTx.destroy({
             where: { txid }
         });
@@ -198,7 +199,7 @@ async function handle_mempool_tx(txid) {
     }
     const result = await parse_tx_hex(hex);
     if (result?.status !== 'success') {
-        console.error(`parse tx [${txid}] error`, result);
+        logger.error(`parse tx [${txid}] error`, result);
         return;
     }
     const mempoolTxs = [];
@@ -218,7 +219,7 @@ async function handle_mempool_tx(txid) {
         })) {
             break;
         }
-        console.log(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
+        logger.info(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
         let address = null;
         let feeRate = null;
         let i = 0;
@@ -262,7 +263,7 @@ function safe_call(callback, ...args) {
     try {
         callback(...args);
     } catch (e) {
-        console.error(`safe call error`, e);
+        logger.error(`safe call error`, e);
     }
 }
 
@@ -348,11 +349,11 @@ async function handle_mempool_message(block_index) {
                 });
                 if (txids.length) {
                     await delete_mempool_txs(txids);
-                    console.log(`handle rbf latest txs: ${txids.length}`);
+                    logger.info(`handle rbf latest txs: ${txids.length}`);
                 }
             }
         } catch (e) {
-            console.error('parse mempool message occur error', e);
+            logger.error('parse mempool message occur error', e);
             await DateUtil.sleep(3000);
         }
     }
@@ -373,7 +374,7 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
             }
         }
         connect_count ++;      
-        console.log(`connect mempool block: ${block}, connect_count: ${connect_count}`);
+        logger.info(`connect mempool block: ${block}, connect_count: ${connect_count}`);
         rws.send(`{"action":"init"}`);
         rws.send(`{"track-mempool-block":${block}}`);
         rws.send(`{"action":"want","data":["blocks","mempool-blocks"]}`);
@@ -383,17 +384,16 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
     };
     rws.onmessage = (event) => {
         try {
-            // console.log(`receive message: ${event.data}`);
             onmessage(event.data);
         } catch(e) {
-            console.error(`handle ${event} error`, e);
+            logger.error(`handle ${event} error`, e);
         }
     };
     rws.onerror = (event) => {
-        console.error(`handle ws error`, event);
+        logger.error(`handle ws error`, event);
     };
     rws.onclose = () => {
-        console.error('disconnect from mempool');
+        logger.error('disconnect from mempool');
     };
     rws.reconnect();
     return rws;
@@ -405,7 +405,7 @@ export function start(monitor_new_block_only = false) {
         try_scan_mempool_tx().finally(() => {
             for (let i = 0; i < blocks; i++) {
                 handle_mempool_message(i).catch(err => {
-                    console.error('handle mempool message queue error', err);
+                    logger.error('handle mempool message queue error', err);
                 });
                 connect_mempool(i, data => {
                     block_message_queues[i].put(data);
@@ -425,19 +425,3 @@ export function start(monitor_new_block_only = false) {
 export function onNewBlock(callback) {
     new_block_callbacks.push(callback);
 }
-
-// start();
-
-
-// const hex = await ElectrsAPI.getTxHex('12e2dd1714b79b9e9f0a812f1615b0d9ddab1c90ec817cc357691e5461553fd3');
-// console.log(await parse_tx_hex(hex));
-// console.log(111,hex);
-// const tx = bitcoin.Transaction.fromHex(hex);
-// const output = tx.outs[0];
-// // const scriptType = bitcoin.script.classifyOutput(output.script);
-// // console.log(scriptType);
-// console.log(PsbtUtil.script2Address(output.script));
-
-// console.log(decodeLEB128Array([2,234,3,77,0,0,0,0,0,0,0,0,0,0,0]));
-
-// await scan_mempool_tx();

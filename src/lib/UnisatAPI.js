@@ -8,6 +8,7 @@ import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import config from "../conf/config.js";
 import BaseUtil from "../utils/BaseUtil.js";
+import * as logger from '../conf/logger.js';
 
 export default class UnisatAPI {
 
@@ -87,7 +88,7 @@ export default class UnisatAPI {
             }
 
         } catch (error) {
-            console.error('Error signing inputs:', error);
+            logger.error('Error signing inputs:', error);
             throw new Error('Failed to sign inputs');
         }
 
@@ -176,7 +177,7 @@ export default class UnisatAPI {
                 });
                 return response.data.data;
             } catch (err) {
-                console.error(`get balance ${address} error, errMsg: ${err.message}`);
+                logger.error(`get balance ${address} error, errMsg: ${err.message}`);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
         }
@@ -200,7 +201,7 @@ export default class UnisatAPI {
                     if (confirmed && utxo.height > 1000000) {
                         status = await MempoolUtil.getTxStatus(utxo.txid);
                         if (!status) {
-                            console.log(`${address} utxo ${utxo.txid}:${utxo.vout} is unconfirmed`)
+                            logger.info(`${address} utxo ${utxo.txid}:${utxo.vout} is unconfirmed`)
                         }
                     }
                     utxoList.push({
@@ -218,7 +219,7 @@ export default class UnisatAPI {
                 }
                 return utxoList;
             } catch (err) {
-                console.log(`request utxo-data error, hex: ${err.message}`);
+                logger.error(`request utxo-data error, hex: ${err.message}`);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
         }
@@ -230,7 +231,7 @@ export default class UnisatAPI {
             const tx = await this.getTx(txid);
             return tx?.confirmations > 0;
         } catch (err) {
-            console.error(`check ${txid} confirm error: ${err.message}`);
+            logger.error(`check ${txid} confirm error: ${err.message}`);
         }
         return false;
     }
@@ -247,7 +248,7 @@ export default class UnisatAPI {
                 });
                 return response.data.data;
             } catch (err) {
-                console.error(`get tx ${txid} error, errMsg: ${err.message}`);
+                logger.error(`get tx ${txid} error, errMsg: ${err.message}`);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
         }
@@ -266,7 +267,7 @@ export default class UnisatAPI {
                 });
                 return response.data.data;
             } catch (err) {
-                console.error(`get utxo info error, txid: ${txid} vout: ${vout} errMsg: ${err.message}`);
+                logger.error(`get utxo info error, txid: ${txid} vout: ${vout} errMsg: ${err.message}`);
                 await new Promise((resolve) => setTimeout(resolve, 500))
             }
         }
@@ -297,7 +298,7 @@ export default class UnisatAPI {
                     };
                 }
 
-                console.error(`${txid} tx push error, hex: ${hex_data}`, lastError);
+                logger.error(`${txid} tx push error, hex: ${hex_data}`, lastError);
                 await new Promise((resolve) => setTimeout(resolve, 200));
             }
         }

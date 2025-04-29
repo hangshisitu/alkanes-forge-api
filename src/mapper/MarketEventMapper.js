@@ -3,6 +3,7 @@ import {Op, QueryTypes} from "sequelize";
 import {Constants} from "../conf/constants.js";
 import sequelize from "../lib/SequelizeHelper.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
+import * as logger from '../conf/logger.js';
 
 export default class MarketEventMapper {
 
@@ -91,7 +92,7 @@ export default class MarketEventMapper {
                 return acc;
             }, {});
         } catch (error) {
-            console.error('Error in getStatsMapFor24Hours:', error);
+            logger.error('Error in getStatsMapFor24Hours:', error);
             throw error;
         }
     }

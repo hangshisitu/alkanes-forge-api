@@ -10,6 +10,7 @@ import TokenInfoService from "../service/TokenInfoService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import * as MempoolIndex from "../mempool/index.js";
 import MintService from "../service/MintService.js";
+import * as logger from '../conf/logger.js';
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
@@ -21,7 +22,7 @@ function refreshBlockHeight() {
         try {
             isRefreshBlockConfig = true;
             const startTime = Date.now();
-            console.log(`isRefreshBlockConfig start ...`);
+            logger.info(`isRefreshBlockConfig start ...`);
 
             const mempoolHeight = await MempoolUtil.getBlocksTipHeight();
             await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT, mempoolHeight);
@@ -41,9 +42,9 @@ function refreshBlockHeight() {
             const btcPrice = await MempoolUtil.getBtcPrice();
             await RedisHelper.set(Constants.REDIS_KEY.BTC_PRICE_USD, btcPrice);
 
-            console.log(`isRefreshBlockConfig finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} btcPrice: ${btcPrice} fees: ${JSON.stringify(fees)} cost ${Date.now() - startTime}ms.`);
+            logger.info(`isRefreshBlockConfig finish. mempoolHeight: ${mempoolHeight}, indexHeight: ${indexHeight} btcPrice: ${btcPrice} fees: ${JSON.stringify(fees)} cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            console.error('isRefreshBlockConfig error:', err.message);
+            logger.error('isRefreshBlockConfig error:', err.message);
         } finally {
             isRefreshBlockConfig = false;
         }
@@ -68,11 +69,11 @@ function refreshTokenInfo() {
                 return;
             }
 
-            console.log(`refreshTokenInfo start, update height: ${updateHeight} index height: ${indexHeight}`);
+            logger.info(`refreshTokenInfo start, update height: ${updateHeight} index height: ${indexHeight}`);
             const allTokens = await TokenInfoService.refreshTokenInfo(indexHeight);
-            console.log(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
+            logger.info(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            console.error('refreshTokenInfo error:', err.message);
+            logger.error('refreshTokenInfo error:', err.message);
         } finally {
             isRefreshTokenInfo = false;
         }
@@ -98,11 +99,11 @@ function refreshStatsForTimeRange() {
             const endTime = new Date(lastHour);
             endTime.setMinutes(59, 59, 999); // 上一个小时的结束
 
-            console.log(`refreshStatsForTimeRange start, startTime: ${DateUtil.formatDate(startTime)}, endTime: ${DateUtil.formatDate(endTime)}`);
+            logger.info(`refreshStatsForTimeRange start, startTime: ${DateUtil.formatDate(startTime)}, endTime: ${DateUtil.formatDate(endTime)}`);
             await TokenStatsService.refreshStatsForTimeRange(startTime, endTime);
-            console.log(`refreshStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshStatsForTimeRange error:', err.message);
+            logger.error('refreshStatsForTimeRange error:', err.message);
         } finally {
             isRefreshStatsForTimeRange = false;
         }
@@ -121,11 +122,11 @@ function refreshTokenStats() {
             isRefreshTokenStats = true;
             const execStartTime = Date.now();
 
-            console.log(`refreshTokenStats start`);
+            logger.info(`refreshTokenStats start`);
             await TokenInfoService.refreshTokenStats();
-            console.log(`refreshTokenStats finish, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshTokenStats finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshTokenStats error:', err.message);
+            logger.error('refreshTokenStats error:', err.message);
         } finally {
             isRefreshTokenStats = false;
         }
@@ -149,11 +150,11 @@ function refreshMergeMintOrder(mintStatus) {
             isRefreshMergeMintOrder = true;
             const execStartTime = Date.now();
             
-            console.log(`refreshMergeMintOrder start`);
+            logger.info(`refreshMergeMintOrder start`);
             await MintService.batchHandleMergeOrder(mintStatus);
-            console.log(`refreshMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            console.error('refreshMergeMintOrder error', err);
+            logger.error('refreshMergeMintOrder error', err);
         } finally {
             isRefreshMergeMintOrder = false;
         }

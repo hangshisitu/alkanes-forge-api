@@ -1,8 +1,9 @@
 import {createClient} from 'redis';
 import config from "../conf/config.js";
+import * as logger from '../conf/logger.js';
 
 const redisClient = await createClient({url: config.redisUrl})
-    .on('error', err => console.error(`Create Redis Client Error ${config.redisUrl}`, err))
+    .on('error', err => logger.error(`Create Redis Client Error ${config.redisUrl}`, err))
     .connect();
 const KEY_PREFIX = 'alkanes-api-' + (process.env.NODE_ENV || 'dev') + ':';
 
@@ -38,7 +39,7 @@ export async function scan(pattern, count = 1000, del_key = false) {
         if (keys?.length > 0) {
             ret_keys.push(...keys);
             if (del_key) {
-                console.log(`Deleting keys: ${keys}`);
+                logger.info(`Deleting keys: ${keys}`);
                 await redisClient.del(keys);
             }
         }

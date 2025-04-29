@@ -12,6 +12,7 @@ import PsbtUtil from "../utils/PsbtUtil.js";
 import FeeUtil from "../utils/FeeUtil.js";
 import {Constants} from "../conf/constants.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import * as logger from '../conf/logger.js';
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -63,7 +64,7 @@ export default class AlkanesService {
                 value: new BigNumber(alkane.value).toNumber(), // 固定8位精度
             }))
         } catch (err) {
-            console.log(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err.message);
+            logger.error(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}`, err.message);
             throw new Error('Get Alkane Balance Error');
         }
     }
@@ -184,7 +185,7 @@ export default class AlkanesService {
                 }
             }
         } catch (error) {
-            console.error('getAlkanesByTarget error:', error);
+            logger.error('getAlkanesByTarget error:', error);
             throw new Error('Get alkanes balance error');
         }
 
@@ -225,7 +226,7 @@ export default class AlkanesService {
                                     .toFixed(),
                             }));
                     } catch (error) {
-                        console.error(`Failed to process utxo ${utxo.txid}:`, error.message);
+                        logger.error(`Failed to process utxo ${utxo.txid}:`, error.message);
                         errors.push(`${utxo.txid}:${utxo.vout}`);
                         return null;
                     }
@@ -242,7 +243,7 @@ export default class AlkanesService {
 
             return alkaneList;
         } catch (error) {
-            console.error('getAlkanesUtxoById error:', error);
+            logger.error('getAlkanesUtxoById error:', error);
             throw new Error('Get alkanes balance error');
         }
     }
@@ -288,7 +289,7 @@ export default class AlkanesService {
             return tokenInfo;
 
         } catch (error) {
-            console.log(`Get alkanes ${id} error:`, error.message);
+            logger.error(`Get alkanes ${id} error:`, error.message);
             return null;
         }
     }
@@ -383,7 +384,7 @@ export default class AlkanesService {
                 throw new Error(error);
             }
 
-            console.log(`mint index ${i} tx: ${mintTxid}`);
+            logger.info(`mint index ${i} tx: ${mintTxid}`);
             txidList.push(mintTxid);
         }
         return txidList;
@@ -500,7 +501,7 @@ export default class AlkanesService {
                     return parseInt(blockHeight) - 1;
                 }
             } catch (err) {
-                console.log(`check metashrew_height error`, err.message);
+                logger.error(`check metashrew_height error`, err.message);
             }
         }
         throw new Error('check metashrew_height error');
@@ -527,10 +528,10 @@ export default class AlkanesService {
             return response.data.result
         } catch (error) {
             if (error.name === 'AbortError') {
-                console.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error.message)
+                logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error.message)
                 throw new Error('Request timed out')
             } else {
-                console.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error.message)
+                logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error.message)
                 throw error
             }
         }
@@ -657,7 +658,7 @@ export default class AlkanesService {
         if (!cap || cap === 0) return 0;
         const progress = Math.min((minted / cap) * 100, 100);
         if (progress > 100) {
-            console.log(`calculate ${id} progress invalid, cap: ${cap} minted: ${minted} error`);
+            logger.error(`calculate ${id} progress invalid, cap: ${cap} minted: ${minted} error`);
             throw new Error(`Progress calculate error`);
         }
         return Number(progress.toFixed(2));
