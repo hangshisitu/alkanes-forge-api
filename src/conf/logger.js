@@ -22,7 +22,7 @@ class LoggerContext {
 
     getFormattedDuration(from = 'start') {
         const duration = this.getDuration(from);
-        return duration ? `[${duration.toFixed(2)}ms]` : '';
+        return duration != null ? `[${duration}ms]` : '';
     }
 }
 

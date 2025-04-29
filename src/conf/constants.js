@@ -156,5 +156,9 @@ export const Constants = Object.freeze({
             ALKANES_BALANCE: '/user/alkanesBalance',
             TRANSFER_ALKANES: '/user/transferAlkanes',
         }
+    },
+
+    REDIS: {
+        MEMPOOL_ALKANES_DATA_CACHE_PREFIX: 'mempool:alkanes:data:',
     }
 });

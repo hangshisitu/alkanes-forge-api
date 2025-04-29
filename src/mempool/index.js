@@ -1,5 +1,6 @@
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import MempoolTx from '../models/MempoolTx.js';
+import MempoolTxMapper from '../mapper/MempoolTxMapper.js';
 import axios from 'axios';
 import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
@@ -9,6 +10,8 @@ import WebSocket from 'ws';
 import {Op} from "sequelize";
 import {Queue} from "../utils/index.js";
 import * as logger from '../conf/logger.js';
+import * as RedisHelper from "../lib/RedisHelper.js";
+import {Constants} from "../conf/constants.js";
 
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
@@ -74,10 +77,10 @@ async function delete_mempool_txs(txids) {
     if (!txids?.length) {
         return;
     }
-    await MempoolTx.destroy({
+    return await MempoolTx.destroy({
         where: { txid: txids }
     });
-    logger.info(`delete mempool txs: ${JSON.stringify(txids)}`);
+    // logger.info(`delete mempool txs: ${JSON.stringify(txids)}`);
 }
 
 async function remove_by_block_height(hash) {
@@ -85,10 +88,12 @@ async function remove_by_block_height(hash) {
     if (!blockTxids?.length) {
         return;
     }
+    let count = 0;
     for (let i = 0; i < blockTxids.length; i += 100) {
         const txids = blockTxids.slice(i, i + 100);
-        await delete_mempool_txs(txids);
+        count += await delete_mempool_txs(txids);
     }
+    return count;
 }
 
 async function detect_tx_status(txs) {
@@ -166,6 +171,7 @@ async function parse_tx_hex(hex) {
 
 async function handle_mempool_txs(txids) {
     const promises = [];
+    let count = 0;
     for (let i = 0; i < concurrent; i++) {
         promises.push((async () => {
             while (true) {
@@ -174,7 +180,9 @@ async function handle_mempool_txs(txids) {
                     break;
                 }
                 try {
-                    await handle_mempool_tx(txid);
+                    if (await handle_mempool_tx(txid)) {
+                        count++;
+                    }
                 } catch (e) {
                     logger.error(`handle mempool tx error: ${txid}`, e);
                 }
@@ -182,6 +190,7 @@ async function handle_mempool_txs(txids) {
         })());
     }
     await Promise.all(promises);
+    return count;
 }
 
 async function handle_mempool_tx(txid) {
@@ -191,16 +200,16 @@ async function handle_mempool_tx(txid) {
         await MempoolTx.destroy({
             where: { txid }
         });
-        return;
+        return true;
     }
     const tx = bitcoin.Transaction.fromHex(hex);
     if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
-        return;
+        return false;
     }
     const result = await parse_tx_hex(hex);
     if (result?.status !== 'success') {
         logger.error(`parse tx [${txid}] error`, result);
-        return;
+        return false;
     }
     const mempoolTxs = [];
     for (const protostone of result.protostones ?? []) {
@@ -256,7 +265,9 @@ async function handle_mempool_tx(txid) {
         await MempoolTx.bulkCreate(mempoolTxs, {
             ignoreDuplicates: true,
         });
+        return true;
     }
+    return false;
 }
 
 function safe_call(callback, ...args) {
@@ -272,7 +283,7 @@ async function handle_new_block(block, handle_db = true) {
         safe_call(callback, block);
     }
     if (handle_db) {
-        await remove_by_block_height(block.id);
+        return await remove_by_block_height(block.id);
     }
 }
 
@@ -302,6 +313,13 @@ async function flat_rbf_latest(replaces, txids) {
 
 }
 
+async function refresh_cache() {
+    const mempoolDatas = await MempoolTxMapper.getAllAlkanesIdMempoolData();
+    for (const alkanesId in mempoolDatas) {
+        await RedisHelper.set(Constants.REDIS.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId, JSON.stringify(mempoolDatas[alkanesId]));
+    }
+}
+
 async function handle_mempool_message(block_index) {
     const queue = block_message_queues[block_index];
     while (true) {
@@ -312,8 +330,13 @@ async function handle_mempool_message(block_index) {
                 continue;
             }
             data = JSON.parse(data);
+            let updated = false;
             if (block_index === 0 && data.block) { // 出新块, 将已确认的从数据库中删除
-                await handle_new_block(data.block);
+                const count = await handle_new_block(data.block);
+                logger.info(`handle new block: ${data.block.height}, effect: ${count}`);
+                if (count > 0) {
+                    updated = true;
+                }
             }
             const delta = data['projected-block-transactions']?.delta;
             if (delta) {
@@ -322,10 +345,11 @@ async function handle_mempool_message(block_index) {
                 //     await handle_removed_txs(delta.removed);
                 // }
                 if (delta.changed?.length) {
-                    delta.changed.forEach(async item => {
+                    let count = 0;
+                    for (const item of delta.changed) {
                         const txid = item[0];
                         const feeRate = item[1];
-                        await MempoolTx.update({
+                        const c = await MempoolTx.update({
                             feeRate
                         }, {
                             where: { 
@@ -335,10 +359,19 @@ async function handle_mempool_message(block_index) {
                                 }
                             }
                         });
-                    });
+                        count += c;
+                    }
+                    if (count > 0) {
+                        updated = true;
+                        logger.info(`handle mempool changed txs: ${count}`);
+                    }
                 }
                 if (delta.added?.length) {
-                    await handle_mempool_txs(delta.added.map(item => item[0]));
+                    const count = await handle_mempool_txs(delta.added.map(item => item[0]));
+                    logger.info(`handle mempool added txs: ${count}`);
+                    if (count > 0) {
+                        updated = true;
+                    }
                 }
             }
             const rbfLatest = data.rbfLatest;
@@ -348,9 +381,17 @@ async function handle_mempool_message(block_index) {
                     flat_rbf_latest(item.replaces, txids);
                 });
                 if (txids.length) {
-                    await delete_mempool_txs(txids);
-                    logger.info(`handle rbf latest txs: ${txids.length}`);
+                    const count = await delete_mempool_txs(txids);
+                    if (count > 0) {
+                        updated = true;
+                    }
+                    logger.info(`handle rbf latest txs: ${txids.length}, effect: ${count}`);
                 }
+            }
+            if (updated) {
+                refresh_cache().catch(err => {
+                    logger.error('refresh cache error', err);
+                });
             }
         } catch (e) {
             logger.error('parse mempool message occur error', e);
