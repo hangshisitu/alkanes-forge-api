@@ -11,12 +11,8 @@ const DEFAULT_MEMPOOL_DATA = {
 
 export default class MempoolService {
 
-    static async getMempoolDataByKey(key) {
-        return JSON.parse(await RedisHelper.get(key)) || DEFAULT_MEMPOOL_DATA;
-    }
-    
     static async getMempoolData(alkanesId) {
-        return await MempoolService.getMempoolDataByKey(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId);
+        return JSON.parse(await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId)) || DEFAULT_MEMPOOL_DATA;
     }
 
 }

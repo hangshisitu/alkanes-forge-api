@@ -502,7 +502,8 @@ export default class TokenInfoService {
                 const keys = await RedisHelper.scan(`${Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX}*`, 1000, false);
                 const mempoolDatas = {};
                 for(const key of keys) {
-                    mempoolDatas[key.replace(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX, '')] = await MempoolService.getMempoolDataByKey(key);
+                    const alkanesId = key.replace(RedisHelper.genKey(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX), '');
+                    mempoolDatas[alkanesId] = await MempoolService.getMempoolData(alkanesId);
                 }
                 tokenList = this.sortTokenList(tokenList, (a, b) => {
                     return (mempoolDatas[b.id]?.count || 0) - (mempoolDatas[a.id]?.count || 0);
