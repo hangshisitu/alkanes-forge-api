@@ -74,7 +74,7 @@ export default class BaseUtil {
                     break;
                 }
                 const element = collection.shift();
-                if (!element) {
+                if (element == null) {
                     break;
                 }
                 try {
@@ -104,7 +104,7 @@ export default class BaseUtil {
         async function execute() {
             while (true) {
                 const element = await queue.get();
-                if (!element) {
+                if (element == null) {
                     continue;
                 }
                 await handler(element);

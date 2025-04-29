@@ -15,7 +15,6 @@ import * as RedisLock from "../lib/RedisLock.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Queue} from "../utils/index.js";
 import * as logger from '../conf/logger.js';
-import mintOrder from "../models/MintOrder.js";
 
 
 const mintAmountPerBatch = 25;
@@ -820,7 +819,6 @@ export default class MintService {
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.WAITING, Constants.MINT_STATUS.MINTING);
                 return;
             }
-
             const tx = await MempoolUtil.getTxEx(item.mintHash);
             if (!tx) {
                 logger.info(`re-broadcast order ${item.orderId} batch ${batchIndex} item ${item.id} tx ${item.mintHash}`);
@@ -901,7 +899,7 @@ export default class MintService {
                 }
 
                 // 多个批次，检查剩下批次的铸造状态
-                const batch = BaseUtil.splitByBatchSize(mintOrder.mintAmount).length;
+                const batch = BaseUtil.splitByBatchSize(order.mintAmount, mintAmountPerBatch).length;
                 const batchIndexes = [];
                 for (let i = 0; i < batch; i++) {
                     batchIndexes.push(i);
