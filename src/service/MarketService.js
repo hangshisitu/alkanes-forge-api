@@ -451,6 +451,7 @@ export default class MarketService {
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
+        return txid;
     }
 
     static async checkListingSpent(signedPsbt) {

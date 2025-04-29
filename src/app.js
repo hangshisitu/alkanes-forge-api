@@ -16,7 +16,6 @@ import BaseService from "./service/BaseService.js";
 import * as mempool from "./mempool/index.js";
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
-import BaseUtil from './utils/BaseUtil.js';
 import {Constants} from "./conf/constants.js";
 import UserService from "./service/UserService.js";
 import jwt from 'jsonwebtoken';
@@ -624,11 +623,11 @@ app.use(async (ctx, next) => {
         .post(Constants.API.MARKET.PUT_SIGNED_BUYING, async ctx => {
             try {
                 const params = ctx.request.body;
-                await MarketService.putSignedBuying(params.signedPsbt);
+                const txid = await MarketService.putSignedBuying(params.signedPsbt);
                 ctx.body = {
                     'code': 0,
                     'msg': 'ok',
-                    'data': ''
+                    'data': txid
                 }
             } catch (e) {
                 console.error(`${util.inspect(e)}`)
