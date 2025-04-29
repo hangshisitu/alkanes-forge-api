@@ -37,6 +37,7 @@ process.on('uncaughtException', function (err) {
 
 const AUTH_PATHS = [
     Constants.API.INSCRIBE.PRE_CREATE_MERGE_ORDER,
+    Constants.API.INSCRIBE.CREATE_MERGE_ORDER,
     Constants.API.INSCRIBE.ACCELERATE_MERGE_ORDER,
     Constants.API.INSCRIBE.CANCEL_MERGE_ORDER,
 ];
