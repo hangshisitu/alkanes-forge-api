@@ -143,7 +143,7 @@ function refreshMergeMintOrder(mintStatus) {
         if (block?.id && mintStatus === Constants.MINT_ORDER_STATUS.MINTING) {
             await MintService.updateMintItemByBlock(block.id);
         }
-        MintService.batchHandleMergeOrder(mintStatus);
+        MintService.batchHandlePartialMergeOrder(mintStatus);
     });
     schedule.scheduleJob('*/30 * * * * *', async () => {
         if (isRefreshMergeMintOrder[mintStatus]) {
@@ -155,7 +155,7 @@ function refreshMergeMintOrder(mintStatus) {
             const execStartTime = Date.now();
             
             logger.info(`refreshMergeMintOrder start, mintStatus: ${mintStatus}`);
-            await MintService.batchHandleMergeOrder(mintStatus);
+            await MintService.batchHandlePartialMergeOrder(mintStatus);
             logger.info(`refreshMergeMintOrder finish, mintStatus: ${mintStatus}, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
             logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}, error: ${err.message}`, err);
