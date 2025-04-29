@@ -2,7 +2,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { networks } from "bitcoinjs-lib"
-import DateUtil from "../utils/DateUtil.js";
 import * as logger from './logger.js';
 
 // 获取当前文件的路径

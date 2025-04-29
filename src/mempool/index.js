@@ -12,6 +12,7 @@ import {Queue} from "../utils/index.js";
 import * as logger from '../conf/logger.js';
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
+import BaseUtil from '../utils/BaseUtil.js';
 
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
@@ -21,32 +22,6 @@ for (let i = 0; i < blocks; i++) {
     block_message_queues[i] = new Queue();
 }
 
-class DateUtil {
-    static now() {
-        const now = new Date();
-
-        const year = now.getFullYear();
-        const month = (now.getMonth() + 1).toString().padStart(2, '0');
-        const day = now.getDate().toString().padStart(2, '0');
-        const hours = now.getHours().toString().padStart(2, '0');
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        const seconds = now.getSeconds().toString().padStart(2, '0');
-
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    static diffMinutes(storedTimeString) {
-        const storedTime = new Date(storedTimeString);
-        const currentTime = new Date();
-        const timeDifference = currentTime - storedTime;
-        return timeDifference / (1000 * 60);
-    }
-
-    static async sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-}
 
 function decodeLEB128Array(bytes) {
     const result = [];
@@ -113,7 +88,7 @@ async function detect_tx_status(txs) {
             }
         } catch (e) {
             logger.error(`detect tx status error: ${txid}`, e);
-            await DateUtil.sleep(3000);
+            await BaseUtil.sleep(3000);
             continue;
         }
     }
@@ -314,10 +289,14 @@ async function flat_rbf_latest(replaces, txids) {
 }
 
 async function refresh_cache() {
+    const existKeys = await RedisHelper.scan(`${Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX}*`, 1000, false);
+    const keys = [];
     const mempoolDatas = await MempoolTxMapper.getAllAlkanesIdMempoolData();
     for (const alkanesId in mempoolDatas) {
-        await RedisHelper.set(Constants.REDIS.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId, JSON.stringify(mempoolDatas[alkanesId]));
+        keys.push(RedisHelper.genKey(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId));
+        await RedisHelper.set(Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX + alkanesId, JSON.stringify(mempoolDatas[alkanesId]));
     }
+    await RedisHelper.del(existKeys.filter(key => !keys.includes(key)), false);
 }
 
 async function handle_mempool_message(block_index) {
@@ -326,7 +305,7 @@ async function handle_mempool_message(block_index) {
         try {
             let data = await queue.get();
             if (!data) {
-                await DateUtil.sleep(500);
+                await BaseUtil.sleep(500);
                 continue;
             }
             data = JSON.parse(data);
@@ -395,7 +374,7 @@ async function handle_mempool_message(block_index) {
             }
         } catch (e) {
             logger.error('parse mempool message occur error', e);
-            await DateUtil.sleep(3000);
+            await BaseUtil.sleep(3000);
         }
     }
 }

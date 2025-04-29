@@ -21,8 +21,4 @@ export default class DateUtil {
         return timeDifference / (1000 * 60);
     }
 
-    static async sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
 }

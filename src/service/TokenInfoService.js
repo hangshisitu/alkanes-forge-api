@@ -12,6 +12,8 @@ import AlkanesService from "./AlkanesService.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import * as logger from '../conf/logger.js';
 
+let tokenListCache = null;
+
 export default class TokenInfoService {
 
     static async refreshTokenInfo(blockHeight) {
@@ -325,4 +327,195 @@ export default class TokenInfoService {
         // 否则，返回未知代币的默认图片路径
         return 'https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_unknown.png';
     }
+
+    static async refreshTokenListCache() {
+        while (true) {
+            try {
+                tokenListCache = await TokenInfoMapper.getAllTokens();
+            } catch (error) {
+                logger.error('Error refreshing token list cache:', error);
+            }
+            await BaseUtil.sleep(10000);
+        }
+    }
+
+    static sortTokenList(tokenList, callback = null, idReverse = false) {
+        return tokenList.sort((a, b) => {
+            const x = callback ? callback(a, b) : 0;
+            if (x === 0) {
+                const [aBlock, aTx] = a.id.split(':').map(Number);
+                const [bBlock, bTx] = b.id.split(':').map(Number);
+                
+                if (idReverse) {
+                    if (aBlock !== bBlock) {
+                        return bBlock - aBlock;
+                    }
+                    return bTx - aTx;
+                } else {
+                    if (aBlock !== bBlock) {
+                        return aBlock - bBlock;
+                    }
+                    return aTx - bTx;
+                }
+            }
+            return x;
+        });
+    }
+
+    static async getTokenPage(name, mintActive, noPremine, orderType, page, size) {
+        if (!tokenListCache) {
+            return TokenInfoMapper.findTokenPage(name, mintActive, noPremine, orderType, page, size);
+        }
+
+        let tokenList = [...tokenListCache];
+        if (name) {
+            tokenList = tokenList.filter(token => token.id.includes(name) || token.name.includes(name));
+        }
+        if (mintActive != null) {
+            tokenList = tokenList.filter(token => {
+                if (!mintActive) {
+                    return token.mintActive == +mintActive && token.progress == 100;
+                } else {
+                    return token.mintActive == +mintActive;
+                }
+            });
+        }
+        if (noPremine) {
+            tokenList = tokenList.filter(token => token.premine == 0);
+        }
+
+        const ORDER_TYPE = Constants.TOKEN_INFO_ORDER_TYPE;
+        // 根据不同的排序类型设置排序条件
+        switch (orderType) {
+            // 进度排序
+            case ORDER_TYPE.PROGRESS_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.progress - a.progress);
+                break;
+            case ORDER_TYPE.PROGRESS_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.progress - b.progress);
+                break;
+
+            // ID 排序 - 这里不需要追加 ID 排序
+            case ORDER_TYPE.ID_ASC:
+                tokenList = this.sortTokenList(tokenList);
+                break;
+            case ORDER_TYPE.ID_DESC:
+                tokenList = this.sortTokenList(tokenList, null, true);
+                break;
+
+            // 交易量排序 - 升序
+            case ORDER_TYPE.VOLUME_24H_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingVolume24h - b.tradingVolume24h);
+                break;
+            case ORDER_TYPE.VOLUME_7D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingVolume7d - b.tradingVolume7d);
+                break;
+            case ORDER_TYPE.VOLUME_30D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingVolume30d - b.tradingVolume30d);
+                break;
+            case ORDER_TYPE.VOLUME_TOTAL_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.totalTradingVolume - b.totalTradingVolume);
+                break;
+
+            // 交易量排序 - 降序
+            case ORDER_TYPE.VOLUME_24H_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingVolume24h - a.tradingVolume24h);
+                break;
+            case ORDER_TYPE.VOLUME_7D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingVolume7d - a.tradingVolume7d);
+                break;
+            case ORDER_TYPE.VOLUME_30D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingVolume30d - a.tradingVolume30d);
+                break;
+            case ORDER_TYPE.VOLUME_TOTAL_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.totalTradingVolume - a.totalTradingVolume);
+                break;
+
+            // 涨跌幅排序 - 升序
+            case ORDER_TYPE.PRICE_CHANGE_24H_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.priceChange24h - b.priceChange24h);
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_7D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.priceChange7d - b.priceChange7d);
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_30D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.priceChange30d - b.priceChange30d);
+                break;
+
+            // 涨跌幅排序 - 降序
+            case ORDER_TYPE.PRICE_CHANGE_24H_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.priceChange24h - a.priceChange24h);
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_7D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.priceChange7d - a.priceChange7d);
+                break;
+            case ORDER_TYPE.PRICE_CHANGE_30D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.priceChange30d - a.priceChange30d);
+                break;
+
+            // 交易笔数排序 - 升序
+            case ORDER_TYPE.TRADES_COUNT_24H_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingCount24h - b.tradingCount24h);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_7D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingCount7d - b.tradingCount7d);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_30D_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.tradingCount30d - b.tradingCount30d);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_TOTAL_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.totalTradingCount - b.totalTradingCount);
+                break;
+
+            // 交易笔数排序 - 降序
+            case ORDER_TYPE.TRADES_COUNT_24H_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingCount24h - a.tradingCount24h);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_7D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingCount7d - a.tradingCount7d);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_30D_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.tradingCount30d - a.tradingCount30d);
+                break;
+            case ORDER_TYPE.TRADES_COUNT_TOTAL_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.totalTradingCount - a.totalTradingCount);
+                break;
+
+            // 根据市值排序
+            case ORDER_TYPE.MARKET_CAP_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.marketCap - a.marketCap);
+                break;
+            case ORDER_TYPE.MARKET_CAP_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.marketCap - b.marketCap);
+                break;
+
+            // 根据地板价排序
+            case ORDER_TYPE.FLOOR_PRICE_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.floorPrice - a.floorPrice);
+                break;
+            case ORDER_TYPE.FLOOR_PRICE_ASC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => a.floorPrice - b.floorPrice);
+                break;
+
+            // 默认排序 - 进度降序
+            default:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.progress - a.progress);
+                break;
+        }
+
+        // 根据page和size返回分页数据
+        const startIndex = (page - 1) * size;
+        const endIndex = startIndex + size;
+        const rows = tokenList.slice(startIndex, endIndex);
+
+        return {
+            page,
+            size,
+            total: tokenList.length,
+            pages: Math.ceil(tokenList.length / size),
+            records: rows,
+        };
+    }
 }
+
+TokenInfoService.refreshTokenListCache();

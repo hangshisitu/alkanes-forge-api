@@ -1,7 +1,14 @@
 import {customAlphabet} from "nanoid";
 import {Verifier} from "bip322-js";
+import util from "util";
+
+const sleep = util.promisify(setTimeout);
 
 export default class BaseUtil {
+
+    static async sleep(ms) {
+        await sleep(ms);
+    }
 
     static async retryRequest(requestFn, maxRetries = 3, delayMs = 1000) {
         let lastError;

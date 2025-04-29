@@ -11,7 +11,7 @@ import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
 import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
-import MempoolTxMapper from "./mapper/MempoolTxMapper.js";
+import TokenInfoService from "./service/TokenInfoService.js";
 import BaseService from "./service/BaseService.js";
 import MempoolService from "./service/MempoolService.js";
 import * as mempool from "./mempool/index.js";
@@ -413,7 +413,7 @@ router
     .post(Constants.API.TOKEN.PAGE, async ctx => {
         try {
             const params = ctx.request.body;
-            const tokenList = await TokenInfoMapper.findTokenPage(params.name, params.mintActive, params.noPremine, params.orderType, params.page, params.size);
+            const tokenList = await TokenInfoService.getTokenPage(params.name, params.mintActive, params.noPremine, params.orderType, params.page, params.size);
             for (const row of tokenList.records) {
                 row.dataValues.mempool = await MempoolService.getMempoolData(row.id);
             }
