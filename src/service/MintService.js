@@ -648,9 +648,13 @@ export default class MintService {
                 groupedItems[item.batchIndex].push(item);
             }
 
-            for (const batchIndex in groupedItems) {
-                await MintService.submitBatchItems(groupedItems[batchIndex].sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
-            }
+            await BaseUtil.concurrentExecute(Object.values(groupedItems), async items => {
+                try {
+                    await MintService.submitBatchItems(items.sort((a, b) => a.mintIndex - b.mintIndex), Constants.MINT_MODEL.MERGE);
+                } catch (e) {
+                    logger.error(`submit batch order ${mintOrder.id} batch ${items[0].batchIndex} error`, e);
+                }
+            });
 
             const mintingItems = totalItemList.filter(item => item.mintStatus === Constants.MINT_STATUS.MINTING);
             if (mintingItems.length > 0) {
