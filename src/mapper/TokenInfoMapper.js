@@ -230,7 +230,9 @@ export default class TokenInfoMapper {
             size,
             total: count,
             pages: Math.ceil(count / size),
-            records: rows,
+            records: rows.map(row => {
+                return {...row, originalImage: undefined, updateHeight: undefined, createdAt: undefined, updatedAt: undefined};
+            }),
         };
 
         // 写缓存，10秒有效期

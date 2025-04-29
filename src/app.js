@@ -415,7 +415,7 @@ router
             const params = ctx.request.body;
             const tokenList = await TokenInfoService.getTokenPage(params.name, params.mintActive, params.noPremine, params.orderType, params.page, params.size);
             for (const row of tokenList.records) {
-                row.dataValues.mempool = await MempoolService.getMempoolData(row.id);
+                row.mempool = await MempoolService.getMempoolData(row.id);
             }
             ctx.body = {
                 'code': 0,

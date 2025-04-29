@@ -373,15 +373,15 @@ export default class TokenInfoService {
         }
         if (mintActive != null) {
             tokenList = tokenList.filter(token => {
-                if (!mintActive) {
-                    return token.mintActive == +mintActive && token.progress == 100;
+                if (mintActive) {
+                    return +token.mintActive === +mintActive || +token.progress < 100;
                 } else {
-                    return token.mintActive == +mintActive;
+                    return +token.mintActive === +mintActive && +token.progress === 100;
                 }
             });
         }
         if (noPremine) {
-            tokenList = tokenList.filter(token => token.premine == 0);
+            tokenList = tokenList.filter(token => +token.premine === 0);
         }
 
         const ORDER_TYPE = Constants.TOKEN_INFO_ORDER_TYPE;
@@ -506,7 +506,9 @@ export default class TokenInfoService {
         // 根据page和size返回分页数据
         const startIndex = (page - 1) * size;
         const endIndex = startIndex + size;
-        const rows = tokenList.slice(startIndex, endIndex);
+        const rows = tokenList.slice(startIndex, endIndex).map(row => {
+            return {...row, originalImage: undefined, updateHeight: undefined, createdAt: undefined, updatedAt: undefined};
+        });
 
         return {
             page,
