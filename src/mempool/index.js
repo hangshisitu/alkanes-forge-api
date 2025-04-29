@@ -17,6 +17,7 @@ import BaseUtil from '../utils/BaseUtil.js';
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
 const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
+let last_refresh_cache_time = 0;
 const block_message_queues = {};
 for (let i = 0; i < blocks; i++) {
     block_message_queues[i] = new Queue();
@@ -367,7 +368,8 @@ async function handle_mempool_message(block_index) {
                     logger.info(`handle rbf latest txs: ${txids.length}, effect: ${count}`);
                 }
             }
-            if (updated) {
+            if (updated || Date.now() - last_refresh_cache_time >= 10000) {
+                last_refresh_cache_time = Date.now();
                 refresh_cache().catch(err => {
                     logger.error('refresh cache error', err);
                 });
