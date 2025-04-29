@@ -32,6 +32,13 @@ const MintOrder = sequelize.define('MintOrder', {
         comment: '铸造脚本地址',
         field: 'mint_address'
     },
+    userAddress: {
+        type: DataTypes.STRING(128),
+        allowNull: false,
+        defaultValue: '',
+        comment: '用户地址(关联订单)',
+        field: 'user_address'
+    },
     paymentAddress: {
         type: DataTypes.STRING(128),
         allowNull: false,

@@ -138,7 +138,7 @@ export default class MintService {
     }
 
     // 订单实际构建函数
-    static async preCreateMergeOrder(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, maxFeerate = 0, mintAmountPerBatch = 1) {
+    static async preCreateMergeOrder(fundAddress, fundPublicKey, userAddress, toAddress, id, mints, postage, feerate, maxFeerate = 0, mintAmountPerBatch = 1) {
         const {
             batchList,
             mintAddress,
@@ -201,6 +201,7 @@ export default class MintService {
             alkanesId: id,
             alkanesName: tokenInfo.name,
             mintAddress: mintAddress,
+            userAddress: userAddress,
             paymentAddress: fundAddress,
             receiveAddress: toAddress,
             feerate: feerate,
@@ -225,11 +226,15 @@ export default class MintService {
         return psbt;
     }
 
-    static async createMergeOrder(orderId, psbt) {
+    static async createMergeOrder(orderId, userAddress, psbt) {
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             logger.error(`create merge order ${orderId} not found.`);
             throw new Error('Not found order, please refresh and try again.');
+        }
+
+        if (mintOrder.userAddress !== userAddress) {
+            throw new Error("You cannot operate on another user's order.");
         }
 
         const mintTxs = [];
@@ -443,11 +448,15 @@ export default class MintService {
         }
     }
 
-    static async cancelMergeOrder(orderId) {
+    static async cancelMergeOrder(orderId, userAddress) {
         const {mintOrder, inputList, refundValue} = await MintService.preCancelMergeOrder(orderId);
         if (refundValue === 0) {
             logger.error(`cancel merge order ${orderId} refund value is 0.`);
             throw new Error('No refundable amount.');
+        }
+
+        if (mintOrder.userAddress !== userAddress) {
+            throw new Error("You cannot operate on another user's order.");
         }
 
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
@@ -479,11 +488,14 @@ export default class MintService {
         return txid;
     }
 
-    static async accelerateMergeOrder(orderId, feerate) {
+    static async accelerateMergeOrder(orderId, feerate, userAddress) {
         const mintOrder = await MintOrderMapper.getById(orderId);
         if (!mintOrder) {
             logger.error(`accelerate merge order ${orderId} not found.`);
             throw new Error('Not found order, please refresh and try again.');
+        }
+        if (mintOrder.userAddress !== userAddress) {
+            throw new Error("You cannot operate on another user's order.");
         }
 
         const subOrders = await MintItemMapper.selectMintingItems(orderId);
@@ -923,7 +935,7 @@ export default class MintService {
     }
     
     static getMintPrivateKey(orderId) {
-        return AddressUtil.generatePrivateKeyFromString(`idclub:alkanes:${(process.env.NODE_ENV || 'dev')}:${orderId}`);
+        return AddressUtil.generatePrivateKeyFromString(`idclub:alkanes:${orderId}`);
     }
 
 }

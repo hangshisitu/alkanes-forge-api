@@ -8,7 +8,7 @@
   "networkName": "mainnet",
   "maxHeightGap": 2,
   "database": {
-    "host": "public-vultr-prod-9bc43166-b60e-449c-b39f-8124ccdc85a4-vultr-pr.vultrdb.com",
+    "host": "public-vultr-prod-8fbcff3e-d082-463b-8688-263739a07f25-vultr-pr.vultrdb.com",
     "port": 16751,
     "username": "admin",
     "password": "Bitcoin$2088",

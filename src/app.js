@@ -36,6 +36,7 @@ process.on('uncaughtException', function (err) {
 });
 
 const AUTH_PATHS = [
+    Constants.API.INSCRIBE.PRE_CREATE_MERGE_ORDER,
     Constants.API.INSCRIBE.ACCELERATE_MERGE_ORDER,
     Constants.API.INSCRIBE.CANCEL_MERGE_ORDER,
 ];
@@ -56,7 +57,8 @@ async function jwtAuth(ctx, next) {
     }
 
     try {
-        jwt.verify(token, Constants.JWT.SECRET);
+        const decode = jwt.verify(token, Constants.JWT.SECRET);
+        ctx.state.address = decode.address;
         await next();
     } catch (err) {
         ctx.body = {
@@ -698,7 +700,8 @@ router
     .post(Constants.API.INSCRIBE.PRE_CREATE_MERGE_ORDER, async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await MintService.preCreateMergeOrder(params.fundAddress, params.fundPublicKey, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
+            const userAddress = ctx.state.address;
+            const psbt = await MintService.preCreateMergeOrder(params.fundAddress, params.fundPublicKey, userAddress, params.toAddress, params.id, params.mints, params.postage, params.feerate, params.maxFeerate);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -715,7 +718,8 @@ router
     .post(Constants.API.INSCRIBE.CREATE_MERGE_ORDER, async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await MintService.createMergeOrder(params.orderId, params.psbt);
+            const userAddress = ctx.state.address;
+            const result = await MintService.createMergeOrder(params.orderId, userAddress, params.psbt);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -732,7 +736,8 @@ router
     .post(Constants.API.INSCRIBE.ACCELERATE_MERGE_ORDER, async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await MintService.accelerateMergeOrder(params.orderId, params.feerate);
+            const userAddress = ctx.state.address;
+            const result = await MintService.accelerateMergeOrder(params.orderId, params.feerate, userAddress);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -769,7 +774,8 @@ router
     .post(Constants.API.INSCRIBE.CANCEL_MERGE_ORDER, async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await MintService.cancelMergeOrder(params.orderId);
+            const userAddress = ctx.state.address;
+            const result = await MintService.cancelMergeOrder(params.orderId, userAddress);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

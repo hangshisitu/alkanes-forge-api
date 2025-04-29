@@ -183,7 +183,7 @@ export default class MarketService {
             signingIndexes.push(index);
         }
 
-        if (failedList.length > 1) {
+        if (failedList.length > 0) {
             await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
@@ -220,7 +220,7 @@ export default class MarketService {
             inputList.push(sellerInput);
         }
 
-        if (failedList.length > 1) {
+        if (failedList.length > 0) {
             await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
