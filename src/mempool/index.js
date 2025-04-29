@@ -197,10 +197,10 @@ async function handle_mempool_tx(txid) {
     const hex = await MempoolUtil.getTxHexEx(txid);
     if (!hex) {
         logger.info(`no hex found: ${txid}, delete from db`);
-        await MempoolTx.destroy({
+        const count = await MempoolTx.destroy({
             where: { txid }
         });
-        return true;
+        return count > 0;
     }
     const tx = bitcoin.Transaction.fromHex(hex);
     if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {

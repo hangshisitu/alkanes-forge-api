@@ -13,6 +13,7 @@ import MarketEventMapper from "./mapper/MarketEventMapper.js";
 import TokenInfoMapper from "./mapper/TokenInfoMapper.js";
 import MempoolTxMapper from "./mapper/MempoolTxMapper.js";
 import BaseService from "./service/BaseService.js";
+import MempoolService from "./service/MempoolService.js";
 import * as mempool from "./mempool/index.js";
 import MintService from "./service/MintService.js";
 import MintOrderMapper from "./mapper/MintOrderMapper.js";
@@ -413,6 +414,9 @@ router
         try {
             const params = ctx.request.body;
             const tokenList = await TokenInfoMapper.findTokenPage(params.name, params.mintActive, params.noPremine, params.orderType, params.page, params.size);
+            for (const row of tokenList.records) {
+                row.dataValues.mempool = await MempoolService.getMempoolData(row.id);
+            }
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -431,8 +435,7 @@ router
             const params = ctx.request.body;
             const tokenInfo = await TokenInfoMapper.getById(params.id);
             if (tokenInfo) {
-                let data = await MempoolTxMapper.countByAlkanesId(params.id);
-                tokenInfo.dataValues.mempool = data.dataValues;
+                tokenInfo.dataValues.mempool = await MempoolService.getMempoolData(params.id);
             }
             ctx.body = {
                 'code': 0,
@@ -450,13 +453,10 @@ router
     .post(Constants.API.TOKEN.MEMPOOL, async ctx => {
         try {
             const params = ctx.request.body;
-            const config = await BaseService.getConfig();
-            const mempool = await MempoolTxMapper.getAlkanesIdMempoolData(params.id, config.blockFee?.feeRange?.[0]);
-            mempool.config = config;
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
-                'data': mempool
+                'data': await MempoolService.getMempoolData(params.id)
             }
         } catch (e) {
             logger.error(`${util.inspect(e)}`)

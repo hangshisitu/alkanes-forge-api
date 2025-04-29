@@ -225,14 +225,6 @@ export default class TokenInfoMapper {
             offset: (page - 1) * size
         });
 
-        // 写这里利用缓存
-        const alkanesIds = rows.map(row => row.id);
-        const mempoolTxs = await MempoolTxMapper.groupCountByAlkanesId(alkanesIds);
-        const mempoolTxsMap = new Map(mempoolTxs.map(tx => [tx.dataValues.alkanesId, {count: tx.dataValues.count, addressCount: tx.dataValues.addressCount}]));
-        for (const row of rows) {
-            row.dataValues.mempool = mempoolTxsMap.get(row.id) || {count: 0, addressCount: 0};
-        }
-
         const result = {
             page,
             size,
