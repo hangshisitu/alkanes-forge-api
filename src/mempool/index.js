@@ -338,7 +338,7 @@ async function handle_mempool_message(block_index) {
                                 }
                             }
                         });
-                        count += c;
+                        count += +c;
                     }
                     if (count > 0) {
                         updated = true;

@@ -883,7 +883,7 @@ export default class MintService {
         orderList.sort((a, b) => b.feerate - a.feerate);
 
         await BaseUtil.concurrentExecute(orderList, async (order) => {
-            logger.putContext({'traceId': BaseUtil.genId(), 'orderId': order.id});
+            logger.putContext({traceId: BaseUtil.genId(), orderId: order.id, mintStatus});
             try {
                 logger.info(`start handle merge order ${order.id}`);
                 const tx = await MempoolUtil.getTxEx(order.paymentHash);

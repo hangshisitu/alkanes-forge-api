@@ -136,7 +136,8 @@ function refreshTokenStats() {
 let isRefreshMergeMintOrder = false;
 function refreshMergeMintOrder(mintStatus) {
     MempoolIndex.onNewBlock(async block => {
-        if (block?.id) {
+        logger.info(`refreshMergeMintOrder onNewBlock, block: ${block?.height}, mintStatus: ${mintStatus}`);
+        if (block?.id && mintStatus === Constants.MINT_ORDER_STATUS.MINTING) {
             await MintService.updateMintItemByBlock(block.id);
         }
         MintService.batchHandleMergeOrder(mintStatus);
@@ -150,11 +151,11 @@ function refreshMergeMintOrder(mintStatus) {
             isRefreshMergeMintOrder = true;
             const execStartTime = Date.now();
             
-            logger.info(`refreshMergeMintOrder start`);
+            logger.info(`refreshMergeMintOrder start, mintStatus: ${mintStatus}`);
             await MintService.batchHandleMergeOrder(mintStatus);
-            logger.info(`refreshMergeMintOrder finish, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshMergeMintOrder finish, mintStatus: ${mintStatus}, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
-            logger.error('refreshMergeMintOrder error', err);
+            logger.error(`refreshMergeMintOrder error, mintStatus: ${mintStatus}`, err);
         } finally {
             isRefreshMergeMintOrder = false;
         }
