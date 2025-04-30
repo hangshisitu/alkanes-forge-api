@@ -1,4 +1,6 @@
 export const Constants = Object.freeze({
+    TOKEN_DEFAULT_IMAGE: "https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_unknown.png",
+
     JWT: {
         SECRET: 'Yc9FTUPI3MNaaJwSkZunCbnWmQUGytDs',
         TOKEN_EXPIRE: '24h'

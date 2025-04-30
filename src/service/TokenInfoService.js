@@ -326,7 +326,7 @@ export default class TokenInfoService {
             return `https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_default_${firstLetter}.png`;
         }
         // 否则，返回未知代币的默认图片路径
-        return 'https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_unknown.png';
+        return Constants.TOKEN_DEFAULT_IMAGE;
     }
 
     static async refreshTokenListCache() {

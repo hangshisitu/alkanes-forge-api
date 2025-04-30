@@ -5,6 +5,8 @@ import BigNumber from "bignumber.js";
 import AlkanesService from "./AlkanesService.js";
 import jwt from 'jsonwebtoken';
 import {Constants} from "../conf/constants.js";
+import * as bitcoin from "bitcoinjs-lib";
+import config from "../conf/config.js";
 
 const SIGN_MESSAGE = 'idclub.io wants you to sign in with your Bitcoin account:\n' +
     '{address}\n' +
@@ -45,6 +47,12 @@ export default class UserService {
     }
 
     static async getAlkanesBalance(address) {
+        try {
+            bitcoin.address.toOutputScript(address, config.network)
+        } catch (err) {
+            throw new Error('Invalid address, please try again');
+        }
+
         const alkanesList = await AlkanesService.getAlkanesByAddress(address);
         if (!alkanesList || alkanesList.length === 0) {
             return [];
@@ -54,12 +62,15 @@ export default class UserService {
         const tokenMap = new Map(tokenList.map(token => [token.id, token]));
         return alkanesList.map(alkanes => {
             const token = tokenMap.get(alkanes.id);
+            if (!token) {
+                console.error(`not found token: ${alkanes.id}`);
+            }
             return {
                 ...alkanes,
-                image: token.image,
-                floorPrice: token.floorPrice,
-                priceChange24h: token.priceChange24h,
-                totalValue: new BigNumber(alkanes.balance).multipliedBy(token.floorPrice).toString()
+                image: token?.image || Constants.TOKEN_DEFAULT_IMAGE,
+                floorPrice: token?.floorPrice || 0,
+                priceChange24h: token?.priceChange24h || 0,
+                totalValue: new BigNumber(alkanes.balance).multipliedBy(token?.floorPrice || 0).toString()
             }
         });
     }
