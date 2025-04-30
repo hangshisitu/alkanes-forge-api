@@ -95,7 +95,7 @@ export default class MintItemMapper {
     }
 
     static async updateItemStatusByTxids(txids, acceptStatus, newStatus) {
-        await MintItem.update(
+        return await MintItem.update(
             { mintStatus: newStatus },
             { where: { mintHash: txids, mintStatus: acceptStatus } }
         );

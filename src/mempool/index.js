@@ -274,8 +274,9 @@ async function handle_removed_txs(txids) {
     const results = await Promise.all(promises);
     const remove_txids = results.flat();
     if (remove_txids.length) {
-        await delete_mempool_txs(remove_txids);
+        return await delete_mempool_txs(remove_txids);
     }
+    return 0;
 }
 
 async function flat_rbf_latest(replaces, txids) {
@@ -320,10 +321,12 @@ async function handle_mempool_message(block_index) {
             }
             const delta = data['projected-block-transactions']?.delta;
             if (delta) {
-                // 跟踪了rbf, 不需要处理removed的交易
-                // if (delta.removed?.length) {
-                //     await handle_removed_txs(delta.removed);
-                // }
+                if (delta.removed?.length) {
+                    const count = await handle_removed_txs(delta.removed);
+                    if (count > 0) {
+                        updated = true;
+                    }
+                }
                 if (delta.changed?.length) {
                     let count = 0;
                     for (const item of delta.changed) {
