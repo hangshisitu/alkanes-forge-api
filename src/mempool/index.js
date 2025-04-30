@@ -259,6 +259,7 @@ async function handle_new_block(block, handle_db = true) {
         safe_call(callback, block);
     }
     if (handle_db) {
+        try_scan_mempool_tx();
         return await remove_by_block_height(block.id);
     }
 }
@@ -374,7 +375,9 @@ async function handle_mempool_message(block_index) {
             }
             if (updated || Date.now() - last_refresh_cache_time >= 10000) {
                 last_refresh_cache_time = Date.now();
-                refresh_cache().catch(err => {
+                try_scan_mempool_tx().then(() => {
+                    return refresh_cache();
+                }).catch(err => {
                     logger.error('refresh cache error', err);
                 });
             }
