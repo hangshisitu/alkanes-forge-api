@@ -259,7 +259,6 @@ async function handle_new_block(block, handle_db = true) {
         safe_call(callback, block);
     }
     if (handle_db) {
-        try_scan_mempool_tx();
         return await remove_by_block_height(block.id);
     }
 }
