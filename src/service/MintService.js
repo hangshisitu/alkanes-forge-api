@@ -925,7 +925,7 @@ export default class MintService {
     static async updateMintItemByBlock(blockHash) {
         try {
             const txids = await MempoolUtil.getBlockTxIds(blockHash);
-            const effectCounts = await BaseUtil.concurrentExecute(BaseUtil.splitByBatchSize(txids, 100), async (txids) => {
+            const effectCounts = await BaseUtil.concurrentExecute(BaseUtil.splitArray(txids, 100), async (txids) => {
                 return await MintItemMapper.updateItemStatusByTxids(txids, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
             });
             logger.info(`update mint item by block ${blockHash} effect count: ${effectCounts.reduce((sum, cur) => +cur + sum, 0)}`);

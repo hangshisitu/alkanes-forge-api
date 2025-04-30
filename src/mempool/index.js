@@ -324,6 +324,7 @@ async function handle_mempool_message(block_index) {
                 if (delta.removed?.length) {
                     const count = await handle_removed_txs(delta.removed);
                     if (count > 0) {
+                        logger.info(`handle removed txs: ${count}`);
                         updated = true;
                     }
                 }
