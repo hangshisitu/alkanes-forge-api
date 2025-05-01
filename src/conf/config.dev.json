@@ -4,6 +4,7 @@
   "alkanesUrl": "https://signet.sandshrew.io/v2/lasereyes",
   "alkanesAddressUrl": "https://signet.sandshrew.io/v2/lasereyes",
   "alkanesUtxoUrl": "https://signet.sandshrew.io/v2/lasereyes",
+  "reserveNumber": 777,
   "concurrencyLimit": 100,
   "networkName": "signet",
   "maxHeightGap": 2,

@@ -4,6 +4,7 @@
   "alkanesUrl": "https://alkanes-rpc.idclub.io",
   "alkanesAddressUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "alkanesUtxoUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
+  "reserveNumber": 797,
   "concurrencyLimit": 10,
   "networkName": "mainnet",
   "maxHeightGap": 2,

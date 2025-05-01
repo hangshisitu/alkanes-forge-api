@@ -4,6 +4,7 @@
   "alkanesUrl": "https://alkanes-rpc.idclub.io",
   "alkanesAddressUrl": "https://alkanes-rpc.idclub.io",
   "alkanesUtxoUrl": "https://alkanes-rpc.idclub.io",
+  "reserveNumber": 797,
   "concurrencyLimit": 100,
   "networkName": "mainnet",
   "maxHeightGap": 2,

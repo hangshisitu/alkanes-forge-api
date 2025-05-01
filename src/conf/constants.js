@@ -155,6 +155,7 @@ export const Constants = Object.freeze({
             CANCEL_MERGE_ORDER: '/inscribe/cancelMergeOrder',
             ORDER_PAGE: '/inscribe/orderPage',
             ORDER_INFO: '/inscribe/orderInfo',
+            DEPLOY_TOKEN: '/inscribe/deployToken',
         },
 
         USER: {

@@ -402,10 +402,10 @@ export default class AlkanesService {
             script: protostone,
             value: 0
         });
-        outputList.push({
-            address: config.revenueAddress.inscribe,
-            value: 3000
-        });
+        // outputList.push({
+        //     address: config.revenueAddress.inscribe,
+        //     value: 3000
+        // });
 
         const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
@@ -619,26 +619,26 @@ export default class AlkanesService {
     }
 
     static getDeployProtostone(name, symbol, cap, premine, perMint) {
+        const tokenName = AlkanesService.packUTF8(name);
+        const tokenSymbol = AlkanesService.packUTF8(symbol);
+        if (tokenName.length > 2) {
+            throw new Error('Token name too long');
+        }
+        if (tokenSymbol.length > 1) {
+            throw new Error('Token symbol too long');
+        }
         const calldata = [
             BigInt(6),
-            BigInt(797), // free_mint.wasm contract
+            BigInt(config.reserveNumber),
             BigInt(0),
             BigInt(new BigNumber(premine).multipliedBy(1e8).toFixed()),
             BigInt(new BigNumber(perMint).multipliedBy(1e8).toFixed()),
             BigInt(cap),
-            BigInt(
-                '0x' +
-                Buffer.from(name.split('').reverse().join('')).toString('hex')
-                // Buffer.from(Array.from(Buffer.from(name, 'utf8')).reverse()).toString('hex')
-            ),
-            BigInt(0),
-        ]
-        if (symbol) {
-            calldata.push(BigInt(
-                '0x' +
-                Buffer.from(symbol.split('').reverse().join('')).toString('hex')
-                // Buffer.from(Array.from(Buffer.from(symbol, 'utf8')).reverse()).toString('hex')
-            ))
+            BigInt('0x' + tokenName[0]),
+            BigInt(tokenName.length > 1 ? '0x' + tokenName[1] : 0)
+        ];
+        if (tokenSymbol.length > 0 && tokenSymbol[0] !== '') {
+            calldata.push(BigInt('0x' + tokenSymbol[0]));
         }
 
         return encodeRunestoneProtostone({
@@ -669,5 +669,21 @@ export default class AlkanesService {
         return height - config.maxHeightGap;
     }
 
+    static packUTF8(s) {
+        const result = [''];
+        let b = 0;
+        for (let i = 0; i < s.length; i++) {
+            const length = Buffer.from(s[i]).length;
+            if (b + length > 15) {
+                b = 0;
+                result.push('');
+                i--;
+            } else {
+                b += length;
+                result[result.length - 1] += s[i];
+            }
+        }
+        return result.map((v) => v && Buffer.from(Array.from(Buffer.from(v)).reverse()).toString('hex') || '')
+    }
 }
 

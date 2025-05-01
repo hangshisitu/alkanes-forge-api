@@ -679,6 +679,23 @@ router
             }
         }
     })
+    .post(Constants.API.INSCRIBE.DEPLOY_TOKEN, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await AlkanesService.deployToken(params.fundAddress, params.fundPublicKey, params.toAddress, params.name, params.symbol, params.cap, params.perMint, params.premine, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
     .post(Constants.API.INSCRIBE.ORDER_INFO, async ctx => {
         try {
             const params = ctx.request.body;
