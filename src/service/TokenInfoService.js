@@ -370,7 +370,7 @@ export default class TokenInfoService {
 
         let tokenList = [...tokenListCache];
         if (name) {
-            tokenList = tokenList.filter(token => token.id.includes(name) || token.name.includes(name));
+            tokenList = tokenList.filter(token => token.id.includes(name) || token.name.toLowerCase().includes(name.toLowerCase()));
         }
         if (mintActive != null) {
             tokenList = tokenList.filter(token => {
