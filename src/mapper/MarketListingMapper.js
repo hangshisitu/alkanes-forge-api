@@ -111,12 +111,13 @@ export default class MarketListingMapper {
         })
     }
 
-    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, alkanesId = null) {
+    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, walletType, alkanesId = null) {
         await MarketListing.update(
             {
                 status: status,
                 buyerAddress: buyerAddress,
-                txHash: txHash
+                txHash: txHash,
+                source: walletType
             },
             {
                 where: {

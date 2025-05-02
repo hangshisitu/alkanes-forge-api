@@ -61,6 +61,11 @@ const MarketListing = sequelize.define('MarketListing', {
         defaultValue: '',
         comment: '链上交易哈希'
     },
+    source: {
+        type: DataTypes.STRING(32),
+        defaultValue: '',
+        comment: '交易来源'
+    },
     status: {
         type: DataTypes.TINYINT,
         defaultValue: 1,

@@ -416,7 +416,8 @@ router
     .post(Constants.API.MARKET.CREATE_UNSIGNED_UPDATE, async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await MarketService.createUnsignedUpdate(params.alkanesId, params.listingList, params.assetAddress, params.assetPublicKey, params.fundAddress);
+            const walletType = ctx.get('wallet-type') || '';
+            const psbt = await MarketService.createUnsignedUpdate(params.alkanesId, params.listingList, params.assetAddress, params.assetPublicKey, params.fundAddress, walletType);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -450,7 +451,8 @@ router
     .post(Constants.API.MARKET.CREATE_UNSIGNED_DELISTING, async ctx => {
         try {
             const params = ctx.request.body;
-            const psbt = await MarketService.createUnsignedDelisting(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.assetPublicKey, params.feerate);
+            const walletType = ctx.get('wallet-type') || '';
+            const psbt = await MarketService.createUnsignedDelisting(params.alkanesId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.assetPublicKey, params.feerate, walletType);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -467,7 +469,8 @@ router
     .post(Constants.API.MARKET.PUT_SIGNED_DELISTING, async ctx => {
         try {
             const params = ctx.request.body;
-            await MarketService.putSignedDelisting(params.signedPsbt);
+            const walletType = ctx.get('wallet-type') || '';
+            await MarketService.putSignedDelisting(params.signedPsbt, walletType);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
@@ -505,7 +508,8 @@ router
     .post(Constants.API.MARKET.PUT_SIGNED_BUYING, async ctx => {
         try {
             const params = ctx.request.body;
-            const txid = await MarketService.putSignedBuying(params.signedPsbt);
+            const walletType = ctx.get('wallet-type') || '';
+            const txid = await MarketService.putSignedBuying(params.signedPsbt, walletType);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

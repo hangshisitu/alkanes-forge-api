@@ -137,7 +137,7 @@ export default class MarketService {
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
 
-    static async createUnsignedUpdate(alkanesId, listingList, assetAddress, assetPublicKey, fundAddress) {
+    static async createUnsignedUpdate(alkanesId, listingList, assetAddress, assetPublicKey, fundAddress, walletType) {
         const listingIds = [];
         const listingMap = new Map();
         for (const listing of listingList) {
@@ -184,7 +184,7 @@ export default class MarketService {
         }
 
         if (failedList.length > 0) {
-            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', walletType, alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
 
@@ -198,7 +198,7 @@ export default class MarketService {
         };
     }
 
-    static async createUnsignedDelisting(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate) {
+    static async createUnsignedDelisting(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate, walletType) {
         const listingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
         if (listingList === null || listingList.length === 0) {
             throw new Error('Not found listing, Please refresh and retry.');
@@ -221,7 +221,7 @@ export default class MarketService {
         }
 
         if (failedList.length > 0) {
-            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', alkanesId);
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', walletType, alkanesId);
             throw new Error('The assets have been transferred, please refresh and try again.');
         }
 
@@ -246,7 +246,7 @@ export default class MarketService {
         return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
     }
 
-    static async putSignedDelisting(signedPsbt) {
+    static async putSignedDelisting(signedPsbt, walletType) {
         const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
         if (error) {
             throw new Error(error);
@@ -277,7 +277,7 @@ export default class MarketService {
             eventList.push(marketEvent);
         }
 
-        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid, listingList[0].alkanesId);
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.DELIST, '', txid, walletType, listingList[0].alkanesId);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
@@ -411,12 +411,12 @@ export default class MarketService {
         };
     }
 
-    static async putSignedBuying(signedPsbt) {
+    static async putSignedBuying(signedPsbt, walletType) {
         const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
         if (error && (error.includes('bad-txns-inputs-missingorspent')
             || error.includes('TX decode failed')
             || error.includes('txn-mempool-conflict'))) {
-            await MarketService.checkListingSpent(signedPsbt);
+            await MarketService.checkListingSpent(signedPsbt, walletType);
             throw new Error('Some items in your order are already purchased or delisted.');
         }
 
@@ -447,14 +447,14 @@ export default class MarketService {
             eventList.push(marketEvent);
         }
 
-        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, listingList[0].alkanesId);
+        await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, walletType, listingList[0].alkanesId);
         await MarketEventMapper.bulkUpsertEvent(eventList);
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
         return txid;
     }
 
-    static async checkListingSpent(signedPsbt) {
+    static async checkListingSpent(signedPsbt, walletType) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
 
         const listingOutputMap = new Map();
@@ -471,7 +471,7 @@ export default class MarketService {
         }
 
         for (const [txid, outputList] of listingOutputMap.entries()) {
-            await MarketListingMapper.bulkUpdateListing(outputList, Constants.LISTING_STATUS.DELIST, '', txid);
+            await MarketListingMapper.bulkUpdateListing(outputList, Constants.LISTING_STATUS.DELIST, '', txid, walletType);
         }
 
         // 将listingOutputMap的所有value合并成一个array
