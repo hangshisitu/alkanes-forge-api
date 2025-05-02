@@ -23,6 +23,7 @@ import jwt from 'jsonwebtoken';
 import * as logger from './conf/logger.js';
 import BaseUtil from './utils/BaseUtil.js';
 import * as RedisHelper from "./lib/RedisHelper.js";
+import config from "./conf/config.js";
 
 const app = new Koa();
 const router = new Router();
@@ -712,7 +713,25 @@ router
                 'msg': e.message
             }
         }
-    });
+    })
+    .post(Constants.API.METHANE.COMMUNITY_CHECK, async ctx => {
+        try {
+            const userAddress = ctx.state.address;
+            const result = config.methaneCommittee[userAddress] || ''
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+;
 
 app.use(bodyParser());
 app.use(jwtAuth);

@@ -18,6 +18,9 @@ if (!fs.existsSync(configPath)) {
 
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
+const methanePath = `${__dirname}/methane.json`;
+config.methaneCommittee = JSON.parse(fs.readFileSync(methanePath, 'utf-8'));
+
 config.network = networks.testnet;
 if (config.networkName === 'mainnet') {
     config.network = networks.bitcoin;

@@ -164,6 +164,10 @@ export const Constants = Object.freeze({
             BTC_BALANCE: '/user/btcBalance',
             ALKANES_BALANCE: '/user/alkanesBalance',
             TRANSFER_ALKANES: '/user/transferAlkanes',
+        },
+
+        METHANE: {
+            COMMUNITY_CHECK: '/methane/community/check'
         }
     },
 
