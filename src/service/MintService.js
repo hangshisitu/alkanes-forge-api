@@ -48,8 +48,9 @@ export default class MintService {
         const fundOutputList = [];
         // 第一组
         const firstBatchFee = Math.ceil(mintFee * (batchList[0] - 2)) + lastMintFee;
+        const receiveAddress = mints === 1 ? toAddress : mintAddress;
         fundOutputList.push({
-            address: mintAddress,
+            address: receiveAddress,
             value: firstBatchFee,
         });
 
