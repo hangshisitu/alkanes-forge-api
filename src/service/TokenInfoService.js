@@ -117,23 +117,21 @@ export default class TokenInfoService {
                     break;
                 }
 
-                if (alkanes.cap < 1e36) {
-                    if (
-                        alkanes.totalSupply !== undefined &&
-                        alkanes.minted !== undefined &&
-                        alkanes.mintAmount !== undefined
-                    ) {
-                        alkanes.premine = alkanes.totalSupply - alkanes.minted * alkanes.mintAmount;
-                    }
-
-                    if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
-                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, alkanes.cap);
-                        alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
-                    }
-
-                    newAlkaneList.push(alkanes);
-                    existingIds.add(tokenId);
+                if (
+                    alkanes.totalSupply !== undefined &&
+                    alkanes.minted !== undefined &&
+                    alkanes.mintAmount !== undefined
+                ) {
+                    alkanes.premine = alkanes.totalSupply - alkanes.minted * alkanes.mintAmount;
                 }
+
+                if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
+                    alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, alkanes.cap);
+                    alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
+                }
+
+                newAlkaneList.push(alkanes);
+                existingIds.add(tokenId);
             } catch (error) {
                 logger.error(`Error checking new token ${tokenId}:`, error);
                 break; // 遇到错误停止检查新token
