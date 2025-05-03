@@ -320,7 +320,7 @@ export default class TokenInfoMapper {
         try {
             const upsertQuery = `
             INSERT INTO token_info 
-            (id, name, image, symbol, cap, premine, minted, mint_amount, 
+            (id, name, image, symbol, data, cap, premine, minted, mint_amount, 
              total_supply, progress, mint_active, update_height) 
             VALUES 
             ${tokenInfos.map(token => `(
