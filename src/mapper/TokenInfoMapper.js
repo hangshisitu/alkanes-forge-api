@@ -320,13 +320,14 @@ export default class TokenInfoMapper {
         try {
             const upsertQuery = `
             INSERT INTO token_info 
-            (id, name, image, symbol, data, cap, premine, minted, mint_amount, 
+            (id, name, image, origin_image, symbol, data, cap, premine, minted, mint_amount, 
              total_supply, progress, mint_active, update_height) 
             VALUES 
             ${tokenInfos.map(token => `(
                 '${token.id}', 
                 ${token.name ? `'${token.name}'` : "''"}, 
                 ${token.image ? `'${token.image}'` : "''"}, 
+                ${token.originImage ? `'${token.originImage}'` : "''"}, 
                 ${token.symbol ? `'${token.symbol}'` : "''"},
                 ${token.data ? `'${token.data}'` : "''"},
                 ${token.cap || 0}, 
@@ -340,6 +341,8 @@ export default class TokenInfoMapper {
             )`).join(',')}
             ON DUPLICATE KEY UPDATE 
                 name = VALUES(name),
+                image = VALUES(image),
+                origin_image = VALUES(origin_image),
                 symbol = VALUES(symbol),
                 data = VALUES(data),
                 cap = VALUES(cap),

@@ -171,7 +171,7 @@ export default class TokenInfoService {
         // 设置更新区块与默认图片
         allTokens.forEach(token => {
             token.updateHeight = blockHeight;
-            token.image = TokenInfoService.getDefaultTokenImage(token.name);
+            token.image = token.image || TokenInfoService.getDefaultTokenImage(token.name);
         });
 
         // 9. 更新数据库和缓存
