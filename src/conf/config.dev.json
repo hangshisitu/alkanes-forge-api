@@ -30,5 +30,14 @@
     "protoruneParseEndpoint": "http://127.0.0.1:58888",
     "unisatHost": "https://open-api-signet.unisat.io",
     "unisatApiKey": "02b773333e2831d29cd02f55c7727a0f0333d73187d0b6781dd85901dc1f56ea"
+  },
+  "r2": {
+    "accountId": "xjAA3uWZ6gZkcGwx0Ze82WbQjPTk9GnsPNGb-grg",
+    "accessKeyId": "af42cda45514dceca2e4d26d2532baa3",
+    "secretAccessKey": "7d5c6aeaac4da549aeecb9f57475a8e78648d100d6c3c9d34168299132c30dcf",
+    "bucketName": "market",
+    "publicUrl": "https://78b1a26447b2c512bc17a688decc20a1.r2.cloudflarestorage.com",
+    "prefix": "alkanes",
+    "urlDomain": "https://cdn.idclub.io"
   }
 }

@@ -12,7 +12,7 @@ import AlkanesService from "./AlkanesService.js";
 import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import * as logger from '../conf/logger.js';
 import MempoolService from "./MempoolService.js";
-
+import R2Service from "./R2Service.js";
 let tokenListCache = null;
 
 export default class TokenInfoService {
@@ -512,7 +512,11 @@ export default class TokenInfoService {
                     mempoolDatas[alkanesId] = await MempoolService.getMempoolData(alkanesId);
                 }
                 tokenList = this.sortTokenList(tokenList, (a, b) => {
-                    return (mempoolDatas[b.id]?.count || 0) - (mempoolDatas[a.id]?.count || 0);
+                    const x = (mempoolDatas[b.id]?.count || 0) - (mempoolDatas[a.id]?.count || 0);
+                    if (x === 0) {
+                        return b.progress - a.progress;
+                    }
+                    return x;
                 }, false, false);
                 break
 
@@ -537,6 +541,24 @@ export default class TokenInfoService {
             records: rows,
         };
     }
+
+    static async amendTokenInfo() {
+        const tokenList = await TokenInfoMapper.getAllTokens();
+        for (const token of tokenList) {
+            const text = token.data;
+            if (!text) {
+                continue;
+            }
+            if (text.startsWith('data:image/')) {
+                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.png`, prefix: config.r2.prefix }));
+            } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
+                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.svg`, prefix: config.r2.prefix }));
+            } else {
+                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.txt`, prefix: config.r2.prefix }));
+            }
+        }
+    }
 }
 
 TokenInfoService.refreshTokenListCache();
+TokenInfoService.amendTokenInfo();

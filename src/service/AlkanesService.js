@@ -13,6 +13,7 @@ import FeeUtil from "../utils/FeeUtil.js";
 import {Constants} from "../conf/constants.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import * as logger from '../conf/logger.js';
+import R2Service from "./R2Service.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -277,16 +278,30 @@ export default class AlkanesService {
             );
 
             // 收集返回结果
-            opcodeResults
-                .filter(item => item && item.opcodeHRV)
-                .forEach(({ result, opcodeHRV }) => {
+            for (const item of opcodeResults) {
+                if (!item || !item.opcodeHRV) {
+                    continue;
+                }
+                const { result, opcodeHRV } = item;
+                if (['name', 'symbol', 'data'].includes(opcodeHRV)) {
                     if (['name', 'symbol', 'data'].includes(opcodeHRV)) {
-                        tokenInfo[opcodeHRV] = result.string || '';
+                        const text = result.string || '';
+                        if (opcodeHRV === 'data' && text) {
+                            if (text.startsWith('data:image/')) {
+                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.png`, prefix: config.r2.prefix });
+                            } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
+                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.svg`, prefix: config.r2.prefix });
+                            } else {
+                                tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.txt`, prefix: config.r2.prefix });
+                            }
+                            continue;
+                        }
+                        tokenInfo[opcodeHRV] = text;
                     } else {
                         tokenInfo[opcodeHRV] = Number(result.le || 0);
                     }
-                });
-
+                }
+            }   
             return tokenInfo;
 
         } catch (error) {
