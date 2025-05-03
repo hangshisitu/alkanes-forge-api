@@ -314,16 +314,20 @@ export default class TokenInfoService {
     }
 
     static getDefaultTokenImage(tokenName) {
-        // 确保代币名称为字符串并去除多余空格
-        const trimmedName = tokenName.trim();
+        try {
+            // 确保代币名称为字符串并去除多余空格
+            const trimmedName = tokenName.trim();
 
-        // 检查代币名称的首字母
-        if (/^[A-Za-z]/.test(trimmedName)) {
-            // 如果以字母开头，返回带字母的默认图片路径
-            const firstLetter = trimmedName.charAt(0).toUpperCase(); // 获取首字母，大写
-            return `https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_default_${firstLetter}.png`;
+            // 检查代币名称的首字母
+            if (/^[A-Za-z]/.test(trimmedName)) {
+                // 如果以字母开头，返回带字母的默认图片路径
+                const firstLetter = trimmedName.charAt(0).toUpperCase(); // 获取首字母，大写
+                return `https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_default_${firstLetter}.png`;
+            }
+            // 否则，返回未知代币的默认图片路径
+        } catch (err) {
+            console.error(`getDefaultTokenImage for ${tokenName} error`)
         }
-        // 否则，返回未知代币的默认图片路径
         return Constants.TOKEN_DEFAULT_IMAGE;
     }
 
