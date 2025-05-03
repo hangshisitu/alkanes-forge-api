@@ -120,6 +120,10 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.INTEGER,
         comment: '最后更新区块号'
     },
+    data: {
+        type: DataTypes.TEXT,
+        comment: '部署元数据'
+    },
     twitter: {
         type: DataTypes.STRING,
         comment: 'twitter id'

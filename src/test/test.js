@@ -35,11 +35,11 @@ import AddressUtil from "../lib/AddressUtil.js";
 // });
 // console.log(alkanes);
 
-console.log(Buffer.from('7e798985b7958b235e64a8b4510754f4c3f8fd7523c2a46f6617e01cd5c9fb87', 'hex').reverse().toString('hex'))
-// console.log(new BigNumber('0x746a5288000').toNumber());
+// console.log(Buffer.from('77e4e6f4249e0f20608b97795341aa5f944c66c10069d20d3c2edd61658c2745', 'hex').reverse().toString('hex'))
+// console.log(new BigNumber('0x886c98b76000').toNumber());
 
 // 查询代币信息
-// const alkanes = await AlkanesService.getAlkanesById('2:21');
+// const alkanes = await AlkanesService.getAlkanesById('2:618');
 // console.log(alkanes);
 
 //查询地址下余额信息

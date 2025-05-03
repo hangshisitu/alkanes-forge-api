@@ -29,14 +29,15 @@ import * as logger from '../conf/logger.js';
 // 103: GetMinted() -> u128
 // 104: GetValuePerMint() -> u128
 // 1000: GetData() -> Vec
-const opcodes = ['99', '100', '101', '102', '103', '104']
+const opcodes = ['99', '100', '101', '102', '103', '104', '1000']
 const opcodesHRV = [
     'name',
     'symbol',
     'totalSupply',
     'cap',
     'minted',
-    'mintAmount'
+    'mintAmount',
+    'data'
 ]
 
 export default class AlkanesService {
@@ -279,7 +280,7 @@ export default class AlkanesService {
             opcodeResults
                 .filter(item => item && item.opcodeHRV)
                 .forEach(({ result, opcodeHRV }) => {
-                    if (['name', 'symbol'].includes(opcodeHRV)) {
+                    if (['name', 'symbol', 'data'].includes(opcodeHRV)) {
                         tokenInfo[opcodeHRV] = result.string || '';
                     } else {
                         tokenInfo[opcodeHRV] = Number(result.le || 0);
@@ -402,10 +403,10 @@ export default class AlkanesService {
             script: protostone,
             value: 0
         });
-        // outputList.push({
-        //     address: config.revenueAddress.inscribe,
-        //     value: 3000
-        // });
+        outputList.push({
+            address: config.revenueAddress.inscribe,
+            value: 3000
+        });
 
         const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
