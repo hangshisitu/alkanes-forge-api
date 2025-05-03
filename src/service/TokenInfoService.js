@@ -588,4 +588,3 @@ export default class TokenInfoService {
 }
 
 TokenInfoService.refreshTokenListCache();
-TokenInfoService.amendTokenInfo();
