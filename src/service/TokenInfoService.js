@@ -35,7 +35,7 @@ export default class TokenInfoService {
             config.concurrencyLimit,
             activeTokens,
             async (token) => {
-                const fieldsToQuery = ['101', '103'];
+                const fieldsToQuery = ['101', '102', '103'];
                 try {
                     const data = await BaseUtil.retryRequest(
                         () => AlkanesService.getAlkanesById(token.id, fieldsToQuery),
@@ -58,7 +58,7 @@ export default class TokenInfoService {
                         data.minted !== undefined
                     ) {
                         data.premine = data.totalSupply - data.minted * token.mintAmount;
-                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, token.cap);
+                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
                         data.mintActive = data.progress >= 100 ? 0 : 1;
                     }
 
