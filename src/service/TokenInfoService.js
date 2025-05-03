@@ -117,6 +117,10 @@ export default class TokenInfoService {
                     break;
                 }
 
+                if (!alkanes.name) {
+                    continue;
+                }
+
                 if (
                     alkanes.totalSupply !== undefined &&
                     alkanes.minted !== undefined &&

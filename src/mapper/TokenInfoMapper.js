@@ -328,6 +328,7 @@ export default class TokenInfoMapper {
                 ${token.name ? `'${token.name}'` : "''"}, 
                 ${token.image ? `'${token.image}'` : "''"}, 
                 ${token.symbol ? `'${token.symbol}'` : "''"},
+                ${token.data ? `'${token.data}'` : "''"},
                 ${token.cap || 0}, 
                 ${token.premine || 0}, 
                 ${token.minted || 0}, 
@@ -340,6 +341,7 @@ export default class TokenInfoMapper {
             ON DUPLICATE KEY UPDATE 
                 name = VALUES(name),
                 symbol = VALUES(symbol),
+                data = VALUES(data),
                 cap = VALUES(cap),
                 premine = VALUES(premine),
                 minted = VALUES(minted),
