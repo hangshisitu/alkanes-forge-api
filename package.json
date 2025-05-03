@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.802.0",
     "@magiceden-oss/runestone-lib": "^1.0.2",
     "@mempool/mempool.js": "^2.3.0",
     "alkanes": "github:kungfuflex/alkanes",
@@ -35,7 +36,6 @@
     "mime": "^3.0.0",
     "mysql2": "^3.14.0",
     "nanoid": "^5.1.5",
-    "node-cloudflare-r2": "^0.4.2",
     "node-schedule": "^2.1.1",
     "reconnecting-websocket": "^4.4.0",
     "redis": "^4.7.0",

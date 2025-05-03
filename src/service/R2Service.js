@@ -1,33 +1,61 @@
-import { R2 } from 'node-cloudflare-r2';
 import config from '../conf/config.js';
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
-// Initialize R2
-const r2 = new R2({
-    accountId: config.r2.accountId,
+const r2 = new S3Client({
+  endpoint: config.r2.publicUrl,
+  region: "auto",
+  credentials: {
     accessKeyId: config.r2.accessKeyId,
     secretAccessKey: config.r2.secretAccessKey,
-    sslEnabled: true,
-    sslVerify: false, // Disable SSL verification for development
-    maxRetries: 3,
-    retryDelay: 1000
+  },
+  signatureVersion: "v4",
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
 });
-
-// Initialize bucket instance
-const bucket = r2.bucket(config.r2.bucketName);
-
-// [Optional] Provide the public URL(s) of your bucket, if its public access is allowed.
-bucket.provideBucketPublicUrl(config.r2.publicUrl);
 
 export default class R2Service {
 
-    static async uploadFile(file) {
-        let { text, filename, prefix } = file;
+    static async uploadText(file) {
+        let { text, filename, prefix, type } = file;
         if (!prefix) {
             prefix = config.r2.prefix;
         }
         const key = `${prefix}/${filename}`;
         try {
-            await bucket.upload(text, key);
+            const cmd = new PutObjectCommand({
+                Bucket:        config.r2.bucketName,
+                Key:           key,
+                Body:          text,
+                ContentType:   type,
+            });
+            const res = await r2.send(cmd);
+            if (!(res.$metadata.httpStatusCode === 200 || res.$metadata.httpStatusCode === 201)) {
+                throw new Error(`Upload error: ${res.$metadata.httpStatusCode}`);
+            }
+            return `${config.r2.urlDomain}/${key}`;
+        } catch (error) {
+            console.error('Upload error:', error);
+            throw error;
+        }
+    }
+
+    static async uploadBuffer(file) {
+        let { buffer, filename, prefix, type } = file;
+        if (!prefix) {
+            prefix = config.r2.prefix;
+        }
+        const key = `${prefix}/${filename}`;
+        try {
+            const cmd = new PutObjectCommand({
+                Bucket:        config.r2.bucketName,
+                Key:           key,
+                Body:          buffer,
+                ContentType:   type,
+            });
+            const res = await r2.send(cmd);
+            if (!(res.$metadata.httpStatusCode === 200 || res.$metadata.httpStatusCode === 201)) {
+                throw new Error(`Upload error: ${res.$metadata.httpStatusCode}`);
+            }
             return `${config.r2.urlDomain}/${key}`;
         } catch (error) {
             console.error('Upload error:', error);
@@ -35,9 +63,6 @@ export default class R2Service {
         }
     }
 }
-
-
-
 
 
 

@@ -13,6 +13,7 @@ import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import * as logger from '../conf/logger.js';
 import MempoolService from "./MempoolService.js";
 import R2Service from "./R2Service.js";
+import TokenInfo from "../models/TokenInfo.js";
 let tokenListCache = null;
 
 export default class TokenInfoService {
@@ -544,17 +545,43 @@ export default class TokenInfoService {
 
     static async amendTokenInfo() {
         const tokenList = await TokenInfoMapper.getAllTokens();
+        const updateTokens = [];
         for (const token of tokenList) {
             const text = token.data;
             if (!text) {
                 continue;
             }
             if (text.startsWith('data:image/')) {
-                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.png`, prefix: config.r2.prefix }));
+                updateTokens.push({
+                    id: token.id,
+                    image: await R2Service.uploadBuffer({ buffer: Buffer.from(text.split(',')[1], 'base64'), filename: `${token.id}.png`, prefix: config.r2.prefix, type: 'image/png' }),
+                });
             } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
-                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.svg`, prefix: config.r2.prefix }));
+                updateTokens.push({
+                    id: token.id,
+                    image: await R2Service.uploadText({ text, filename: `${token.id}.svg`, prefix: config.r2.prefix, type: 'image/svg+xml' }),
+                });
             } else {
-                console.log(await R2Service.uploadFile({ text, filename: `${token.id}.txt`, prefix: config.r2.prefix }));
+                updateTokens.push({
+                    id: token.id,
+                    data: await R2Service.uploadText({ text, filename: `${token.id}.txt`, prefix: config.r2.prefix, type: 'text/plain' })
+                });
+            }
+        }
+        if (updateTokens.length > 0) {
+            for (const token of updateTokens) {
+                const update = {};
+                if (token.image) {
+                    update.image = token.image;
+                    update.originImage = token.originImage;
+                    update.data = token.data;
+                } else if (token.data) {
+                    update.data = token.data;
+                }
+                await TokenInfo.update(update, {
+                    where: { id: token.id }
+                });
+                console.log(`${token.id} updated`);
             }
         }
     }

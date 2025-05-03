@@ -288,11 +288,11 @@ export default class AlkanesService {
                         const text = result.string || '';
                         if (opcodeHRV === 'data' && text) {
                             if (text.startsWith('data:image/')) {
-                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.png`, prefix: config.r2.prefix });
+                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadBuffer({ buffer: Buffer.from(text.split(',')[1], 'base64'), filename: `${id}.png`, prefix: config.r2.prefix, type: 'image/png' });
                             } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
-                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.svg`, prefix: config.r2.prefix });
+                                tokenInfo.image = tokenInfo.originImage = tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.svg`, prefix: config.r2.prefix, type: 'image/svg+xml' });
                             } else {
-                                tokenInfo.data = await R2Service.uploadFile({ text, filename: `${id}.txt`, prefix: config.r2.prefix });
+                                tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.txt`, prefix: config.r2.prefix, type: 'text/plain' });
                             }
                             continue;
                         }
