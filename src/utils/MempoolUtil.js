@@ -106,6 +106,21 @@ export default class MempoolUtil {
         }
     }
 
+    static async getTxRbf(txid) {
+        const url = `https://${mempoolHost}/api/v1/tx/${txid}/rbf`
+        try {
+            const resp = await axios.get(url, {
+                timeout: 10000
+            })
+            return resp.data;
+        } catch (err) {
+            if (err.response.status === 404) {
+                return null;
+            }
+            throw err;
+        }
+    }
+
     static async getTxOutspend(txid, vout) {
         return await transactions.getTxOutspend({
             txid,
@@ -123,7 +138,7 @@ export default class MempoolUtil {
     }
 
     static async getTxStatusEx(txid) {
-        const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/tx/${txid}/status`
+        const url = `https://${mempoolHost}/api/tx/${txid}/status`
         const resp = await axios.get(url, {
             timeout: 10000
         })
@@ -131,7 +146,7 @@ export default class MempoolUtil {
     }
 
     static async postTxEx(txHex) {
-        const url = `https://${mempoolHost}${strNetwork === "testnet" ? "/testnet" : ""}/api/tx`
+        const url = `https://${mempoolHost}/api/tx`
         const resp = await axios.post(url, txHex, {
             timeout: 10000
         })
@@ -194,3 +209,6 @@ export default class MempoolUtil {
         return await transactions.getTxOutspend({txid, vout});
     }
 }
+
+const rbf = await MempoolUtil.getTxRbf('9da2863295c8b036b1aea7f51f9e012d4e2ece27801af4698eb1b98f59ec2183')
+console.log(rbf?.replacements?.tx?.txid)

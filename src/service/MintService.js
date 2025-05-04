@@ -801,6 +801,17 @@ export default class MintService {
         }
     }
 
+    static async checkRbf(order) {
+        const rbf = await MempoolUtil.getTxRbf(order.paymentHash);
+        const rbfTxid = rbf?.replacements?.tx?.txid;
+        if (rbfTxid) {
+            logger.error(`tx ${order.paymentHash} for order ${order.id} rbf by ${rbfTxid}.`);
+            await MintOrderMapper.updateStatus(order.id, order.mintStatus, Constants.MINT_ORDER_STATUS.CANCELLED);
+            return true;
+        }
+        return false;
+    }
+
     static async checkMergeOrderBatch(orderId, batchIndex) {
         const itemList = await MintItemMapper.getMintItemsByOrderId(orderId, batchIndex);
         if (itemList.length === 0) {
@@ -848,7 +859,9 @@ export default class MintService {
                 logger.info(`start handle merge order partial ${order.id}`);
                 const tx = await MempoolUtil.getTxEx(order.paymentHash);
                 if (!tx) {
-                    logger.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                    if (!await MintService.checkRbf(order)) {
+                        logger.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                    }
                     return;
                 }
 
@@ -879,7 +892,9 @@ export default class MintService {
                 if (order.mintAmount <= mintAmountPerBatch) {
                     const tx = await MempoolUtil.getTxEx(order.paymentHash);
                     if (!tx) {
-                        logger.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                        if (!await MintService.checkRbf(order)) {
+                            logger.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                        }
                         return;
                     }
 
