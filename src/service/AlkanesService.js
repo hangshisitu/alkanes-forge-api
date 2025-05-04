@@ -30,7 +30,12 @@ import R2Service from "./R2Service.js";
 // 103: GetMinted() -> u128
 // 104: GetValuePerMint() -> u128
 // 1000: GetData() -> Vec
-const opcodes = ['99', '100', '101', '102', '103', '104', '1000']
+
+// 998: GetCollectionIdentifier
+// 999: GetCollectionAlkaneId
+// 1001: GetContentType,
+// 1002: GetAttributes,
+const opcodes = ['99', '100', '101', '102', '103', '104', '998', '999', '1000', '1001', '1002']
 const opcodesHRV = [
     'name',
     'symbol',
@@ -38,7 +43,11 @@ const opcodesHRV = [
     'cap',
     'minted',
     'mintAmount',
-    'data'
+    'collectionIdentifier',
+    'collectionAlkaneId',
+    'data',
+    'contentType',
+    'attributes',
 ]
 
 export default class AlkanesService {
@@ -283,7 +292,7 @@ export default class AlkanesService {
                     continue;
                 }
                 const { result, opcodeHRV } = item;
-                if (['name', 'symbol', 'data'].includes(opcodeHRV)) {
+                if (!['totalSupply', 'cap', 'minted', 'mintAmount'].includes(opcodeHRV)) {
                     const text = result.string || '';
                     if (opcodeHRV === 'data' && text) {
                         if (text.startsWith('data:image/')) {
@@ -299,7 +308,7 @@ export default class AlkanesService {
                     continue;
                 }
                 tokenInfo[opcodeHRV] = Number(result.le || 0);
-            }   
+            }
             return tokenInfo;
 
         } catch (error) {
@@ -504,6 +513,9 @@ export default class AlkanesService {
             const operationType = Number(request.inputs[0])
             return decoder(ret, operationType)
         }
+        if (request.inputs[0] === '999') {
+            return AlkanesService.decodeAlkaneId(data);
+        }
         return AlkanesService.parseSimulateReturn(data);
     }
 
@@ -581,6 +593,24 @@ export default class AlkanesService {
             be: BigInt(addHexPrefix(v)).toString(),
         }
     }
+
+    static decodeAlkaneId(hexString) {
+        // Remove 0x prefix if present
+        const cleanHex = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+
+        // Split into block and tx parts (each 16 bytes)
+        const blockHex = cleanHex.slice(0, 32);
+        const txHex = cleanHex.slice(32);
+
+        // Convert from little-endian hex to BigInt
+        const block = BigInt('0x' + blockHex.match(/../g).reverse().join(''));
+        const tx = BigInt('0x' + txHex.match(/../g).reverse().join(''));
+
+        return {
+            string: `${block}:${tx}`
+        };
+    }
+
 
     static getMintProtostone(id, model = Constants.MINT_MODEL.NORMAL) {
         const protostones = [];

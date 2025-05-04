@@ -19,6 +19,7 @@ export default class PsbtUtil {
             psbt.setMaximumFeeRate(50000);
         }
 
+        const inputToSign = [];
         const addressToIndexes = [];
         for (let i = 0; i < inputList.length; i++) {
             const input = inputList[i];
@@ -29,6 +30,11 @@ export default class PsbtUtil {
 
             const vin = await PsbtUtil.utxo2PsbtInputEx(input);
             psbt.addInput(vin);
+
+            inputToSign.push({
+                address: input.address,
+                index: i
+            })
         }
 
         const signingIndexesArr = [];
@@ -73,7 +79,8 @@ export default class PsbtUtil {
             fee: fee,
             hex: psbt.toHex(),
             base64: psbt.toBase64(),
-            signingIndexes: signingIndexesArr
+            signingIndexes: signingIndexesArr,
+            inputToSign: inputToSign
         };
     }
 
@@ -266,6 +273,13 @@ export default class PsbtUtil {
         }
         else if (hex_data.startsWith('7073')) {
             const psbt = bitcoin.Psbt.fromHex(hex_data);
+            for (const i in psbt.data.inputs) {
+                const input = psbt.data.inputs[i];
+                if (!input.finalScriptSig && !input.finalScriptWitness) {
+                    psbt.finalizeInput(i);
+                }
+            }
+
             const tx = psbt.extractTransaction();
             hex_data = tx.toHex();
 
