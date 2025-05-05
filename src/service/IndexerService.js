@@ -41,7 +41,7 @@ export default class IndexerService {
                         tx = await MempoolUtil.getTx(txid);
                         txs[txid] = tx;
                     }
-                    const address = tx.vout[vout].scriptPubKey.scriptpubkey_address;
+                    const address = tx.vout[vout].scriptpubkey_address;
                     for (const { rune_id, balance } of balances) {
                         const alkanesIdCount = balances.length;
                         records.push({
