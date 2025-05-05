@@ -5,7 +5,7 @@ import bodyParser from 'koa-bodyparser';
 import * as util from 'util'
 import AlkanesService from "./service/AlkanesService.js";
 import UnisatAPI from "./lib/UnisatAPI.js";
-import {jobMintStatus, jobs} from "./job/index.js";
+import {jobMintStatus, jobs, jobIndexer} from "./job/index.js";
 import MarketService from "./service/MarketService.js";
 import MarketListingMapper from "./mapper/MarketListingMapper.js";
 import TokenStatsService from "./service/TokenStatsService.js";
@@ -740,7 +740,7 @@ router
 
     // 索引器接口
     .post(Constants.API.INDEXER.PUSH, async ctx => {
-        logger.info(`indexer push ${JSON.stringify(ctx.request.body)}`);
+        // logger.info(`indexer push ${JSON.stringify(ctx.request.body)}`);
         await IndexerService.index(ctx.request.body);
         ctx.body = {
             'code': 0,
@@ -773,4 +773,9 @@ if (process.env.jobMintStatusEnable === 'true') {
 if (process.env.mempoolEnable === 'true') {
     mempool.start();
     logger.info(`Mempool started.`)
+}
+
+if (process.env.indexerEnable === 'true') {
+    jobIndexer();
+    logger.info(`jobIndexer started.`)
 }

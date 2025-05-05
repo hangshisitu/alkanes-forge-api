@@ -11,6 +11,7 @@ import MempoolUtil from "../utils/MempoolUtil.js";
 import * as MempoolIndex from "../mempool/index.js";
 import MintService from "../service/MintService.js";
 import * as logger from '../conf/logger.js';
+import IndexerService from '../service/IndexerService.js';
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
@@ -188,6 +189,27 @@ function refreshMintingMergeMintOrder() {
     });
 }
 
+let isIndexTx = false;
+function indexTx() {
+    schedule.scheduleJob('*/5 * * * * *', async () => {
+        if (isIndexTx) {
+            return;
+        }
+
+        try {
+            isIndexTx = true;
+            const execStartTime = Date.now();
+            logger.info(`indexTx start`);
+            await IndexerService.indexTx();
+            logger.info(`indexTx finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`indexTx error, error: ${err.message}`, err);
+        } finally {
+            isIndexTx = false;
+        }
+    });
+}
+
 export function jobs() {
     refreshBlockHeight();
     refreshTokenInfo();
@@ -200,4 +222,8 @@ export function jobMintStatus() {
     refreshMintingMergeMintOrder();
     // 最后启动内存池监控
     MempoolIndex.start(true);
+}
+
+export function jobIndexer() {
+    indexTx();
 }
