@@ -68,7 +68,7 @@ const OutpointRecord = sequelize.define('OutpointRecord', {
         allowNull: false,
         comment: '区块时间'
     },
-    updatedAt: {
+    updateAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
         allowNull: false,
