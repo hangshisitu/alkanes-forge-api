@@ -24,6 +24,7 @@ import * as logger from './conf/logger.js';
 import BaseUtil from './utils/BaseUtil.js';
 import * as RedisHelper from "./lib/RedisHelper.js";
 import config from "./conf/config.js";
+import IndexerService from './service/IndexerService.js';
 
 const app = new Koa();
 const router = new Router();
@@ -734,6 +735,16 @@ router
                 'code': 1,
                 'msg': e.message
             }
+        }
+    })
+
+    // 索引器接口
+    .post(Constants.API.INDEXER.PUSH, async ctx => {
+        await IndexerService.index(ctx.request.body);
+        ctx.body = {
+            'code': 0,
+            'msg': 'ok',
+            'data': ''
         }
     })
 ;

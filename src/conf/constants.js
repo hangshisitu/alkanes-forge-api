@@ -168,6 +168,10 @@ export const Constants = Object.freeze({
 
         METHANE: {
             COMMUNITY_CHECK: '/methane/community/check'
+        },
+
+        INDEXER: {
+            PUSH: '/indexer/push'
         }
     },
 
