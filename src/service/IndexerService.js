@@ -3,7 +3,7 @@ import MempoolUtil from '../utils/MempoolUtil.js';
 import OutpointRecordMapper from '../mapper/OutpointRecordMapper.js';
 import IndexBlockMapper from '../mapper/IndexBlockMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
-import logger from '../conf/logger.js';
+import * as logger from '../conf/logger.js';
 
 export default class IndexerService {
 
