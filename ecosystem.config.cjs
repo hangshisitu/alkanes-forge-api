@@ -72,5 +72,19 @@ module.exports = {
                 mempoolEnable: true
             },
         },
+        {
+            name: 'alkanes-indexer',
+            script: 'src/app.js',
+            env: {
+                NODE_ENV: 'dev',
+                indexerEnable: true,
+                port: 57777,
+            },
+            env_pro: {
+                NODE_ENV: 'pro',
+                indexerEnable: true,
+                port: 57777,
+            },
+        },
     ],
 };
