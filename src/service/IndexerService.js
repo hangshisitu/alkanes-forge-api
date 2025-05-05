@@ -34,33 +34,35 @@ export default class IndexerService {
             const txids = await MempoolUtil.getBlockTxIds(blockHash);
             await BaseUtil.concurrentExecute(outpoint_balances, async (outpoint_balance) => {
                 const { balances, txid, vout } = outpoint_balance;
-                const txIdx = txids.indexOf(txid);
-                let tx = txs[txid];
-                if (!tx) {
-                    tx = await MempoolUtil.getTx(txid);
-                    txs[txid] = tx;
-                }
-                const address = tx.vout[vout].scriptPubKey.scriptpubkey_address;
-                for (const { rune_id, balance } of balances) {
-                    const alkanesIdCount = balances.length;
-                    records.push({
-                        block: height,
-                        txIdx,
-                        txid,
-                        vout,
-                        address,
-                        balance,
-                        alkanesId: rune_id,
-                        alkanesIdCount,
-                        spent: false,
-                        blockTime: tx.status.block_time
-                    });
+                try {
+                    const txIdx = txids.indexOf(txid);
+                    let tx = txs[txid];
+                    if (!tx) {
+                        tx = await MempoolUtil.getTx(txid);
+                        txs[txid] = tx;
+                    }
+                    const address = tx.vout[vout].scriptPubKey.scriptpubkey_address;
+                    for (const { rune_id, balance } of balances) {
+                        const alkanesIdCount = balances.length;
+                        records.push({
+                            block: height,
+                            txIdx,
+                            txid,
+                            vout,
+                            address,
+                            balance,
+                            alkanesId: rune_id,
+                            alkanesIdCount,
+                            spent: false,
+                            blockTime: tx.status.block_time
+                        });
+                    }
+                } catch (e) {
+                    logger.error(`index block ${height} tx ${txid} vout ${vout} failed, ${e.message}`, e);
+                    throw e;
                 }
             }, null, errors);
             if (errors.length > 0) {
-                errors.forEach((error) => {
-                    logger.error(`index block ${height} failed`, error);
-                });
                 throw new Error(`index block ${height} failed, ${errors.length} errors`);
             }
             for (const batch of BaseUtil.splitArray(records, 100)) {
