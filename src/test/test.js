@@ -40,8 +40,8 @@ import AlkanesService from "../service/AlkanesService.js";
 // console.log(new BigNumber('0x5f5e100').toNumber());
 
 // 查询代币信息
-const alkanes = await AlkanesService.getAlkanesById('2:700');
-console.log(alkanes);
+// const alkanes = await AlkanesService.getAlkanesById('2:700');
+// console.log(alkanes);
 
 //查询地址下余额信息
 // const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pg4czeatqpvzyrw5ekw7ryq2a6j7x2y0xz9yxuj4c2dq6gm0j0r7sqaevy9');

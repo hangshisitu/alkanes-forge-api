@@ -1,6 +1,7 @@
 import config from '../conf/config.js';
 import axios from 'axios';
 import { Block, Transaction } from 'bitcoinjs-lib';
+import * as logger from '../conf/logger.js';
 
 class BtcRPC {
     constructor() {
@@ -29,7 +30,7 @@ class BtcRPC {
 
             return response.data.result;
         } catch (error) {
-            console.error(`BTC RPC call failed: ${error.message}`);
+            logger.error(`BTC RPC call failed: ${error.message}`, error);
             throw error;
         }
     }

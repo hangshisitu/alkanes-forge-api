@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import {Constants} from "../conf/constants.js";
 import * as bitcoin from "bitcoinjs-lib";
 import config from "../conf/config.js";
+import * as logger from '../conf/logger.js';
 
 const SIGN_MESSAGE = 'idclub.io wants you to sign in with your Bitcoin account:\n' +
     '{address}\n' +
@@ -63,7 +64,7 @@ export default class UserService {
         return alkanesList.map(alkanes => {
             const token = tokenMap.get(alkanes.id);
             if (!token) {
-                console.error(`not found token: ${alkanes.id}`);
+                logger.error(`not found token: ${alkanes.id}`);
             }
             return {
                 ...alkanes,

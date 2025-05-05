@@ -4,14 +4,13 @@ import AddressBalance from '../models/AddressBalance.js';
 export default class AddressBalanceMapper {
 
     static async updateAddressBalance(address, alkanesId, balance, block) {
-        await AddressBalance.update({
+        await AddressBalance.upsert({
+            address,
+            alkanesId,
             balance,
             updateBlock: block,
         }, {
-            where: {
-                address,
-                alkanesId,
-            },
+            conflictFields: ['address', 'alkanesId']
         });
     }
 }

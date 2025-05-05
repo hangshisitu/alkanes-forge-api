@@ -217,6 +217,3 @@ export default class MempoolUtil {
         return await transactions.getTxOutspend({txid, vout});
     }
 }
-
-const rbf = await MempoolUtil.getTxRbf('9da2863295c8b036b1aea7f51f9e012d4e2ece27801af4698eb1b98f59ec2183')
-console.log(rbf?.replacements?.tx?.txid)

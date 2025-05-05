@@ -331,7 +331,7 @@ export default class TokenInfoService {
             }
             // 否则，返回未知代币的默认图片路径
         } catch (err) {
-            console.error(`getDefaultTokenImage for ${tokenName} error`)
+            logger.error(`getDefaultTokenImage for ${tokenName} error`, err);
         }
         return Constants.TOKEN_DEFAULT_IMAGE;
     }
@@ -581,7 +581,7 @@ export default class TokenInfoService {
                 await TokenInfo.update(update, {
                     where: { id: token.id }
                 });
-                console.log(`${token.id} updated`);
+                logger.info(`${token.id} updated`);
             }
         }
     }

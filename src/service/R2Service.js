@@ -1,5 +1,6 @@
 import config from '../conf/config.js';
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import * as logger from '../conf/logger.js';
 
 const r2 = new S3Client({
   endpoint: config.r2.publicUrl,
@@ -34,7 +35,7 @@ export default class R2Service {
             }
             return `${config.r2.urlDomain}/${key}`;
         } catch (error) {
-            console.error('Upload error:', error);
+            logger.error('Upload error:', error);
             throw error;
         }
     }
@@ -58,7 +59,7 @@ export default class R2Service {
             }
             return `${config.r2.urlDomain}/${key}`;
         } catch (error) {
-            console.error('Upload error:', error);
+            logger.error('Upload error:', error);
             throw error;
         }
     }

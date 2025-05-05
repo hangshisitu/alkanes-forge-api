@@ -108,6 +108,9 @@ export default class IndexerService {
                 const blockHash = await MempoolUtil.getBlockHash(block);
                 const txs = await BtcRPC.getBlockTransactions(blockHash);
                 const vins = txs.map((tx, txIdx) => {
+                    if (txIdx === 0) { // coinbase tx
+                        return [];
+                    }
                     const txid = tx.txid;
                     const hasOpReturn = tx.vout.some(v => v.scriptPubKey.hex.startsWith('6a5d'));
                     return tx.vin.map((v, vinIdx) => {
@@ -144,7 +147,7 @@ export default class IndexerService {
                 if (errors.length > 0) {
                     throw new Error(`handle block ${block} spend info failed, ${errors.length} errors`);
                 }
-                const effectCount = effectCounts.reduce((acc, curr) => acc + curr, 0);
+                const effectCount = effectCounts.reduce((acc, curr) => +curr + acc, 0);
                 logger.info(`handle block ${block} spend info success, effect count: ${effectCount}`);
 
                 await this.updateAddressesBalance(block);
@@ -166,7 +169,10 @@ export default class IndexerService {
 
     static async updateAddressesBalance(block) {
         // 找出受影响的address
-        const effectAddresses = await OutpointRecord.distinct('address', {
+        const effectOutpointRecords = await OutpointRecord.findAll({
+            attributes: ['address', 'alkanesId'],
+            group: ['address', 'alkanesId'],
+            raw: true,
             where: {
                 [Op.or]: [
                     {
@@ -180,24 +186,46 @@ export default class IndexerService {
                 ]
             },
         });
-        const updatedAddresses = await AddressBalance.distinct('address', {
+        const effectBalances = await AddressBalance.findAll({
+            attributes: ['address', 'alkanesId'],
+            group: ['address', 'alkanesId'],
+            raw: true,
             where: {
                 updateBlock: {
                     [Op.gte]: block,
                 },
             },
         });
-        effectAddresses.push(...updatedAddresses);
+        //从effectOutpointRecords和effectBalances找出每个address的哪些alkanesId需要更新(每个address有多个alkanesId)
+        const effectAddressAlkanes = effectOutpointRecords.reduce((acc, record) => {
+            acc[record.address] = acc[record.address] || new Set();
+            acc[record.address].add(record.alkanesId);
+            return acc;
+        }, {});
+        effectBalances.reduce((acc, balance) => {
+            acc[balance.address] = acc[balance.address] || new Set();
+            acc[balance.address].add(balance.alkanesId);
+            return acc;
+        }, effectAddressAlkanes);
+
+
         // 更新受影响的address的balance
-        if (effectAddresses.length === 0) {
+        if (Object.keys(effectAddressAlkanes).length === 0) {
+            logger.info(`block ${block} no effect address alkanes`);
             return;
         }
         const addressAlkanesBalances = await OutpointRecord.findAll({
             where: {
                 address: {
-                    [Op.in]: effectAddresses,
+                    [Op.in]: Object.keys(effectAddressAlkanes),
+                },
+                alkanesId: {
+                    [Op.in]: Object.values(effectAddressAlkanes).map(set => [...set]).flat(),
                 },
                 spent: false,
+                block: {
+                    [Op.lte]: block,
+                },
             },
             group: ['address', 'alkanesId'],
             attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.col('balance')), 'balance']],
@@ -218,7 +246,6 @@ export default class IndexerService {
     }
 
 }
-
 
 
 
