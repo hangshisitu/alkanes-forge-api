@@ -6,7 +6,7 @@ export default class IndexBlockMapper {
     static async deleteAfter(block) {
         await IndexBlock.destroy({
             where: {
-                height: {
+                block: {
                     [Op.gte]: block
                 }
             }
