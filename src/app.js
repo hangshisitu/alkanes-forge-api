@@ -740,6 +740,7 @@ router
 
     // 索引器接口
     .post(Constants.API.INDEXER.PUSH, async ctx => {
+        logger.info(`indexer push ${JSON.stringify(ctx.request.body)}`);
         await IndexerService.index(ctx.request.body);
         ctx.body = {
             'code': 0,

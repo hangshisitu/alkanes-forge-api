@@ -4,6 +4,7 @@ import OutpointRecordMapper from '../mapper/OutpointRecordMapper.js';
 import IndexBlockMapper from '../mapper/IndexBlockMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
 import * as logger from '../conf/logger.js';
+import OutpointRecord from '../models/OutpointRecord.js';
 
 export default class IndexerService {
 
@@ -28,7 +29,6 @@ export default class IndexerService {
         await OutpointRecordMapper.deleteAfter(height);
         await IndexBlockMapper.deleteAfter(height);
         if (outpoint_balances.length > 0) {
-            const records = [];
             const txs = {};
             const errors =[];
             const txids = await MempoolUtil.getBlockTxIds(blockHash);
@@ -44,14 +44,14 @@ export default class IndexerService {
                     const address = tx.vout[vout].scriptpubkey_address;
                     for (const { rune_id, balance } of balances) {
                         const alkanesIdCount = balances.length;
-                        records.push({
+                        await OutpointRecord.create({
                             block: height,
                             txIdx,
                             txid,
                             vout,
                             address,
-                            balance,
                             alkanesId: rune_id,
+                            balance,
                             alkanesIdCount,
                             spent: false,
                             blockTime: tx.status.block_time
@@ -64,9 +64,6 @@ export default class IndexerService {
             }, null, errors);
             if (errors.length > 0) {
                 throw new Error(`index block ${height} failed, ${errors.length} errors`);
-            }
-            for (const batch of BaseUtil.splitArray(records, 100)) {
-                await OutpointRecordMapper.bulkUpsert(batch);
             }
         }
         await IndexBlock.create({
