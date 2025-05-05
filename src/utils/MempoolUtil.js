@@ -205,6 +205,14 @@ export default class MempoolUtil {
         }
     }
 
+    static async getBlockHash(height) {
+        const url = `https://${mempoolHost}/api/block-height/${height}`
+        const resp = await axios.get(url, {
+            timeout: 10000
+        })
+        return resp.data;
+    }
+
     static async getOutspend(txid, vout) {
         return await transactions.getTxOutspend({txid, vout});
     }
