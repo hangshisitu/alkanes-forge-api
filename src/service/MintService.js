@@ -16,8 +16,6 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import {Queue} from "../utils/index.js";
 import * as logger from '../conf/logger.js';
 
-
-const mintAmountPerBatch = 25;
 const broadcastQueue = new Queue();
 
 export default class MintService {
@@ -42,7 +40,7 @@ export default class MintService {
         const lastMintSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: toAddress}, {script: transferProtostone}]);
         const lastMintFee = Math.ceil(lastMintSize * feerate) + postage;
 
-        const batchList = BaseUtil.splitByBatchSize(mints, mintAmountPerBatch);
+        const batchList = BaseUtil.splitByBatchSize(mints, Constants.MINT_AMOUNT_PER_BATCH);
         const diffFeerate = maxFeerate - feerate;
 
         const fundOutputList = [];
@@ -105,7 +103,7 @@ export default class MintService {
             lastMintSize,
             serviceFee,
             diffFeerate
-        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate, mintAmountPerBatch);
+        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate, Constants.MINT_AMOUNT_PER_BATCH);
 
         // 交易打包相关费用估算
         const transferSize = FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]);
@@ -139,7 +137,7 @@ export default class MintService {
     }
 
     // 订单实际构建函数
-    static async preCreateMergeOrder(fundAddress, fundPublicKey, userAddress, toAddress, id, mints, postage, feerate, maxFeerate = 0, mintAmountPerBatch = 1) {
+    static async preCreateMergeOrder(fundAddress, fundPublicKey, userAddress, toAddress, id, mints, postage, feerate, maxFeerate = 0) {
         const {
             batchList,
             mintAddress,
@@ -149,7 +147,7 @@ export default class MintService {
             lastMintSize,
             serviceFee,
             diffFeerate
-        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate, mintAmountPerBatch);
+        } = await MintService.calcMergeOrderOutputs(fundAddress, toAddress, id, mints, postage, feerate, maxFeerate);
 
         // 交易打包相关费用估算
         const transferSize = FeeUtil.estTxSize([{address: fundAddress}], [...fundOutputList, {address: fundAddress}]);
@@ -280,7 +278,7 @@ export default class MintService {
             mintStatus: Constants.MINT_STATUS.MINTING
         }];
 
-        const maxMintAmount = Math.min(mintOrder.mintAmount, mintAmountPerBatch);
+        const maxMintAmount = Math.min(mintOrder.mintAmount, Constants.MINT_AMOUNT_PER_BATCH);
         for (let i = 1; i < maxMintAmount; i++) {
             const inputUtxo = {
                 txid: inputTxid,
@@ -409,7 +407,7 @@ export default class MintService {
         }
 
         const mintTxs = await MintItemMapper.selectMintTxs(orderId, Constants.MINT_STATUS.MINTING);
-        if (!mintTxs || mintTxs.length === 0 || mintTxs.length > mintAmountPerBatch) {
+        if (!mintTxs || mintTxs.length === 0 || mintTxs.length > Constants.MINT_AMOUNT_PER_BATCH) {
             logger.error(`pre cancel merge order ${orderId} mint txs is not valid.`);
             throw new Error('All minting has been broadcast, no refundable amount.');
         }
@@ -617,7 +615,7 @@ export default class MintService {
             const totalItemList = [];
             if (mintOrder.mintStatus === Constants.MINT_ORDER_STATUS.PARTIAL) {
                 const orderId = mintOrder.id;
-                const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, mintAmountPerBatch);
+                const batchList = BaseUtil.splitByBatchSize(mintOrder.mintAmount, Constants.MINT_AMOUNT_PER_BATCH);
                 for (let i = 1; i < batchList.length; i++) {
                     const inputUtxo = {
                         txid: mintOrder.paymentHash,
@@ -889,7 +887,7 @@ export default class MintService {
             try {
                 logger.info(`start handle merge minting order ${order.id}`);
                 // 如果只有一个批次，直接检查铸造状态
-                if (order.mintAmount <= mintAmountPerBatch) {
+                if (order.mintAmount <= Constants.MINT_AMOUNT_PER_BATCH) {
                     const tx = await MempoolUtil.getTxEx(order.paymentHash);
                     if (!tx) {
                         if (!await MintService.checkRbf(order)) {
@@ -915,7 +913,7 @@ export default class MintService {
                 }
 
                 // 多个批次，检查剩下批次的铸造状态
-                const batch = BaseUtil.splitByBatchSize(order.mintAmount, mintAmountPerBatch).length;
+                const batch = BaseUtil.splitByBatchSize(order.mintAmount, Constants.MINT_AMOUNT_PER_BATCH).length;
                 const batchIndexes = [];
                 for (let i = 0; i < batch; i++) {
                     batchIndexes.push(i);

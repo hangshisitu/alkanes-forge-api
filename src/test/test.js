@@ -36,12 +36,12 @@ import AlkanesService from "../service/AlkanesService.js";
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('45f600d929feb14438c468595901e46ddbf228ddd6537da7167785e69adb6387', 'hex').reverse().toString('hex'))
-// console.log(new BigNumber('0x5f5e100').toNumber());
+// console.log(Buffer.from('0x41a1', 'hex').reverse().toString('hex'))
+// console.log(new BigNumber('0x1b').toNumber());
 
 // 查询代币信息
-// const alkanes = await AlkanesService.getAlkanesById('2:700');
-// console.log(alkanes);
+const alkanes = await AlkanesService.getAlkanesById('2:614');
+console.log(alkanes);
 
 //查询地址下余额信息
 // const alkanesList = await AlkanesService.getAlkanesByAddress('bc1pg4czeatqpvzyrw5ekw7ryq2a6j7x2y0xz9yxuj4c2dq6gm0j0r7sqaevy9');

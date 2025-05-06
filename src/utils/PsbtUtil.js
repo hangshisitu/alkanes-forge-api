@@ -177,9 +177,9 @@ export default class PsbtUtil {
 
     static fromPsbt(psbt) {
         if (psbt.startsWith('cH')) {
-            return bitcoin.Psbt.fromBase64(psbt);
+            return bitcoin.Psbt.fromBase64(psbt, {network: config.network});
         }
-        return bitcoin.Psbt.fromHex(psbt);
+        return bitcoin.Psbt.fromHex(psbt, {network: config.network});
     }
 
 
@@ -260,41 +260,39 @@ export default class PsbtUtil {
     }
 
     static convertPsbtHex(hex_data) {
-        let txid;
-        let txSize;
+        let tx;
         if (hex_data.startsWith('cH')) {
-            const psbt = bitcoin.Psbt.fromBase64(hex_data);
-            psbt.finalizeAllInputs();
-            hex_data = psbt.toHex();
-
-            const tx = psbt.extractTransaction();
-            txid = tx.getId();
-            txSize = BaseUtil.divCeil(tx.weight(), 4);
-        }
-        else if (hex_data.startsWith('7073')) {
-            const psbt = bitcoin.Psbt.fromHex(hex_data);
-            for (const i in psbt.data.inputs) {
-                const input = psbt.data.inputs[i];
-                if (!input.finalScriptSig && !input.finalScriptWitness) {
-                    psbt.finalizeInput(i);
-                }
-            }
-
-            const tx = psbt.extractTransaction();
-            hex_data = tx.toHex();
-
-            txid = tx.getId();
-            txSize = BaseUtil.divCeil(tx.weight(), 4);
+            const psbt = bitcoin.Psbt.fromBase64(hex_data, {network: config.network});
+            tx = this.finalizeAndExtract(psbt);
+        } else if (hex_data.startsWith('7073')) {
+            const psbt = bitcoin.Psbt.fromHex(hex_data, {network: config.network});
+            tx = this.finalizeAndExtract(psbt);
         } else {
-            const tx = bitcoin.Transaction.fromHex(hex_data);
-            txid = tx.getId();
-            txSize = BaseUtil.divCeil(tx.weight(), 4);
+            tx = bitcoin.Transaction.fromHex(hex_data);
         }
+
+        const hex = tx.toHex();
+        const txid = tx.getId();
+        const txSize = BaseUtil.divCeil(tx.weight(), 4);
+
         return {
             txid,
-            hex: hex_data,
-            txSize: txSize
-        }
+            hex,
+            txSize
+        };
+    }
+
+    static finalizeAndExtract(psbt) {
+        psbt.data.inputs.forEach((input, i) => {
+            if (!input.finalScriptSig && !input.finalScriptWitness) {
+                try {
+                    psbt.finalizeInput(i);
+                } catch (e) {
+                    throw new Error(`Failed to finalize input #${i}: ${e.message}`);
+                }
+            }
+        });
+        return psbt.extractTransaction();
     }
 }
 

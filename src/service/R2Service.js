@@ -21,7 +21,8 @@ export default class R2Service {
         if (!prefix) {
             prefix = config.r2.prefix;
         }
-        const key = `${prefix}/${filename}`;
+        const envPath = process.env.NODE_ENV === 'pro' ? '' : 'testnet/';
+        const key = `${envPath}${prefix}/${filename}`;
         try {
             const cmd = new PutObjectCommand({
                 Bucket:        config.r2.bucketName,
@@ -45,7 +46,8 @@ export default class R2Service {
         if (!prefix) {
             prefix = config.r2.prefix;
         }
-        const key = `${prefix}/${filename}`;
+        const envPath = process.env.NODE_ENV === 'pro' ? '' : 'testnet/';
+        const key = `${envPath}${prefix}/${filename}`;
         try {
             const cmd = new PutObjectCommand({
                 Bucket:        config.r2.bucketName,

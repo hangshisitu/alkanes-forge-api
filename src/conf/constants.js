@@ -1,6 +1,8 @@
 export const Constants = Object.freeze({
     TOKEN_DEFAULT_IMAGE: "https://static.okx.com/cdn/web3/currency/token/default-logo/token_custom_logo_unknown.png",
 
+    MINT_AMOUNT_PER_BATCH: 25, // 铸造订单每个批次的数量
+
     JWT: {
         SECRET: 'Yc9FTUPI3MNaaJwSkZunCbnWmQUGytDs',
         TOKEN_EXPIRE: '24h'
