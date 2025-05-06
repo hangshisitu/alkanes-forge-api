@@ -229,7 +229,7 @@ export default class IndexerService {
                 },
             },
             group: ['address', 'alkanesId'],
-            attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.col('balance')), 'balance']],
+            attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.literal('CAST(balance AS UNSIGNED)')), 'balance']],
             raw: true,
         });
 
