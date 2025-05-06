@@ -230,7 +230,28 @@ export default class IndexerService {
             },
             group: ['address', 'alkanesId'],
             attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.col('balance')), 'balance']],
+            raw: true,
         });
+
+        // Create a map of existing address-alkanesId combinations
+        const existingCombinations = new Set();
+        addressAlkanesBalances.forEach(record => {
+            existingCombinations.add(`${record.address}-${record.alkanesId}`);
+        });
+
+        // Add zero balance records for missing combinations
+        Object.entries(effectAddressAlkanes).forEach(([address, alkanesIds]) => {
+            alkanesIds.forEach(alkanesId => {
+                if (!existingCombinations.has(`${address}-${alkanesId}`)) {
+                    addressAlkanesBalances.push({
+                        address,
+                        alkanesId,
+                        balance: 0
+                    });
+                }
+            });
+        });
+
         const errors = [];
         await BaseUtil.concurrentExecute(addressAlkanesBalances, async (addressAlkanesBalance) => {
             const { address, alkanesId, balance } = addressAlkanesBalance;
