@@ -10,6 +10,7 @@ import { Op } from 'sequelize';
 import sequelize from '../lib/SequelizeHelper.js';
 import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import AddressBalance from '../models/AddressBalance.js';
+import TokenInfoService from '../service/TokenInfoService.js';
 
 export default class IndexerService {
 
@@ -243,6 +244,60 @@ export default class IndexerService {
         if (errors.length > 0) {
             throw new Error(`block ${block} update addresses balance failed, ${errors.length} errors`);
         }
+    }
+
+    static async getHolderPage(alkanesId, page, size) {
+        const tokenInfo = await TokenInfoService.getTokenInfo(alkanesId);
+        if (!tokenInfo) {
+            throw new Error(`token ${alkanesId} not found`);
+        }
+        const holders = await sequelize.query(`
+            select address, balance, balance / :permint as cnt 
+            from address_balance 
+            where alkanes_id = :alkanesId 
+            group by address
+            order by cnt desc
+            limit :size offset :offset
+        `, {
+            replacements: {
+                alkanesId,
+                permint: tokenInfo.mintAmount,
+                size,
+                offset: (page - 1) * size,
+            },
+            raw: true,
+        });
+        const total = await AddressBalance.count({
+            where: {
+                alkanesId,
+            },
+        });
+        return {
+            page,
+            size,
+            total,
+            pages: Math.ceil(total / size),
+            records: holders,
+        };
+    }
+
+    static async getAddressAlkanesOutpoints(address, alkanesId, limit = 10, spent = false) {
+        const where = {
+            address,
+            alkanesId,
+        };
+        if (spent != null) {
+            where.spent = spent;
+        }
+        const outpoints = await OutpointRecord.findAll({
+            where,
+            limit: limit + 1,
+            order: [['block', 'ASC']],
+        });
+        return {
+            outpoints: outpoints.slice(0, limit),
+            hasMore: outpoints.length > limit,
+        };
     }
 
 }

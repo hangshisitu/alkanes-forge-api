@@ -748,7 +748,40 @@ router
             'data': ''
         }
     })
-;
+    .post(Constants.API.INDEXER.HOLDER_PAGE, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await IndexerService.getHolderPage(params.alkanesId, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.INDEXER.ADDRESS_ALKANES_OUTPOINTS, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await IndexerService.getAddressAlkanesOutpoints(params.address, params.alkanesId, params.limit, params.spent);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    });
 
 app.use(bodyParser());
 app.use(jwtAuth);

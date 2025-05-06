@@ -585,6 +585,14 @@ export default class TokenInfoService {
             }
         }
     }
+
+    static async getTokenInfo(alkanesId) {
+        const token = tokenListCache ? tokenListCache.find(t => t.id === alkanesId) : null;
+        if (!token) {
+            return await TokenInfoMapper.getTokenInfo(alkanesId);
+        }
+        return token;
+    }
 }
 
 TokenInfoService.refreshTokenListCache();

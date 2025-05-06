@@ -171,7 +171,9 @@ export const Constants = Object.freeze({
         },
 
         INDEXER: {
-            PUSH: '/indexer/push'
+            PUSH: '/indexer/push',
+            HOLDER_PAGE: '/indexer/holderPage',
+            ADDRESS_ALKANES_OUTPOINTS: '/indexer/outpoints'
         }
     },
 
