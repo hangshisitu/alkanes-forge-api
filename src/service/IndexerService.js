@@ -235,7 +235,9 @@ export default class IndexerService {
         await BaseUtil.concurrentExecute(addressAlkanesBalances, async (addressAlkanesBalance) => {
             const { address, alkanesId, balance } = addressAlkanesBalance;
             try {
-                await AddressBalanceMapper.updateAddressBalance(address, alkanesId, balance, block);
+                // Convert balance to string without scientific notation using BigInt
+                const balanceStr = BigInt(balance).toString();
+                await AddressBalanceMapper.updateAddressBalance(address, alkanesId, balanceStr, block);
             } catch (e) {
                 logger.error(`block ${block} update address ${address} alkanesId ${alkanesId} balance ${balance} failed, ${e.message}`, e);
                 throw e;
