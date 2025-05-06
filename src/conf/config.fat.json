@@ -38,5 +38,10 @@
     "publicUrl": "https://78b1a26447b2c512bc17a688decc20a1.r2.cloudflarestorage.com",
     "prefix": "alkanes",
     "urlDomain": "https://cdn.idclub.io"
+  },
+  "btc": {
+    "host": "http://10.6.96.3:2088",
+    "username": "idclub",
+    "password": "Bitcoin2088"
   }
 }
