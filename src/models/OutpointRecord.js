@@ -27,6 +27,11 @@ const OutpointRecord = sequelize.define('OutpointRecord', {
         allowNull: false,
         comment: 'vout序号'
     },
+    value: {
+        type: DataTypes.STRING(128),
+        allowNull: false,
+        comment: 'utxo聪数'
+    },
     address: {
         type: DataTypes.STRING(128),
         allowNull: false,

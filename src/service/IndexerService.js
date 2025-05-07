@@ -55,6 +55,7 @@ export default class IndexerService {
                             txIdx,
                             txid,
                             vout,
+                            value: tx.vout[vout].value,
                             address,
                             alkanesId: rune_id,
                             balance,
