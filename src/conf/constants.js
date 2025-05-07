@@ -225,7 +225,7 @@ export const Constants = Object.freeze({
             CREATE_UNSIGNED_BUYING: '/nft/market/createUnsignedBuying',
             PUT_SIGNED_BUYING: '/nft/market/putSignedBuying',
             EVENTS: '/nft/market/events',
-            TOKEN_STATS: '/nft/market/tokenStats',
+            COLLECTION_STATS: '/nft/market/collectionStats',
         },
 
         INSCRIBE: {
