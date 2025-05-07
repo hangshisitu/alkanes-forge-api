@@ -14,6 +14,10 @@ import * as logger from '../conf/logger.js';
 import MempoolService from "./MempoolService.js";
 import R2Service from "./R2Service.js";
 import TokenInfo from "../models/TokenInfo.js";
+import NftCollectionService from "./NftCollectionService.js";
+import NftItemService from "./NftItemService.js";
+import NftAttributeService from "./NftAttributeService.js";
+
 let tokenListCache = null;
 
 export default class TokenInfoService {
@@ -24,7 +28,10 @@ export default class TokenInfoService {
         logger.info(`found existing tokens: ${tokenList.length}`);
 
         // 2. 获取需要更新的活跃token
-        const activeTokens = tokenList.filter(token => token.mintActive);
+        const nftCollectionList = await NftCollectionService.getAllNftCollection();
+        const activeTokens = tokenList.filter(token => {
+            return token.mintActive || nftCollectionList.find(nftCollection => nftCollection.id === token.id);
+        });
         logger.info(`found active tokens: ${activeTokens.length}`);
 
         // 3. 并行获取活跃token的最新数据
@@ -97,6 +104,8 @@ export default class TokenInfoService {
 
         // 5. 查找新token
         const newAlkaneList = [];
+        const newNftCollectionList = [];
+        const newNftItemList = [];
         const maxNewTokensToCheck = 100;
         const existingIds = new Set(tokenList.map(t => t.id));
         const activeIds = new Set(alkaneList.map(t => t.id));
@@ -122,6 +131,15 @@ export default class TokenInfoService {
                     continue;
                 }
 
+                if (alkanes.collectionAlkaneId) { // nft合集id
+                    newNftCollectionList.push({
+                        id: alkanes.collectionAlkaneId,
+                        identifier: alkanes.collectionIdentifier,
+                    });
+                    newNftItemList.push(alkanes);
+                    continue;
+                }
+
                 if (
                     alkanes.totalSupply !== undefined &&
                     alkanes.minted !== undefined &&
@@ -135,6 +153,16 @@ export default class TokenInfoService {
                     alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
                 }
 
+                const nftCollection = nftCollectionList.find(nftCollection => nftCollection.id === tokenId);
+                
+                if (nftCollection) {
+                    if (nftCollection.totalSupply != null) {
+                        alkanes.totalSupply = nftCollection.totalSupply;
+                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.cap, nftCollection.totalSupply);
+                        alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
+                    }
+                }
+
                 newAlkaneList.push(alkanes);
                 existingIds.add(tokenId);
             } catch (error) {
@@ -142,7 +170,7 @@ export default class TokenInfoService {
                 break; // 遇到错误停止检查新token
             }
         }
-        logger.info(`found new tokens: ${newAlkaneList.length}`);
+        logger.info(`found new tokens: ${newAlkaneList.length}, new nft item: ${newNftItemList.length}`);
 
         // 6. 合并所有token数据
         const tokenMap = new Map();
@@ -176,6 +204,63 @@ export default class TokenInfoService {
 
         // 9. 更新数据库和缓存
         await TokenInfoMapper.bulkUpsertTokensInBatches(allTokens);
+
+        // 10. 更新nft合集和nft item
+        if (newNftCollectionList.length > 0) {
+            const tokens = await TokenInfoMapper.getAllTokens();
+            await NftCollectionService.bulkUpsertNftCollection(tokens.filter(token => newNftCollectionList.some(nftCollection => nftCollection.id === token.id)).map(token => {
+                const nftCollection = newNftCollectionList.find(nftCollection => nftCollection.id === token.id);
+                return {
+                    id: token.id,
+                    identifier: nftCollection?.identifier,
+                    name: token.name,
+                    image: nftCollection?.image || token.image,
+                    originalImage: nftCollection?.originalImage || token.originalImage,
+                    // contentType: nftCollection?.contentType || token.contentType,
+                    symbol: token.symbol,
+                    data: token.data,
+                    contentType: token.contentType,
+                    minted: token.cap,
+                    updateHeight: blockHeight,
+                };
+            }));
+            const nftItems = newNftItemList.map(item => {
+                return {
+                    id: item.id,
+                    collectionId: item.collectionAlkaneId,
+                    name: item.name,
+                    image: item.image,
+                    originalImage: item.originalImage,
+                    symbol: item.symbol,
+                    data: item.data,
+                    contentType: item.contentType,
+                    updateHeight: blockHeight,
+                }
+            });
+            await NftItemService.bulkUpsertNftItem(nftItems);
+            const nftItemAttributes = newNftItemList.map(item => {
+                let attributes = item.attributes;
+                if (!attributes) {
+                    return;
+                }
+                attributes = JSON.parse(attributes);
+                return Object.keys(attributes).map(traitType => {
+                    return {
+                        collectionId: item.collectionAlkaneId,
+                        itemId: item.id,
+                        traitType,
+                        value: attributes[traitType],
+                    }
+                });
+            }).filter(item => item != null);
+            if (nftItemAttributes.length > 0) {
+                await NftAttributeService.bulkUpsertNftItemAttributes(nftItemAttributes);
+                for (const nftItemAttribute of nftItemAttributes) {
+                    await NftAttributeService.refreshNftCollectionAttributes(nftItemAttribute.collectionId);
+                }
+            }
+        }
+
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_LIST, JSON.stringify(allTokens));
 

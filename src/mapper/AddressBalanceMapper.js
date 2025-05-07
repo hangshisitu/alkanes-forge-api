@@ -13,4 +13,18 @@ export default class AddressBalanceMapper {
             conflictFields: ['address', 'alkanesId']
         });
     }
+
+    static async getNftItemHolder(id) {
+        const addressBalance = await AddressBalance.findOne({
+            where: {
+                alkanesId: id
+            },
+            order: [
+                ['balance', 'DESC']
+            ],
+            limit: 1,
+            raw: true
+        });
+        return addressBalance;
+    }
 }

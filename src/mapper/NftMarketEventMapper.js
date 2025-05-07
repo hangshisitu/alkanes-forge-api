@@ -1,0 +1,95 @@
+import sequelize from '../lib/SequelizeHelper.js';
+import { QueryTypes } from 'sequelize';
+import * as logger from '../conf/logger.js';
+import { Constants } from '../conf/constants.js';
+import { Op } from 'sequelize';
+import NftMarketEvent from '../models/NftMarketEvent.js';
+
+export default class NftMarketEventMapper {
+
+    static async queryTradesInLastHour(collectionId, startTime, endTime) {
+        return await NftMarketEvent.findAll({
+            where: {
+                collectionId: collectionId,
+                type: Constants.MARKET_EVENT.SOLD,
+                updatedAt: {
+                    [Op.between]: [startTime, endTime],
+                },
+            },
+            raw: true,
+        });
+    }
+
+
+    static async getStatsMapByCollectionIds(collectionIds, hoursRange) {
+        let whereClause = 'WHERE collection_id IN (:collectionIds)';
+        const replacements = { collectionIds: collectionIds };
+
+        if (hoursRange) {
+            const date = new Date();
+            date.setHours(date.getHours() - hoursRange);
+
+            whereClause += ' AND stats_date >= :startDate';
+            replacements.startDate = date;
+        }
+
+        const stats = await sequelize.query(`
+            SELECT 
+                collection_id AS collectionId,
+                SUM(listing_amount) AS totalVolume, 
+                COUNT(*) AS tradeCount
+            FROM nft_market_event
+            ${whereClause}
+            GROUP BY collection_id;
+        `, {
+            replacements,
+            type: QueryTypes.SELECT,
+            raw: true
+        });
+
+        return stats.reduce((acc, item) => {
+            acc[item.collectionId] = {
+                totalVolume: item.totalVolume || 0,
+                tradeCount: item.tradeCount || 0
+            };
+            return acc;
+        }, {});
+    }
+
+    
+
+    static async getStatsMapForHours(hoursRange= 24) {
+        try {
+            const date = new Date();
+            date.setHours(date.getHours() - hoursRange); // 计算 24 小时前的时间
+
+            const stats = await sequelize.query(`
+                SELECT 
+                    collection_id AS collectionId,
+                    SUM(listing_amount) AS totalVolume,
+                    COUNT(*) AS tradeCount
+                FROM nft_market_event
+                WHERE created_at >= :startDate
+                    AND type = 2
+                GROUP BY collection_id;
+            `, {
+                replacements: { startDate: date },
+                type: QueryTypes.SELECT,
+                raw: true
+            });
+
+            // 将查询结果转化为 Map 格式
+            return stats.reduce((acc, item) => {
+                acc[item.collectionId] = {
+                    totalVolume: item.totalVolume || 0,
+                    tradeCount: item.tradeCount || 0
+                };
+                return acc;
+            }, {});
+        } catch (error) {
+            logger.error('Error in getStatsMapFor24Hours:', error);
+            throw error;
+        }
+    }
+}
+

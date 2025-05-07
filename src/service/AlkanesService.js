@@ -102,7 +102,9 @@ export default class AlkanesService {
             }
 
             const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
-            if (alkanesId && alkanesId !== id) {
+            if (Array.isArray(alkanesId) && !alkanesId.includes(id)) {
+                continue;
+            } else if (alkanesId && alkanesId !== id) {
                 continue;
             }
 
@@ -633,6 +635,33 @@ export default class AlkanesService {
 
         return encodeRunestoneProtostone({
             protostones: protostones,
+        }).encodedRunestone;
+    }
+
+    static getBatchTransferProtostone(transferList) {
+        const edicts = [];
+        for (const transfer of transferList) {
+            const id = transfer.id;
+            edicts.push({
+                id: new ProtoruneRuneId(
+                    u128(BigInt(id.split(':')[0])),
+                    u128(BigInt(id.split(':')[1]))
+                ),
+                amount: u128(BigInt(transfer.amount)), // 如果是0或者大于输入数量，则得到输入的全部数量；如果小于则发送全部可用数量
+                output: u32(BigInt(transfer.output)), // 指向接收的output index
+            });
+        }
+
+        return encodeRunestoneProtostone({
+            protostones: [
+                ProtoStone.message({
+                    protocolTag: 1n,
+                    edicts: edicts,
+                    pointer: 0, // 如果存在剩余的代币数量，会转到这里指定的output index
+                    refundPointer: 0,
+                    calldata: Buffer.from([]),
+                }),
+            ],
         }).encodedRunestone;
     }
 

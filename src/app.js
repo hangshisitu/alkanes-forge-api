@@ -25,6 +25,10 @@ import BaseUtil from './utils/BaseUtil.js';
 import * as RedisHelper from "./lib/RedisHelper.js";
 import config from "./conf/config.js";
 import IndexerService from './service/IndexerService.js';
+import NftMarketService from './service/NftMarketService.js';
+import NftCollectionStatsService from './service/NftCollectionStatsService.js';
+import NftCollectionService from './service/NftCollectionService.js';
+import NftItemService from './service/NftItemService.js';
 
 const app = new Koa();
 const router = new Router();
@@ -545,6 +549,296 @@ router
         try {
             const params = ctx.request.body;
             const tokenStats = await TokenStatsService.queryTokenStats(params.alkanesId, params.type);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': tokenStats
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+
+    // NFT接口
+    .post(Constants.API.NFT.PAGE, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const collectionList = await NftCollectionService.getCollectionPage(params.name, params.mintActive, params.orderType, params.page, params.size);
+            for (const row of collectionList.records) {
+                row.mempool = await MempoolService.getMempoolData(row.id);
+            }
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': collectionList
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT.INFO, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const collection = await NftCollectionService.getCollectionById(params.id);
+            if (collection) {
+                collection.mempool = await MempoolService.getMempoolData(params.id);
+            }
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': collection
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT.ITEM_PAGE, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const items = await NftItemService.getItemPage(params.collectionId, params.address, params.name, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': items
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT.ITEM_INFO, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const item = await NftItemService.getItemById(params.id);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': item
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+
+    // NFT市场接口
+    .post(Constants.API.NFT_MARKET.ASSETS, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const assetsList = await NftMarketService.assets(params.collectionId, params.assetAddress);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': assetsList
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.LISTING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const listingPage = await NftMarketService.getListingPage(params.collectionId, params.name, params.orderType, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': listingPage
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.CREATE_UNSIGNED_LISTING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const psbt = await NftMarketService.createUnsignedListing(params.assetAddress, params.assetPublicKey, params.fundAddress, params.listingList);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.PUT_SIGNED_LISTING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            await NftMarketService.putSignedListing(params.signedPsbt, false);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.CREATE_UNSIGNED_UPDATE, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const walletType = ctx.get('wallet-type') || '';
+            const psbt = await NftMarketService.createUnsignedUpdate(params.collectionId, params.listingList, params.assetAddress, params.assetPublicKey, params.fundAddress, walletType);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.PUT_SIGNED_UPDATE, async ctx => {
+        try {
+            const params = ctx.request.body;
+            await NftMarketService.putSignedListing(params.signedPsbt, true);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.CREATE_UNSIGNED_DELISTING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const walletType = ctx.get('wallet-type') || '';
+            const psbt = await NftMarketService.createUnsignedDelisting(params.collectionId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.assetPublicKey, params.feerate, walletType);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': psbt
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.PUT_SIGNED_DELISTING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const walletType = ctx.get('wallet-type') || '';
+            await NftMarketService.putSignedDelisting(params.signedPsbt, walletType);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': ''
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.CREATE_UNSIGNED_BUYING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const result = await NftMarketService.createUnsignedBuying(params.collectionId, params.listingIds, params.fundAddress, params.fundPublicKey, params.assetAddress, params.feerate);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': result
+            }
+            // ctx.body = {
+            //     'code': 1,
+            //     'msg': 'Waiting for RPC to complete synchronization, please be patient.'
+            // }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.PUT_SIGNED_BUYING, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const walletType = ctx.get('wallet-type') || '';
+            const txid = await NftMarketService.putSignedBuying(params.signedPsbt, walletType);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': txid
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.EVENTS, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const eventPage = await NftMarketService.getEventPage(params.collectionId, params.address, params.types, params.page, params.size);
+            ctx.body = {
+                'code': 0,
+                'msg': 'ok',
+                'data': eventPage
+            }
+        } catch (e) {
+            logger.error(`${util.inspect(e)}`)
+            ctx.body = {
+                'code': 1,
+                'msg': e.message
+            }
+        }
+    })
+    .post(Constants.API.NFT_MARKET.TOKEN_STATS, async ctx => {
+        try {
+            const params = ctx.request.body;
+            const tokenStats = await NftCollectionStatsService.queryCollectionStats(params.collectionId, params.type);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',
