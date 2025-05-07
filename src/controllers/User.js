@@ -188,6 +188,13 @@ async function alkanesBalance(ctx) {
  *               transferList:
  *                 type: array
  *                 description: List of transfers
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     address:
+ *                       type: string
+ *                     amount:
+ *                       type: number
  *     responses:
  *       200:
  *         description: Transfer initiated successfully

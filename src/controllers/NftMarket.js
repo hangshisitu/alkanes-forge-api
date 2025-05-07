@@ -113,6 +113,17 @@ async function listingPage(ctx) {
  *               listingList:
  *                 type: array
  *                 description: List of listings
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     txid:
+ *                       type: string
+ *                     vout:
+ *                       type: number
+ *                     value:
+ *                       type: number
+ *                     listingAmount:
+ *                       type: number
  *     responses:
  *       200:
  *         description: Unsigned transaction created successfully
@@ -174,6 +185,13 @@ async function putSignedListing(ctx) {
  *               listingList:
  *                 type: array
  *                 description: List of listings to update
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     amount:
+ *                       type: number
  *               assetAddress:
  *                 type: string
  *                 description: Asset address
@@ -247,6 +265,8 @@ async function putSignedUpdate(ctx) {
  *               listingIds:
  *                 type: array
  *                 description: List of listing IDs to delist
+ *                 items:
+ *                   type: string
  *               fundAddress:
  *                 type: string
  *                 description: Funding address
@@ -326,6 +346,7 @@ async function putSignedDelisting(ctx) {
  *               listingIds:
  *                 type: array
  *                 description: List of listing IDs to buy
+ *                 items:
  *               fundAddress:
  *                 type: string
  *                 description: Funding address
@@ -397,6 +418,8 @@ async function putSignedBuying(ctx) {
  *               types:
  *                 type: array
  *                 description: Filter by event types
+ *                 items:
+ *                   type: string
  *               page:
  *                 type: integer
  *                 description: Page number

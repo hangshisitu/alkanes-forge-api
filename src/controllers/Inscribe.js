@@ -31,8 +31,8 @@ import {Constants} from '../conf/constants.js';
  *                 type: string
  *                 description: Token ID
  *               mints:
- *                 type: array
- *                 description: List of mints to merge
+ *                 type: number
+ *                 description: mint times
  *               postage:
  *                 type: number
  *                 description: Postage amount
@@ -85,8 +85,8 @@ async function estCreateMergeOrder(ctx) {
  *                 type: string
  *                 description: Token ID
  *               mints:
- *                 type: array
- *                 description: List of mints to merge
+ *                 type: number
+ *                 description: mint times
  *               postage:
  *                 type: number
  *                 description: Postage amount

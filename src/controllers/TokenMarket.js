@@ -115,6 +115,17 @@ async function listingPage(ctx) {
  *               listingList:
  *                 type: array
  *                 description: List of listings
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     txid:
+ *                       type: string
+ *                     vout:
+ *                       type: number
+ *                     listingAmount:
+ *                       type: number
+ *                     value:
+ *                       type: number
  *     responses:
  *       200:
  *         description: Unsigned transaction created successfully
@@ -176,6 +187,8 @@ async function putSignedListing(ctx) {
  *               listingList:
  *                 type: array
  *                 description: List of listings to update
+ *                 items:
+ *                   type: object
  *               assetAddress:
  *                 type: string
  *                 description: Asset address
@@ -249,6 +262,8 @@ async function putSignedUpdate(ctx) {
  *               listingIds:
  *                 type: array
  *                 description: List of listing IDs to delist
+ *                 items:
+ *                   type: string
  *               fundAddress:
  *                 type: string
  *                 description: Funding address
@@ -328,6 +343,8 @@ async function putSignedDelisting(ctx) {
  *               listingIds:
  *                 type: array
  *                 description: List of listing IDs to buy
+ *                 items:
+ *                   type: string
  *               fundAddress:
  *                 type: string
  *                 description: Funding address
