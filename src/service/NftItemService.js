@@ -107,6 +107,7 @@ export default class NftItemService {
         if (nftItems.length === 0) {
             return;
         }
+        const collectionIds = new Set();
         await BaseUtil.concurrentExecute(nftItems, async (nftItem) => {
             const addressBalance = await AddressBalanceMapper.getNftItemHolder(nftItem.id);
             if (addressBalance) {
@@ -114,7 +115,9 @@ export default class NftItemService {
                     holder: addressBalance.address,
                     updateHeight: addressBalance.updateBlock
                 }, { where: { id: nftItem.id } });
+                collectionIds.add(nftItem.collectionId);
             }
         });
+        return [...collectionIds];
     }
 }

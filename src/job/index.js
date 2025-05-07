@@ -224,7 +224,10 @@ function indexNftItemHolder() {
             isIndexNftItemHolder = true;
             const execStartTime = Date.now();
             logger.info(`indexNftItemHolder start`);
-            await NftItemService.indexNftItemHolder();
+            const effectCollectionIds = await NftItemService.indexNftItemHolder();
+            if (effectCollectionIds.length > 0) {
+                await NftCollectionService.refreshCollectionHolder(effectCollectionIds);
+            }
             logger.info(`indexNftItemHolder finish, cost ${Date.now() - execStartTime}ms.`);
         } catch (err) {
             logger.error(`indexNftItemHolder error, error: ${err.message}`, err);

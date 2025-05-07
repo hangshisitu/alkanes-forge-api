@@ -49,6 +49,11 @@ export default class IndexerService {
                         txs[txid] = tx;
                     }
                     const address = tx.vout[vout].scriptpubkey_address;
+                    const value = tx.vout[vout].value;
+                    const blockTime = tx.status.block_time;
+                    if ([address, value, blockTime].some(x => x == null)) {
+                        throw new Error(`index block ${height} tx ${txid} vout ${vout} failed, ${JSON.stringify(tx)}`);
+                    }
                     for (const { rune_id, balance } of balances) {
                         const alkanesIdCount = balances.length;
                         await OutpointRecord.create({
@@ -56,13 +61,13 @@ export default class IndexerService {
                             txIdx,
                             txid,
                             vout,
-                            value: tx.vout[vout].value,
+                            value,
                             address,
                             alkanesId: rune_id,
                             balance,
                             alkanesIdCount,
                             spent: false,
-                            blockTime: tx.status.block_time
+                            blockTime
                         });
                     }
                 } catch (e) {

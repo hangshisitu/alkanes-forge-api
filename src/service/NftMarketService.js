@@ -114,6 +114,7 @@ export default class NftMarketService {
 
     static async deleteListingCache(collectionId) {
         await RedisHelper.scan(`nft-listings:${collectionId}:*`, 1000, true);
+        await this.refreshCollectionListing(collectionId);
     }
 
     static async getListingPage(collectionId, name, orderType, page, size) {
@@ -697,8 +698,10 @@ export default class NftMarketService {
         return alkanesList[0];
     }
 
+    static async refreshCollectionListing(collectionId) {
+        const count = await NftMarketListingMapper.countListingByCollectionId(collectionId);
+        await NftCollectionService.updateCollectionListing(collectionId, count);
+    }
+
 }
-
-
-
 

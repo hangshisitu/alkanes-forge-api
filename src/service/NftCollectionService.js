@@ -8,6 +8,7 @@ import NftMarketEventMapper from '../mapper/NftMarketEventMapper.js';
 import sequelize from '../lib/SequelizeHelper.js';
 import { QueryTypes } from 'sequelize';
 import NftCollectionMapper from '../mapper/NftCollectionMapper.js';
+import NftItemMapper from '../mapper/NftItemMapper.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 
@@ -375,6 +376,29 @@ export default class NftCollectionService {
         } catch (error) {
             logger.error(`Error updating floor price for ${collectionId}:`, error);
         }
+    }
+
+    static async refreshCollectionHolder(collectionIds) {
+        const collectionHolderList = await NftItemMapper.countCollectionHolder(collectionIds);
+        for (const collectionHolder of collectionHolderList) {
+            await NftCollection.update({
+                holders: collectionHolder.holderCount
+            }, {
+                where: {
+                    id: collectionHolder.collectionId
+                }
+            });
+        }
+    }
+
+    static async updateCollectionListing(collectionId, listing) {
+        await NftCollection.update({
+            listing: listing
+        }, {
+            where: {
+                id: collectionId
+            }
+        });
     }
 
 }

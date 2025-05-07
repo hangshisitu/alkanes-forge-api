@@ -1,7 +1,7 @@
 import sequelize from '../lib/SequelizeHelper.js'
 import {DataTypes} from 'sequelize'
 
-const NftItemAttribute = sequelize.define('NftItemAttribute ', {
+const NftItemAttribute = sequelize.define('NftItemAttribute', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
