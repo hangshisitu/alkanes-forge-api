@@ -14,8 +14,8 @@ const options = {
         description: 'Development server',
       },
       {
-        url: 'https://testnet-alkanes-api.idclub.io',
-        description: 'Testnet server',
+        url: 'https://alkanes-api-signet.idclub.io',
+        description: 'Signet server',
       },
       {
         url: 'https://alkanes-api.idclub.io',
