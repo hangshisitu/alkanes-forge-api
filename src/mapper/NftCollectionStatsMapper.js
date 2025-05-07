@@ -1,6 +1,6 @@
 import NftCollectionStats from '../models/NftCollectionStats.js';
 import {QueryTypes, Op} from 'sequelize';
-import sequelize from '../lib/sequelize.js';
+import sequelize from '../lib/SequelizeHelper.js';
 
 export default class NftCollectionStatsMapper {
 
