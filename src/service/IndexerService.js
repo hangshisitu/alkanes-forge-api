@@ -336,6 +336,7 @@ export default class IndexerService {
                 size,
                 offset: (page - 1) * size,
             },
+            type: sequelize.QueryTypes.SELECT,
             raw: true,
         });
         const total = await AddressBalance.count({
