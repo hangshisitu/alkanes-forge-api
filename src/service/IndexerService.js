@@ -12,6 +12,7 @@ import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import AddressBalance from '../models/AddressBalance.js';
 import TokenInfoService from '../service/TokenInfoService.js';
 import NftItemService from '../service/NftItemService.js';
+import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
 
 export default class IndexerService {
 
@@ -222,7 +223,7 @@ export default class IndexerService {
             logger.info(`block ${block} no effect address alkanes`);
             return;
         }
-        const effectAlkanesIds = Object.values(effectAddressAlkanes).map(set => [...set]).flat();
+        const effectAlkanesIds = [...new Set(Object.values(effectAddressAlkanes).map(set => [...set]).flat())];
         const nftItems = await NftItemService.getItemsByIds(effectAlkanesIds);
         const addressAlkanesBalances = await OutpointRecord.findAll({
             where: {
@@ -276,6 +277,25 @@ export default class IndexerService {
         if (errors.length > 0) {
             throw new Error(`block ${block} update addresses balance failed, ${errors.length} errors`);
         }
+        await BaseUtil.concurrentExecute(effectAlkanesIds, async (alkanesId) => {
+            try {
+                const total = await AddressBalance.count({
+                    where: {
+                        alkanesId,
+                        balance: {
+                            [Op.gt]: 0,
+                        },
+                    },
+                });
+                await TokenInfoMapper.updateHolders(alkanesId, total);
+            } catch (e) {
+                logger.error(`block ${block} update alkanesId ${alkanesId} holders failed, ${e.message}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`block ${block} update alkanesId holders failed, ${errors.length} errors`);
+        }
 
         const nftItemBalances = effectAddressAlkanes.filter(item => {
             return nftItems.find(nftItem => nftItem.id === item.alkanesId) && item.balance > 0;
@@ -321,6 +341,9 @@ export default class IndexerService {
         const total = await AddressBalance.count({
             where: {
                 alkanesId,
+                balance: {
+                    [Op.gt]: 0,
+                },
             },
         });
         return {
