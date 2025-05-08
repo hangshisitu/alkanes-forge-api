@@ -316,7 +316,7 @@ async function orderPage(ctx) {
  */
 async function orderInfo(ctx) {
     const { orderId } = ctx.request.body;
-    return await MintOrderMapper.orderInfo(orderId);
+    return await MintService.orderInfo(orderId);
 }
 
 /**
