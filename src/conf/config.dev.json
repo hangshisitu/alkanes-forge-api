@@ -1,9 +1,9 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@127.0.0.1:6379",
-  "alkanesUrl": "https://signet.sandshrew.io/v2/lasereyes",
-  "alkanesAddressUrl": "https://signet.sandshrew.io/v2/lasereyes",
-  "alkanesUtxoUrl": "https://signet.sandshrew.io/v2/lasereyes",
+  "alkanesUrl": "https://alkanes-rpc-signet.idclub.io",
+  "alkanesAddressUrl": "https://alkanes-rpc-signet.idclub.io",
+  "alkanesUtxoUrl": "https://alkanes-rpc-signet.idclub.io",
   "reserveNumber": 777,
   "concurrencyLimit": 100,
   "networkName": "signet",
