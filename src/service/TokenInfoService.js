@@ -97,9 +97,10 @@ export default class TokenInfoService {
 
         // 5. 查找新token
         const newAlkaneList = [];
-        const maxNewTokensToCheck = 100;
+        const maxNewTokensToCheck = 999999;
         const existingIds = new Set(tokenList.map(t => t.id));
         const activeIds = new Set(alkaneList.map(t => t.id));
+        let tryMore = 10;
 
         for (let i = lastIndex; i < lastIndex + maxNewTokensToCheck; i++) {
             const tokenId = `2:${i}`;
@@ -115,8 +116,12 @@ export default class TokenInfoService {
                 );
 
                 if (alkanes === null) {
-                    break;
+                    if (--tryMore <= 0) {
+                        break;
+                    }
+                    continue;
                 }
+                tryMore = 10;
 
                 if (!alkanes.name) {
                     continue;
