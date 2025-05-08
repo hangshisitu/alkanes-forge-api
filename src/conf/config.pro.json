@@ -1,7 +1,7 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@127.0.0.1:6379",
-  "alkanesUrl": "https://alkanes-rpc.idclub.io",
+  "alkanesUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "alkanesAddressUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "alkanesUtxoUrl": "https://mainnet.sandshrew.io/v4/idconsortia",
   "reserveNumber": 797,
