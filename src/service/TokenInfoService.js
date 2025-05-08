@@ -30,7 +30,7 @@ export default class TokenInfoService {
         // 2. 获取需要更新的活跃token
         const nftCollectionList = await NftCollectionService.getAllNftCollection();
         const activeTokens = tokenList.filter(token => {
-            return token.mintActive || nftCollectionList.find(nftCollection => nftCollection.id === token.id);
+            return (token.mintActive && token.mintAmount > 0) || nftCollectionList.find(nftCollection => nftCollection.id === token.id);
         });
         logger.info(`found active tokens: ${activeTokens.length}`);
 
