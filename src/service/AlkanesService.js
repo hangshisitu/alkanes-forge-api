@@ -80,7 +80,7 @@ export default class AlkanesService {
         }
     }
 
-    static async getAlkanesUtxoByAddress(address, alkanesId, maxHeight = 0) {
+    static async getAlkanesUtxoByAddress(address, alkanesId, maxHeight = 0, allowMultiple = false) {
         const result = await AlkanesService._call('alkanes_protorunesbyaddress', [
             {
                 address: address,
@@ -91,8 +91,20 @@ export default class AlkanesService {
 
         const utxoList = [];
         for (const outpoint of result.outpoints) {
-            if (outpoint.runes.length > 1) {
+            if (outpoint.runes.length > 1 && !allowMultiple) {
                 continue;
+            }
+
+            if (outpoint.runes.length > 1) {
+                outpoint.runes = outpoint.runes.filter(rune => {
+                    const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
+                    if (Array.isArray(alkanesId) && !alkanesId.includes(id)) {
+                        return true;
+                    } else if (alkanesId === id) {
+                        return true;
+                    }
+                    return false;
+                });
             }
 
             const rune = outpoint.runes[0];
@@ -122,6 +134,7 @@ export default class AlkanesService {
                 alkanesId: id,
                 name: rune.rune.name,
                 symbol: rune.rune.symbol,
+                balance,
                 tokenAmount: balance.dividedBy(10 ** 8).toFixed()
             })
         }

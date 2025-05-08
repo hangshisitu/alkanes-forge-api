@@ -4,6 +4,12 @@ import { QueryTypes } from 'sequelize';
 
 export default class NftCollectionMapper {
 
+    static async getAllNftCollection() {
+        return await NftCollection.findAll({
+            raw: true
+        });
+    }
+
 
     static async batchUpdateNftCollectionStatsInBatches(collectionStatsList, batchSize = 100) {
         for (let i = 0; i < collectionStatsList.length; i += batchSize) {
