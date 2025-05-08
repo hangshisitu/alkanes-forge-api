@@ -276,9 +276,9 @@ export default class IndexerService {
             throw new Error(`token ${alkanesId} not found`);
         }
         const holders = await sequelize.query(`
-            select address, balance, balance / :permint as cnt 
+            select address, balance, CAST(balance as UNSIGNED) / :permint as cnt 
             from address_balance 
-            where alkanes_id = :alkanesId 
+            where alkanes_id = :alkanesId and balance > 0
             group by address
             order by cnt desc
             limit :size offset :offset
