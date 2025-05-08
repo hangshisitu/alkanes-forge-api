@@ -436,6 +436,14 @@ export default class TokenInfoMapper {
             }
         );
     }
+
+    static async getTokenInfo(id) {
+        return TokenInfo.findOne({
+            where: {
+                id: id
+            }
+        });
+    }
     
 
 }
