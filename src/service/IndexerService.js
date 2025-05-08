@@ -11,6 +11,7 @@ import sequelize from '../lib/SequelizeHelper.js';
 import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import AddressBalance from '../models/AddressBalance.js';
 import TokenInfoService from '../service/TokenInfoService.js';
+import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
 
 export default class IndexerService {
 
@@ -216,13 +217,14 @@ export default class IndexerService {
             logger.info(`block ${block} no effect address alkanes`);
             return;
         }
+        const effectAlkanesIds = [...new Set(Object.values(effectAddressAlkanes).map(set => [...set]).flat())];
         const addressAlkanesBalances = await OutpointRecord.findAll({
             where: {
                 address: {
                     [Op.in]: Object.keys(effectAddressAlkanes),
                 },
                 alkanesId: {
-                    [Op.in]: Object.values(effectAddressAlkanes).map(set => [...set]).flat(),
+                    [Op.in]: effectAlkanesIds,
                 },
                 spent: false,
                 block: {
@@ -268,6 +270,25 @@ export default class IndexerService {
         if (errors.length > 0) {
             throw new Error(`block ${block} update addresses balance failed, ${errors.length} errors`);
         }
+        await BaseUtil.concurrentExecute(effectAlkanesIds, async (alkanesId) => {
+            try {
+                const total = await AddressBalance.count({
+                    where: {
+                        alkanesId,
+                        balance: {
+                            [Op.gt]: 0,
+                        },
+                    },
+                });
+                await TokenInfoMapper.updateHolders(alkanesId, total);
+            } catch (e) {
+                logger.error(`block ${block} update alkanesId ${alkanesId} holders failed, ${e.message}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`block ${block} update alkanesId holders failed, ${errors.length} errors`);
+        }
     }
 
     static async getHolderPage(alkanesId, page, size) {
@@ -294,6 +315,9 @@ export default class IndexerService {
         const total = await AddressBalance.count({
             where: {
                 alkanesId,
+                balance: {
+                    [Op.gt]: 0,
+                },
             },
         });
         return {

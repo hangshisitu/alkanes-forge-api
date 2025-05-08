@@ -424,4 +424,18 @@ export default class TokenInfoMapper {
         }
     }
 
+    static async updateHolders(id, holders) {
+        await TokenInfo.update(
+            {
+                holders: holders
+            },
+            {
+                where: {
+                    id: id
+                }
+            }
+        );
+    }
+    
+
 }
