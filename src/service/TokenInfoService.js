@@ -115,7 +115,7 @@ export default class TokenInfoService {
                     2, 500
                 );
 
-                if (alkanes === null) {
+                if (Object.keys(alkanes).length === 1) { // 只有id
                     if (--tryMore <= 0) {
                         break;
                     }
