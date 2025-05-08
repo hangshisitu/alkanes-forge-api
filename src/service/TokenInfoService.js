@@ -24,7 +24,7 @@ export default class TokenInfoService {
         logger.info(`found existing tokens: ${tokenList.length}`);
 
         // 2. 获取需要更新的活跃token
-        const activeTokens = tokenList.filter(token => token.mintActive);
+        const activeTokens = tokenList.filter(token => token.mintActive && token.mintAmount > 0);
         logger.info(`found active tokens: ${activeTokens.length}`);
 
         // 3. 并行获取活跃token的最新数据
