@@ -14,6 +14,7 @@ import {Constants} from "../conf/constants.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import * as logger from '../conf/logger.js';
 import R2Service from "./R2Service.js";
+import BaseUtil from "../utils/BaseUtil.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -265,26 +266,24 @@ export default class AlkanesService {
         const tokenInfo = { id };
 
         try {
-            const opcodeResults = await Promise.all(
-                opcodesToQuery.map(async (opcode) => {
-                    try {
-                        const result = await AlkanesService.simulate({
-                            target: { block: id.split(':')[0], tx: id.split(':')[1] },
-                            inputs: [opcode],
-                        });
-                        if (result) {
-                            return {
-                                opcode,
-                                result,
-                                opcodeHRV: opcodeToHRV[opcode],
-                            };
-                        }
-                    } catch (error) {
-                        // 可选：log
+            const opcodeResults = await BaseUtil.concurrentExecute(opcodesToQuery, async (opcode) => {
+                try {
+                    const result = await AlkanesService.simulate({
+                        target: { block: id.split(':')[0], tx: id.split(':')[1] },
+                        inputs: [opcode],
+                    });
+                    if (result) {
+                        return {
+                            opcode,
+                            result,
+                            opcodeHRV: opcodeToHRV[opcode],
+                        };
                     }
-                    return null;
-                })
-            );
+                } catch (error) {
+                    // 可选：log
+                }
+                return null;
+            }, 4);
 
             // 收集返回结果
             for (const item of opcodeResults) {
