@@ -1,5 +1,6 @@
 import sequelize from '../lib/SequelizeHelper.js'
 import {DataTypes} from 'sequelize'
+import config from '../conf/config.js'
 
 const TokenInfo = sequelize.define('TokenInfo', {
     id: {
@@ -49,7 +50,15 @@ const TokenInfo = sequelize.define('TokenInfo', {
     },
     mintActive: {
         type: DataTypes.INTEGER,
-        comment: 'Mint状态(0:否,1:是)'
+        comment: 'Mint状态(0:否,1:是)',
+        get() {
+            const mintActive = this.getDataValue('mintActive');
+            const reserveNumber = this.getDataValue('reserveNumber');
+            if (reserveNumber !== config.reserveNumber) {
+                return 0;
+            }
+            return mintActive;
+        }
     },
     holders: {
         type: DataTypes.INTEGER,
@@ -123,6 +132,10 @@ const TokenInfo = sequelize.define('TokenInfo', {
     data: {
         type: DataTypes.TEXT,
         comment: '部署元数据'
+    },
+    reserveNumber: {
+        type: DataTypes.INTEGER,
+        comment: '合约id'
     },
     twitter: {
         type: DataTypes.STRING,
