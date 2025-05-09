@@ -120,7 +120,7 @@ export default class NftItemService {
     static async indexNftItemHolder() {
         const nftItems = await NftItem.findAll({
             where: {
-                holder: null
+                holder: ''
             }
         });
         if (nftItems.length === 0) {
