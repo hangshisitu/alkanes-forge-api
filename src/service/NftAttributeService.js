@@ -1,7 +1,7 @@
 import NftItemAttribute from '../models/NftItemAttribute.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 import sequelize from '../lib/SequelizeHelper.js';
-
+import BaseUtil from '../utils/BaseUtil.js';
 
 export default class NftAttributeService {
 
@@ -27,6 +27,9 @@ export default class NftAttributeService {
         if (nftItemAttributes.length <= 0) {
             return;
         }
+        nftItemAttributes.forEach(item => {
+            item.id = item.id ?? BaseUtil.genId();
+        });
         await NftItemAttribute.bulkCreate(nftItemAttributes, {
             updateOnDuplicate: ['collectionId', 'itemId', 'traitType']
         });
