@@ -100,6 +100,7 @@ export default class NftItemService {
                 item.txid = outpointRecord?.txid;
                 item.vout = outpointRecord?.vout;
                 item.value = outpointRecord?.value;
+                item.assetCount = outpointRecord?.alkanesIdCount;
             });
         }
         const result = {

@@ -190,6 +190,16 @@ export default class NftMarketService {
         return Math.max(Math.ceil(listingAmount * config.market.takerFee / 1000), config.market.minimumFee);
     }
 
+    static reverseListingAmount(sellAmount) {
+        const rate = config.market.makerFee / 1000;
+        const listingAmount = sellAmount / (1 - rate);
+        const makerFee = listingAmount * rate;
+        if (makerFee >= config.market.minimumFee) {
+            return Math.ceil(listingAmount);
+        }
+        return sellAmount + config.market.minimumFee;
+    }
+
     static async createUnsignedListing(assetAddress, assetPublicKey, fundAddress, listingList) {
         const psbt = new bitcoin.Psbt({network: config.network});
 
@@ -250,8 +260,6 @@ export default class NftMarketService {
             if (alkanes.value < 1) {
                 throw new Error('Not found alkanes value.');
             }
-            const tokenAmount = new BigNumber(alkanes.value).div(10 ** 8)
-                .decimalPlaces(8, BigNumber.ROUND_DOWN);
 
             let listingAmount = this.reverseListingAmount(sellerAmount);
             const listingPrice = new BigNumber(listingAmount);
