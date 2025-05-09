@@ -51,17 +51,18 @@ export default class IndexerService {
                 await OutpointRecordMapper.deleteAfter(block);
                 await IndexBlockMapper.deleteAfter(block);
                 const blockHash = await MempoolUtil.getBlockHash(block);
-                const txids = await MempoolUtil.getBlockTxIds(blockHash);
+                const txs = await BtcRPC.getBlockTransactions(blockHash);
+                const txids = txs.map(tx => tx.txid);
                 const errors = [];
                 // const blockTxids = {};
                 // blockTxids[blockHash] = txids;
-                await BaseUtil.concurrentExecute(txids, async (txid) => {
+                await BaseUtil.concurrentExecute(txs, async (tx) => {
                     try {
-                        const txHex = await MempoolUtil.getTxHexEx(txid);
-                        const tx = bitcoin.Transaction.fromHex(txHex);
                         if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
-                            return false;
+                            return;
                         }
+                        const txid = tx.txid;
+                        const txHex = await MempoolUtil.getTxHexEx(txid);
                         const result = await decodeProtorune(txHex);
                         if (!result) {
                             return;
