@@ -96,7 +96,7 @@ export default class NftItemService {
         if (utxo) {
             const outpointRecords = await IndexerService.getOutpointsByAlkanesIds(itemIds);
             rows.forEach(item => {
-                const outpointRecord = outpointRecords.find(record => record.itemId === item.id);
+                const outpointRecord = outpointRecords.find(record => record.alkanesId === item.id);
                 item.txid = outpointRecord?.txid;
                 item.vout = outpointRecord?.vout;
                 item.value = outpointRecord?.value;
