@@ -162,7 +162,19 @@ const TokenInfo = sequelize.define('TokenInfo', {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
         comment: '更新时间'
-    }
+    },
+    isSync: {
+        type: DataTypes.VIRTUAL,
+        comment: '是否同步',
+        get() {
+            const mintActive = this.getDataValue('mintActive');
+            const mintAmount = this.getDataValue('mintAmount');
+            return mintActive === 1 && mintAmount > 0;
+        },
+        set(_) {
+          throw new Error('isSync 是虚拟字段，只读');
+        }
+    },
 }, {
     tableName: 'token_info',
     timestamps: false, // 禁用自动时间戳
