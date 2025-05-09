@@ -60,6 +60,13 @@ const TokenInfo = sequelize.define('TokenInfo', {
             return mintActive;
         }
     },
+    actualMintActive: {
+        type: DataTypes.VIRTUAL,
+        comment: '实际Mint状态(0:否,1:是)',
+        get() {
+            return this.getDataValue('mintActive');
+        }
+    },
     holders: {
         type: DataTypes.INTEGER,
         comment: '持有人'
