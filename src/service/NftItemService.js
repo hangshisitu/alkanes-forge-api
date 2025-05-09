@@ -13,7 +13,7 @@ export default class NftItemService {
 
     static async bulkUpsertNftItem(infos) {
         await NftItem.bulkCreate(infos, {
-            updateOnDuplicate: ['id']
+            updateOnDuplicate: ['updateHeight']
         });
     }
 

@@ -44,7 +44,7 @@ export default class NftCollectionService {
 
     static async bulkUpsertNftCollection(infos) {
         await NftCollection.bulkCreate(infos, {
-            updateOnDuplicate: ['id']
+            updateOnDuplicate: ['minted', 'updateHeight']
         });
     }
 
