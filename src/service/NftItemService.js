@@ -120,4 +120,16 @@ export default class NftItemService {
         });
         return [...collectionIds];
     }
+
+    static async findMaxItemId() {
+        const maxIdItem = await NftItem.findOne({
+            attributes: ['id'],
+            order: [
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'DESC'],
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'DESC'],
+            ],
+            raw: true
+        });
+        return maxIdItem?.id;
+    }
 }

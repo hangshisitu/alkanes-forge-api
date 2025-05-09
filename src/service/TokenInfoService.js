@@ -101,6 +101,9 @@ export default class TokenInfoService {
                 0 // 防止tokenList为空时Math.max()为-Infinity
             ) + 1;
         }
+        // 获取nft item的最大id
+        const maxItemId = await NftItemService.findMaxItemId();
+        lastIndex = Math.max(lastIndex, (parseInt(maxItemId?.split(':')[1]) || 0) + 1);
 
         // 5. 查找新token
         const newAlkaneList = [];
