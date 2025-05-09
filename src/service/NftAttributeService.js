@@ -27,9 +27,6 @@ export default class NftAttributeService {
         if (nftItemAttributes.length <= 0) {
             return;
         }
-        nftItemAttributes.forEach(item => {
-            item.id = item.id ?? BaseUtil.genId();
-        });
         await NftItemAttribute.bulkCreate(nftItemAttributes, {
             updateOnDuplicate: ['collectionId', 'itemId', 'traitType']
         });
