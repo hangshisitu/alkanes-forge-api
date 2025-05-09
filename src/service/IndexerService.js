@@ -31,7 +31,6 @@ export default class IndexerService {
                     order: [['block', 'DESC']],
                 });
                 let block = config.startHeight;
-                let blockHash = '';
                 if (indexBlock) {
                     const blockHash = await MempoolUtil.getBlockHash(indexBlock.block);
                     block = indexBlock.block;
@@ -51,9 +50,7 @@ export default class IndexerService {
                 logger.info(`index block ${block}`);
                 await OutpointRecordMapper.deleteAfter(block);
                 await IndexBlockMapper.deleteAfter(block);
-                if (!blockHash) {
-                    blockHash = await MempoolUtil.getBlockHash(block);
-                }
+                const blockHash = await MempoolUtil.getBlockHash(block);
                 const txids = await MempoolUtil.getBlockTxIds(blockHash);
                 const errors = [];
                 // const blockTxids = {};
