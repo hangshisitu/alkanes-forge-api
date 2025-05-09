@@ -54,8 +54,8 @@ export default class IndexerService {
                 const txs = await BtcRPC.getBlockTransactions(blockHash);
                 const txids = txs.map(tx => tx.txid);
                 const errors = [];
-                // const blockTxids = {};
-                // blockTxids[blockHash] = txids;
+                let handledTxs = 0;
+                let handledVouts = 0;
                 await BaseUtil.concurrentExecute(txs, async (tx) => {
                     const txid = tx.txid;
                     try {
@@ -66,62 +66,54 @@ export default class IndexerService {
                         if (!result) {
                             return;
                         }
+                        handledTxs++;
                         const txIdx = txids.indexOf(txid);
                         let mempoolTx = null;
-                        for (let vout = 0; vout < tx.vout.length; vout++) {
-                            const outpoint = tx.vout[vout];
+                        const voutErrors = [];
+                        await BaseUtil.concurrentExecute(tx.vout, async (outpoint) => {
                             if (outpoint.scriptPubKey.hex.startsWith('6a5d')) {
-                                continue
+                                return;
                             }
-                            const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
-                                txid,
-                                vout,
-                                height: block,
-                            });
-                            const alkanesIdCount = outpoint_balances.length;
-                            if (alkanesIdCount === 0) {
-                                continue
-                            }
-                            for (const outpoint_balance of outpoint_balances) {
-                                if (!mempoolTx) {
-                                    mempoolTx = await MempoolUtil.getTx(txid);
-                                }
-                                const balance = outpoint_balance.value;
-                                // let spent = balance === 0;
-                                // let spendBy = null;
-                                // let spendByInput = null;
-                                // if (spent) {
-                                //     const spendInfo = await MempoolUtil.getTxOutspend(txid, vout);
-                                //     if (spendInfo.status.confirmed) {
-                                //         spendByInput = `${spendInfo.txid}:${spendInfo.vin}`;
-                                //         const spendBlockHash = spendInfo.status.block_hash;
-                                //         if (!blockTxids[spendBlockHash]) {
-                                //             blockTxids[spendBlockHash] = await MempoolUtil.getBlockTxIds(spendBlockHash);
-                                //         }
-                                //         const spendBlockTxids = blockTxids[spendBlockHash];
-                                //         const spendTxIdx = spendBlockTxids.indexOf(spendInfo.txid);
-                                //         const sidx = `${spendTxIdx}`.padStart(5, '0');
-                                //         spendBy = parseInt(`${spendInfo.status.block_height}${sidx}`);
-                                //         spent = false;
-                                //     }
-                                // }
-                                await OutpointRecord.create({
-                                    block,
-                                    txIdx,
+                            const vout = outpoint.n;
+                            try {
+                                handledVouts++;
+                                const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
                                     txid,
                                     vout,
-                                    value: mempoolTx.vout[vout].value,
-                                    address: mempoolTx.vout[vout].scriptpubkey_address,
-                                    alkanesId: outpoint_balance.id,
-                                    balance: balance.toString(),
-                                    alkanesIdCount,
-                                    spent: false,
-                                    // spent,
-                                    // spendBy,
-                                    // spendByInput,
-                                    blockTime: mempoolTx.status.block_time
+                                    height: block,
                                 });
+                                const alkanesIdCount = outpoint_balances.length;
+                                if (alkanesIdCount === 0) {
+                                    return;
+                                }
+                                const records = [];
+                                for (const outpoint_balance of outpoint_balances) {
+                                    if (!mempoolTx) {
+                                        mempoolTx = await MempoolUtil.getTx(txid);
+                                    }
+                                    const balance = outpoint_balance.value;
+                                    records.push({
+                                        block,
+                                        txIdx,
+                                        txid,
+                                        vout,
+                                        value: mempoolTx.vout[vout].value,
+                                        address: mempoolTx.vout[vout].scriptpubkey_address,
+                                        alkanesId: outpoint_balance.id,
+                                        balance: balance.toString(),
+                                        alkanesIdCount,
+                                        spent: false,
+                                        blockTime: mempoolTx.status.block_time
+                                    });
+                                }
+                                await OutpointRecord.bulkCreate(records);
+                            } catch (e) {
+                                logger.error(`index block ${block} tx ${txid} vout ${vout} failed, ${e.message}`, e);
+                                throw e;
                             }
+                        }, null, voutErrors);
+                        if (voutErrors.length > 0) {
+                            throw new Error(`index block ${block} tx ${txid} failed, ${voutErrors.length} vout errors`);
                         }
                     } catch (e) {
                         logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
@@ -135,7 +127,7 @@ export default class IndexerService {
                     block,
                     blockHash
                 });
-                logger.info(`index block ${block} success`);
+                logger.info(`index block ${block} success, handledTxs: ${handledTxs}, handledVouts: ${handledVouts}`);
             } finally {
                 logger.clearContext();
             }
