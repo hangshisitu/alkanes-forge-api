@@ -28,15 +28,15 @@ export default class NftAttributeService {
             return;
         }
         await NftItemAttribute.bulkCreate(nftItemAttributes, {
-            updateOnDuplicate: ['collection_id', 'item_id', 'trait_type']
+            updateOnDuplicate: ['item_id', 'trait_type'],
         });
     }
 
     static async refreshNftCollectionAttributes(collectionId) {
         const results = await sequelize.query(`
-            select item_id, trait_type, trait_value, count(1) as cnt from nft_item_attributes
+            select item_id, trait_type, value, count(1) as cnt from nft_item_attribute
             where collection_id = :collectionId
-            group by item_id, trait_type, trait_value
+            group by item_id, trait_type, value
         `, {
             replacements: { collectionId }
         }, {
@@ -46,11 +46,11 @@ export default class NftAttributeService {
             collectionId,
             itemId: result.item_id,
             traitType: result.trait_type,
-            traitValue: result.trait_value,
+            value: result.value,
             count: result.cnt
         }));
         await NftCollectionAttribute.bulkCreate(attributes, {
-            updateOnDuplicate: ['collection_id', 'item_id', 'trait_type', 'trait_value']
+            updateOnDuplicate: ['collection_id', 'trait_type', 'value']
         });
     }
 
