@@ -115,8 +115,10 @@ export default class AlkanesService {
             }
 
             const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
-            if (Array.isArray(alkanesId) && !alkanesId.includes(id)) {
-                continue;
+            if (Array.isArray(alkanesId)) {
+                if (!alkanesId.includes(id)) {
+                    continue;
+                }
             } else if (alkanesId && alkanesId !== id) {
                 continue;
             }
