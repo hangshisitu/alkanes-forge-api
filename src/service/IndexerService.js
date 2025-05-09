@@ -70,7 +70,7 @@ export default class IndexerService {
                         let mempoolTx = null;
                         for (let vout = 0; vout < tx.vout.length; vout++) {
                             const outpoint = tx.vout[vout];
-                            if (outpoint.script.toString('hex').startsWith('6a5d')) {
+                            if (outpoint.scriptPubKey.hex.startsWith('6a5d')) {
                                 continue
                             }
                             const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
