@@ -57,12 +57,17 @@ export default class IndexerService {
                 // const blockTxids = {};
                 // blockTxids[blockHash] = txids;
                 await BaseUtil.concurrentExecute(txs, async (tx) => {
+                    const txid = tx.txid;
                     try {
                         if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
                             return;
                         }
-                        const txid = tx.txid;
-                        const txHex = await MempoolUtil.getTxHexEx(txid);
+                        let txHex = null;
+                        try {
+                            txHex = BtcRPC.getTransactionFromJson(tx);
+                        } catch (e) {
+                            txHex = await MempoolUtil.getTxHexEx(txid);
+                        }
                         const result = await decodeProtorune(txHex);
                         if (!result) {
                             return;
