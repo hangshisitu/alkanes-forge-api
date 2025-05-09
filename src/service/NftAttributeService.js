@@ -28,7 +28,7 @@ export default class NftAttributeService {
             return;
         }
         await NftItemAttribute.bulkCreate(nftItemAttributes, {
-            updateOnDuplicate: ['collectionId', 'itemId', 'traitType']
+            updateOnDuplicate: ['collection_id', 'item_id', 'trait_type']
         });
     }
 
@@ -50,7 +50,7 @@ export default class NftAttributeService {
             count: result.cnt
         }));
         await NftCollectionAttribute.bulkCreate(attributes, {
-            updateOnDuplicate: ['collectionId', 'itemId', 'traitType', 'value']
+            updateOnDuplicate: ['collection_id', 'item_id', 'trait_type', 'trait_value']
         });
     }
 
