@@ -91,5 +91,18 @@ export default class NftMarketEventMapper {
             throw error;
         }
     }
+
+    static async bulkUpsertEvent(eventList) {
+        if (!eventList || eventList.length === 0) {
+            return [];
+        }
+
+        const uniqueKeyFields = ['listing_output', 'type'];
+        const updatableFields = Object.keys(eventList[0]).filter(key => !uniqueKeyFields.includes(key));
+        return await NftMarketEvent.bulkCreate(eventList, {
+            updateOnDuplicate: updatableFields,
+            returning: false
+        });
+    }
 }
 

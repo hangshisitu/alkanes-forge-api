@@ -66,12 +66,12 @@ export default class NftMarketService {
         }).filter(item => item != null);
     }
 
-    static getEventCacheKey(collectionId, sellerAddress, types, page, size) {
-        return `nft-events:${collectionId}:${sellerAddress || 'all'}:${types || 'all'}:${page}:${size}`;
+    static getEventCacheKey(collectionId, sellerAddress, type, page, size) {
+        return `nft-events:${collectionId}:${sellerAddress || 'all'}:${type || 'all'}:${page}:${size}`;
     }
 
-    static async getEventPage(collectionId, sellerAddress, types, page, size) {
-        const cacheKey = this.getEventCacheKey(collectionId, sellerAddress, types, page, size);
+    static async getEventPage(collectionId, sellerAddress, type, page, size) {
+        const cacheKey = this.getEventCacheKey(collectionId, sellerAddress, type, page, size);
         // 查缓存
         const cacheData = await RedisHelper.get(cacheKey);
         if (cacheData) {
@@ -81,10 +81,8 @@ export default class NftMarketService {
         const whereClause = {
             collectionId: collectionId
         };
-        if (types != null) {
-            whereClause.type = {
-                [Op.in]: types.split(',').map(type => parseInt(type))
-            };
+        if (type != null) {
+            whereClause.type = type;
         }
         if (sellerAddress) {
             whereClause.sellerAddress = sellerAddress;
@@ -115,6 +113,7 @@ export default class NftMarketService {
     static async deleteListingCache(collectionId) {
         await RedisHelper.scan(`nft-listings:${collectionId}:*`, 1000, true);
         await this.refreshCollectionListing(collectionId);
+        await NftCollectionService.refreshCollectionFloorPrice(collectionId);
     }
 
     static async getListingPage(collectionId, name, orderType, page, size) {
@@ -287,6 +286,7 @@ export default class NftMarketService {
                 itemId,
                 itemName: item.name,
                 sellerAmount: sellerAmount,
+                listingPrice: listingPrice,
                 listingOutput: `${sellerInput.txid}:${sellerInput.vout}`,
                 psbtData: psbt.toHex(),
                 sellerAddress: sellerInput.address,
@@ -313,8 +313,6 @@ export default class NftMarketService {
         await NftMarketListingMapper.bulkUpsertListing(listingList);
         await NftMarketEventMapper.bulkUpsertEvent(eventList);
         await this.deleteListingCache(listingList[0].collectionId);
-
-        await NftCollectionService.refreshCollectionFloorPrice(listingList[0].collectionId);
     }
 
     

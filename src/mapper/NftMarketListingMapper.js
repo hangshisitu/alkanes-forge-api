@@ -85,5 +85,14 @@ export default class NftMarketListingMapper {
             raw: true
         });
     }
+
+    static async countListingByCollectionId(collectionId) {
+        return await NftMarketListing.count({
+            where: {
+                collectionId: collectionId,
+                status: Constants.LISTING_STATUS.LIST
+            }
+        });
+    }
     
 }

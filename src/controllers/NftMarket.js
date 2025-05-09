@@ -415,11 +415,9 @@ async function putSignedBuying(ctx) {
  *               address:
  *                 type: string
  *                 description: Filter by address
- *               types:
- *                 type: array
- *                 description: Filter by event types
- *                 items:
- *                   type: string
+ *               type:
+ *                 type: number
+ *                 description: Filter by event type
  *               page:
  *                 type: integer
  *                 description: Page number
@@ -444,8 +442,8 @@ async function putSignedBuying(ctx) {
  *                   type: integer
  */
 async function events(ctx) {
-    const { collectionId, address, types, page, size } = ctx.request.body;
-    return await NftMarketService.getEventPage(collectionId, address, types, page, size);
+    const { collectionId, address, type, page, size } = ctx.request.body;
+    return await NftMarketService.getEventPage(collectionId, address, type, page, size);
 }
 
 /**

@@ -16,7 +16,7 @@ import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
 import config from '../conf/config.js';
 import AlkanesService from './AlkanesService.js';
 import decodeProtorune from '../lib/ProtoruneDecoder.js';
-import * as bitcoin from "bitcoinjs-lib";
+import NftCollectionService from './NftCollectionService.js';
 
 export default class IndexerService {
 
@@ -363,6 +363,7 @@ export default class IndexerService {
             if (errors.length > 0) {
                 throw new Error(`block ${block} update nft item holder failed, ${errors.length} errors`);
             }
+            await NftCollectionService.refreshCollectionHolderAndItemCount([...new Set(nftItemBalances.map(item => item.alkanesId))]);
         }
     }
 
