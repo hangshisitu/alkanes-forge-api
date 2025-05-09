@@ -1,8 +1,6 @@
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import MempoolTx from '../models/MempoolTx.js';
 import MempoolTxMapper from '../mapper/MempoolTxMapper.js';
-import axios from 'axios';
-import config from "../conf/config.js";
 import * as bitcoin from "bitcoinjs-lib";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from '../utils/MempoolUtil.js';
@@ -13,6 +11,7 @@ import * as logger from '../conf/logger.js';
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import BaseUtil from '../utils/BaseUtil.js';
+import decodeProtorune from '../lib/ProtoruneDecoder.js';
 
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
@@ -136,15 +135,6 @@ async function try_scan_mempool_tx() {
     }
 }
 
-async function parse_tx_hex(hex) {
-    try {
-        const response = await axios.post(`${config.api.protoruneParseEndpoint}/decode`, hex);
-        return response.data;
-    } catch (error) {
-        logger.error(`parse tx hex error`, error);
-    }
-}
-
 async function handle_mempool_txs(txids) {
     const promises = [];
     let count = 0;
@@ -182,7 +172,7 @@ async function handle_mempool_tx(txid) {
     if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
         return false;
     }
-    const result = await parse_tx_hex(hex);
+    const result = await decodeProtorune(hex);
     if (result?.status !== 'success') {
         logger.error(`parse tx [${txid}] error`, result);
         return false;

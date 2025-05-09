@@ -13,77 +13,135 @@ import AddressBalance from '../models/AddressBalance.js';
 import TokenInfoService from '../service/TokenInfoService.js';
 import NftItemService from '../service/NftItemService.js';
 import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
+import config from '../conf/config.js';
+import AlkanesService from './AlkanesService.js';
+import decodeProtorune from '../lib/ProtoruneDecoder.js';
+import * as bitcoin from "bitcoinjs-lib";
 
 export default class IndexerService {
 
     static async index({current, previous}) {
-        await this.indexBlock(previous);
-        await this.indexBlock(current);        
+        // 废弃        
     }
 
-    static async indexBlock({ height, outpoint_balances }) {
-        const indexBlock = await IndexBlock.findOne({
-            where: {
-                block: height
-            }
-        });
-        const blockHash = await MempoolUtil.getBlockHash(height);
-        if (indexBlock) {
-            if (blockHash === indexBlock.blockHash) {
-                return;
-            }
-            logger.warn(`index block ${height} hash mismatch, new ${blockHash}, old ${indexBlock.blockHash}, reorg detected`);
-        }
-        await OutpointRecordMapper.deleteAfter(height);
-        await IndexBlockMapper.deleteAfter(height);
-        if (outpoint_balances.length > 0) {
-            const txs = {};
-            const errors =[];
-            const txids = await MempoolUtil.getBlockTxIds(blockHash);
-            await BaseUtil.concurrentExecute(outpoint_balances, async (outpoint_balance) => {
-                const { balances, txid, vout } = outpoint_balance;
-                try {
-                    const txIdx = txids.indexOf(txid);
-                    let tx = txs[txid];
-                    if (!tx) {
-                        tx = await MempoolUtil.getTx(txid);
-                        txs[txid] = tx;
+    static async indexBlock() {
+        while (true) {
+            logger.putContext({traceId: BaseUtil.genId()});
+            try {
+                const indexBlock = await IndexBlock.findOne({
+                    order: [['block', 'DESC']],
+                });
+                let block = config.startHeight;
+                let blockHash = '';
+                if (indexBlock) {
+                    const blockHash = await MempoolUtil.getBlockHash(indexBlock.block);
+                    block = indexBlock.block;
+                    if (blockHash !== indexBlock.blockHash) {
+                        await OutpointRecordMapper.deleteAfter(block);
+                        await IndexBlockMapper.deleteAfter(block);
+                        logger.warn(`index block ${block} hash mismatch, new ${blockHash}, old ${indexBlock.blockHash}, reorg detected`);
+                        continue;
                     }
-                    const address = tx.vout[vout].scriptpubkey_address;
-                    const value = tx.vout[vout].value;
-                    const blockTime = tx.status.block_time;
-                    if ([address, value, blockTime].some(x => x == null)) {
-                        throw new Error(`index block ${height} tx ${txid} vout ${vout} failed, ${JSON.stringify(tx)}`);
-                    }
-                    for (const { rune_id, balance } of balances) {
-                        const alkanesIdCount = balances.length;
-                        await OutpointRecord.create({
-                            block: height,
-                            txIdx,
-                            txid,
-                            vout,
-                            value,
-                            address,
-                            alkanesId: rune_id,
-                            balance,
-                            alkanesIdCount,
-                            spent: false,
-                            blockTime
-                        });
-                    }
-                } catch (e) {
-                    logger.error(`index block ${height} tx ${txid} vout ${vout} failed, ${e.message}`, e);
-                    throw e;
+                    block = indexBlock.block + 1;
                 }
-            }, null, errors);
-            if (errors.length > 0) {
-                throw new Error(`index block ${height} failed, ${errors.length} errors`);
+                const maxHeight = await AlkanesService.metashrewHeight();
+                if (block > maxHeight) {
+                    break;
+                }
+                logger.putContext({block});
+                logger.info(`index block ${block}`);
+                if (!blockHash) {
+                    blockHash = await MempoolUtil.getBlockHash(block);
+                }
+                const txids = await MempoolUtil.getBlockTxIds(blockHash);
+                const errors = [];
+                // const blockTxids = {};
+                // blockTxids[blockHash] = txids;
+                await BaseUtil.concurrentExecute(txids, async (txid) => {
+                    try {
+                        const txHex = await MempoolUtil.getTxHexEx(txid);
+                        const tx = bitcoin.Transaction.fromHex(txHex);
+                        if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
+                            return false;
+                        }
+                        const result = await decodeProtorune(txHex);
+                        if (!result) {
+                            return;
+                        }
+                        const txIdx = txids.indexOf(txid);
+                        let mempoolTx = null;
+                        for (let vout = 0; vout < tx.outs.length; vout++) {
+                            const outpoint = tx.outs[vout];
+                            if (outpoint.script.toString('hex').startsWith('6a5d')) {
+                                continue
+                            }
+                            const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
+                                txid,
+                                vout,
+                                height: block,
+                            });
+                            const alkanesIdCount = outpoint_balances.length;
+                            if (alkanesIdCount === 0) {
+                                continue
+                            }
+                            for (const outpoint_balance of outpoint_balances) {
+                                if (!mempoolTx) {
+                                    mempoolTx = await MempoolUtil.getTx(txid);
+                                }
+                                const balance = outpoint_balance.value;
+                                // let spent = balance === 0;
+                                // let spendBy = null;
+                                // let spendByInput = null;
+                                // if (spent) {
+                                //     const spendInfo = await MempoolUtil.getTxOutspend(txid, vout);
+                                //     if (spendInfo.status.confirmed) {
+                                //         spendByInput = `${spendInfo.txid}:${spendInfo.vin}`;
+                                //         const spendBlockHash = spendInfo.status.block_hash;
+                                //         if (!blockTxids[spendBlockHash]) {
+                                //             blockTxids[spendBlockHash] = await MempoolUtil.getBlockTxIds(spendBlockHash);
+                                //         }
+                                //         const spendBlockTxids = blockTxids[spendBlockHash];
+                                //         const spendTxIdx = spendBlockTxids.indexOf(spendInfo.txid);
+                                //         const sidx = `${spendTxIdx}`.padStart(5, '0');
+                                //         spendBy = parseInt(`${spendInfo.status.block_height}${sidx}`);
+                                //         spent = false;
+                                //     }
+                                // }
+                                await OutpointRecord.create({
+                                    block,
+                                    txIdx,
+                                    txid,
+                                    vout,
+                                    value: mempoolTx.vout[vout].value,
+                                    address: mempoolTx.vout[vout].scriptpubkey_address,
+                                    alkanesId: outpoint_balance.id,
+                                    balance: balance.toString(),
+                                    alkanesIdCount,
+                                    spent: false,
+                                    // spent,
+                                    // spendBy,
+                                    // spendByInput,
+                                    blockTime: mempoolTx.status.block_time
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
+                        throw e;
+                    }
+                }, null, errors);
+                if (errors.length > 0) {
+                    throw new Error(`index block ${block} failed, ${errors.length} errors`);
+                }
+                await IndexBlock.create({
+                    block,
+                    blockHash
+                });
+                logger.info(`index block ${block} success`);
+            } finally {
+                logger.clearContext();
             }
         }
-        await IndexBlock.create({
-            block: height,
-            blockHash
-        });
     }
 
     static async indexTx() {
