@@ -59,7 +59,7 @@ export default class IndexerService {
                 await BaseUtil.concurrentExecute(txs, async (tx) => {
                     const txid = tx.txid;
                     try {
-                        if (!tx.vout.find(o => o.script.toString('hex').startsWith('6a5d'))) {
+                        if (!tx.vout.find(o => o.scriptPubKey.hex.startsWith('6a5d'))) {
                             return;
                         }
                         const result = await decodeProtorune(tx.hex);
