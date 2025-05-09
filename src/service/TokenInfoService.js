@@ -260,11 +260,12 @@ export default class TokenInfoService {
                         value: attributes[traitType],
                     }
                 });
-            }).filter(item => item != null);
+            }).flat().filter(item => item != null);
             if (nftItemAttributes.length > 0) {
                 await NftAttributeService.bulkUpsertNftItemAttributes(nftItemAttributes);
-                for (const nftItemAttribute of nftItemAttributes) {
-                    await NftAttributeService.refreshNftCollectionAttributes(nftItemAttribute.collectionId);
+                const nftCollectionIds = new Set(nftItemAttributes.map(item => item.collectionId));
+                for (const nftCollectionId of nftCollectionIds) {
+                    await NftAttributeService.refreshNftCollectionAttributes(nftCollectionId);
                 }
             }
         }
