@@ -36,7 +36,9 @@ export default class NftCollectionService {
     }
 
     static async getAllNftCollection() {
-        const nftCollectionList = await NftCollection.findAll();
+        const nftCollectionList = await NftCollection.findAll({
+            raw: true
+        });
         return nftCollectionList;
     }
 

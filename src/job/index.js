@@ -77,7 +77,7 @@ function refreshTokenInfo() {
             const allTokens = await TokenInfoService.refreshTokenInfo(indexHeight);
             logger.info(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            logger.error(`refreshTokenInfo error: ${err.message}`);
+            logger.error(`refreshTokenInfo error: ${err.message}`, err);
         } finally {
             isRefreshTokenInfo = false;
         }
