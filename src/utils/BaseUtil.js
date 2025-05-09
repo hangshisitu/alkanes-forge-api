@@ -66,6 +66,7 @@ export default class BaseUtil {
         if (!concurrency || concurrency <= 0) {
             concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4;
         }
+        const executeCollection = [...collection];
 
         async function execute() {
             const results = [];
@@ -73,7 +74,7 @@ export default class BaseUtil {
                 if (errors?.length > 0) {
                     break;
                 }
-                const element = collection.shift();
+                const element = executeCollection.shift();
                 if (element == null) {
                     break;
                 }
