@@ -59,23 +59,17 @@ export default class IndexerService {
                 await BaseUtil.concurrentExecute(txs, async (tx) => {
                     const txid = tx.txid;
                     try {
-                        if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
+                        if (!tx.vout.find(o => o.script.toString('hex').startsWith('6a5d'))) {
                             return;
                         }
-                        let txHex = null;
-                        try {
-                            txHex = BtcRPC.getTransactionFromJson(tx);
-                        } catch (e) {
-                            txHex = await MempoolUtil.getTxHexEx(txid);
-                        }
-                        const result = await decodeProtorune(txHex);
+                        const result = await decodeProtorune(tx.hex);
                         if (!result) {
                             return;
                         }
                         const txIdx = txids.indexOf(txid);
                         let mempoolTx = null;
-                        for (let vout = 0; vout < tx.outs.length; vout++) {
-                            const outpoint = tx.outs[vout];
+                        for (let vout = 0; vout < tx.vout.length; vout++) {
+                            const outpoint = tx.vout[vout];
                             if (outpoint.script.toString('hex').startsWith('6a5d')) {
                                 continue
                             }
