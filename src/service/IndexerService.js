@@ -49,6 +49,8 @@ export default class IndexerService {
                 }
                 logger.putContext({block});
                 logger.info(`index block ${block}`);
+                await OutpointRecordMapper.deleteAfter(block);
+                await IndexBlockMapper.deleteAfter(block);
                 if (!blockHash) {
                     blockHash = await MempoolUtil.getBlockHash(block);
                 }
