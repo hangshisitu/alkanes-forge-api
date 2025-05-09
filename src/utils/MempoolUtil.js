@@ -167,7 +167,7 @@ export default class MempoolUtil {
     static async postTx(hex) {
         try {
             let host = `https://${mempoolHost}`;
-            if (config.networkName !== 'testnet4') {
+            if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
                 host = `https://${mempoolHost}/${config.networkName}`;
             }
             const response = await axios.post(`${host}/api/tx`, hex, {
