@@ -5,6 +5,7 @@
   "alkanesAddressUrl": "https://alkanes-rpc-signet.idclub.io",
   "alkanesUtxoUrl": "https://alkanes-rpc-signet.idclub.io",
   "reserveNumber": 777,
+  "startHeight": 80000,
   "concurrencyLimit": 100,
   "networkName": "signet",
   "maxHeightGap": 2,

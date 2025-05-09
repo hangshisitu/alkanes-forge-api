@@ -189,6 +189,26 @@ function refreshMintingMergeMintOrder() {
     });
 }
 
+let isIndexBlock = false;
+function indexBlock() {
+    schedule.scheduleJob('*/5 * * * * *', async () => {
+        if (isIndexBlock) {
+            return;
+        }
+
+        try {
+            isIndexBlock = true;
+            const execStartTime = Date.now();
+            logger.info(`indexBlock start`);
+            await IndexerService.indexBlock();
+            logger.info(`indexBlock finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`indexBlock error, error: ${err.message}`, err);
+        } finally {
+            isIndexBlock = false;
+        }
+    });
+}
 let isIndexTx = false;
 function indexTx() {
     schedule.scheduleJob('*/5 * * * * *', async () => {
@@ -225,5 +245,6 @@ export function jobMintStatus() {
 }
 
 export function jobIndexer() {
+    indexBlock();
     indexTx();
 }
