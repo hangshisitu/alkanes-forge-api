@@ -12,8 +12,9 @@ export default class MintItemMapper {
         }
 
         const uniqueKeyFields = ['input_utxo'];
+        const updatableFields = Object.keys(itemList[0]).filter(key => !uniqueKeyFields.includes(key));
         return await MintItem.bulkCreate(itemList, {
-            updateOnDuplicate: Object.keys(itemList[0]).filter(key => !uniqueKeyFields.includes(key)),
+            updateOnDuplicate: updatableFields,
             returning: false,
             transaction: options.transaction
         });

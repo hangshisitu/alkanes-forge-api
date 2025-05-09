@@ -6,13 +6,13 @@
   "alkanesUtxoUrl": "https://alkanes-rpc-signet.idclub.io",
   "reserveNumber": 777,
   "concurrencyLimit": 100,
-  "networkName": "signet",
+  "networkName": "testnet4",
   "maxHeightGap": 2,
   "database": {
-    "host": "149.28.90.24",
+    "host": "127.0.0.1",
     "port": 3306,
     "username": "root",
-    "password": "Idclub&bicords@2088^",
+    "password": "Bitcoin2088",
     "database": "alkanes"
   },
   "market": {
@@ -28,8 +28,8 @@
   },
   "api": {
     "protoruneParseEndpoint": "http://127.0.0.1:58888",
-    "unisatHost": "https://open-api-signet.unisat.io",
-    "unisatApiKey": "02b773333e2831d29cd02f55c7727a0f0333d73187d0b6781dd85901dc1f56ea"
+    "unisatHost": "https://open-api-testnet4.unisat.io",
+    "unisatApiKey": "cc4180e2f967a208eda8d55bedf33bbfd17286ce2d78388769b620fa6836f729"
   },
   "r2": {
     "accessKeyId": "af42cda45514dceca2e4d26d2532baa3",

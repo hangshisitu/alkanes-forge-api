@@ -4,13 +4,13 @@ import {Constants} from "../conf/constants.js";
 
 export default class MintOrderMapper {
 
-    static async orderPage(page, size, receiveAddress) {
-        if (!receiveAddress) {
+    static async orderPage(page, size, userAddress) {
+        if (!userAddress) {
             throw new Error('Please enter the Receive Address and try again.');
         }
 
         const whereClause = {
-            receiveAddress: receiveAddress,
+            userAddress: userAddress,
             mintStatus: {[Op.ne]: Constants.MINT_ORDER_STATUS.UNPAID}
         };
 

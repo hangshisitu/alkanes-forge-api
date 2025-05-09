@@ -4,7 +4,10 @@ import axios from "axios";
 import UnisatAPI from "../lib/UnisatAPI.js";
 import * as logger from '../conf/logger.js';
 
-const mempoolHost = config['mempoolHost'];
+let mempoolHost = config['mempoolHost'];
+if (config.networkName === 'testnet4') {
+    mempoolHost = `${mempoolHost}/testnet4`
+}
 const {bitcoin: {addresses}} = mempoolJS({
     hostname: mempoolHost,
     network: config.networkName
@@ -163,7 +166,10 @@ export default class MempoolUtil {
 
     static async postTx(hex) {
         try {
-            const host = config.networkName === 'mainnet' ? `https://${mempoolHost}` : `https://${mempoolHost}/${config.networkName}`;
+            let host = `https://${mempoolHost}`;
+            if (config.networkName !== 'testnet4') {
+                host = `https://${mempoolHost}/${config.networkName}`;
+            }
             const response = await axios.post(`${host}/api/tx`, hex, {
                 headers: {
                     'Content-Type': 'text/plain',

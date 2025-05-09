@@ -43,6 +43,7 @@ const AUTH_PATHS = [
     Constants.API.INSCRIBE.CREATE_MERGE_ORDER,
     Constants.API.INSCRIBE.ACCELERATE_MERGE_ORDER,
     Constants.API.INSCRIBE.CANCEL_MERGE_ORDER,
+    Constants.API.INSCRIBE.ORDER_PAGE,
     Constants.API.METHANE.COMMUNITY_CHECK,
 ];
 
@@ -672,7 +673,8 @@ router
     .post(Constants.API.INSCRIBE.ORDER_PAGE, async ctx => {
         try {
             const params = ctx.request.body;
-            const result = await MintOrderMapper.orderPage(params.page, params.size, params.receiveAddress);
+            const userAddress = ctx.state.address;
+            const result = await MintOrderMapper.orderPage(params.page, params.size, userAddress);
             ctx.body = {
                 'code': 0,
                 'msg': 'ok',

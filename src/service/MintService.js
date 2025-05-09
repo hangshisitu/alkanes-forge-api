@@ -953,7 +953,7 @@ export default class MintService {
             await MintService.submitBatchItems(items, model);
         });
     }
-    
+
     static getMintPrivateKey(orderId) {
         return AddressUtil.generatePrivateKeyFromString(`idclub:alkanes:${orderId}`);
     }

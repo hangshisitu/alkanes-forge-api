@@ -238,12 +238,24 @@ async function handle_mempool_tx(txid) {
         }
     }
     if (mempoolTxs.length > 0) {
-        await MempoolTx.bulkCreate(mempoolTxs, {
-            ignoreDuplicates: true,
-        });
-        return true;
+        return bulkInsertMempoolTxs(mempoolTxs);
     }
     return false;
+}
+
+async function bulkInsertMempoolTxs(mempoolTxs) {
+    if (!mempoolTxs || mempoolTxs.length === 0) {
+        return false;
+    }
+
+    for (let i = 0; i < mempoolTxs.length; i += Constants.MYSQL_UPSERT_PER_BATCH) {
+        const batch = mempoolTxs.slice(i, i + Constants.MYSQL_UPSERT_PER_BATCH);
+        await MempoolTx.bulkCreate(batch, {
+            ignoreDuplicates: true,
+            returning: false
+        });
+    }
+    return true;
 }
 
 function safe_call(callback, ...args) {
