@@ -1,5 +1,5 @@
 import NftItem from "../models/NftItem.js";
-import { Op } from 'sequelize';
+import { literal, Op } from 'sequelize';
 import sequelize from '../lib/SequelizeHelper.js';
 export default class NftItemMapper {
 
@@ -22,12 +22,16 @@ export default class NftItemMapper {
         });
     }
 
-    static async countCollectionHolder(collectionIds) {
+    static async countCollectionHolderAndItem(collectionIds) {
         return await NftItem.findAll({
             where: {
                 collectionId: { [Op.in]: collectionIds }
             },
-            attributes: ['collectionId', [sequelize.fn('COUNT', sequelize.col('id')), 'holderCount']],
+            attributes: [
+                'collectionId', 
+                [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'holderCount'], 
+                [sequelize.fn('COUNT', sequelize.col('id')), 'itemCount']
+            ],
             group: ['collectionId'],
             raw: true,
         });

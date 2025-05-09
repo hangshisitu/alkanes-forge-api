@@ -80,6 +80,9 @@ export const Constants = Object.freeze({
 
         // 内存池交易数量排序
         MEMPOOL_TX_COUNT_DESC: 'mempoolTxCountDesc',
+
+        // 持有人数量排序
+        HOLDERS_COUNT_DESC: 'holdersCountDesc',
     },
 
     NFT_COLLECTION_ORDER_TYPE: {

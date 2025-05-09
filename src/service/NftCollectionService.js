@@ -378,14 +378,15 @@ export default class NftCollectionService {
         }
     }
 
-    static async refreshCollectionHolder(collectionIds) {
-        const collectionHolderList = await NftItemMapper.countCollectionHolder(collectionIds);
-        for (const collectionHolder of collectionHolderList) {
+    static async refreshCollectionHolderAndItemCount(collectionIds) {
+        const collectionHolderAndItemCounts = await NftItemMapper.countCollectionHolderAndItem(collectionIds);
+        for (const collectionHolderAndItemCount of collectionHolderAndItemCounts) {
             await NftCollection.update({
-                holders: collectionHolder.holderCount
+                holders: collectionHolderAndItemCount.holderCount,
+                minted: collectionHolderAndItemCount.itemCount
             }, {
                 where: {
-                    id: collectionHolder.collectionId
+                    id: collectionHolderAndItemCount.collectionId
                 }
             });
         }

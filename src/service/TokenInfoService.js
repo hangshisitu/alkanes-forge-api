@@ -610,6 +610,10 @@ export default class TokenInfoService {
                     return x;
                 }, false, false);
                 break
+            
+            case ORDER_TYPE.HOLDERS_COUNT_DESC:
+                tokenList = this.sortTokenList(tokenList, (a, b) => b.holders - a.holders);
+                break;
 
             // 默认排序 - 进度降序
             default:
