@@ -51,11 +51,11 @@ export default class NftItemService {
         const where = {
             collectionId,
         };
-        if (listing === 1) {
+        if (listing === true) {
             where.id = {
                 [Op.in]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
             }
-        } else if (listing === 0) {
+        } else if (listing === false) {
             where.id = {
                 [Op.notIn]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
             }

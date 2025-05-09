@@ -116,7 +116,7 @@ async function info(ctx) {
  *                 description: Filter by owner address
  *               listing:
  *                 type: boolean
- *                 description: Filter by listing status, 0: not listing, 1: listing
+ *                 description: Filter by listing status
  *               name:
  *                 type: string
  *                 description: Filter by item name
