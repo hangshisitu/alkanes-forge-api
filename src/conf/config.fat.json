@@ -40,7 +40,7 @@
     "urlDomain": "https://cdn.idclub.io"
   },
   "btc": {
-    "host": "http://10.6.96.3:2088",
+    "host": "http://127.0.0.1:2088",
     "username": "idclub",
     "password": "Bitcoin2088"
   }
