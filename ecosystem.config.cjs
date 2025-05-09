@@ -96,6 +96,11 @@ module.exports = {
                 indexerEnable: true,
                 port: 57777,
             },
+            env_fat: {
+                NODE_ENV: 'fat',
+                indexerEnable: true,
+                port: 57777,
+            },
             env_pro: {
                 NODE_ENV: 'pro',
                 indexerEnable: true,
