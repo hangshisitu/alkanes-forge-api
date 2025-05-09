@@ -5,11 +5,12 @@ import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
 import NftItemAttribute from '../models/NftItemAttribute.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
+import IndexerService from './IndexerService.js';
 
 export default class NftItemService {
 
-    static getItemCacheKey(collectionId, holderAddress, name, page, size) {
-        return `nft-items:${collectionId}:${holderAddress || 'all'}:${name || 'all'}:${page}:${size}`;
+    static getItemCacheKey(collectionId, holderAddress, listing, utxo, name, page, size) {
+        return `nft-items:${collectionId}:${holderAddress || 'all'}:${listing ?? 'all'}:${utxo ?? 'all'}:${name || 'all'}:${page}:${size}`;
     }
 
     static async bulkUpsertNftItem(infos) {
@@ -37,8 +38,8 @@ export default class NftItemService {
         return item;
     }
 
-    static async getItemPage(collectionId, holderAddress, listing, name, page, size) {
-        const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, name, page, size);
+    static async getItemPage(collectionId, holderAddress, listing, utxo, name, page, size) {
+        const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, utxo, name, page, size);
         // 查缓存
         const cacheData = await RedisHelper.get(cacheKey);
         if (cacheData) {
@@ -81,15 +82,26 @@ export default class NftItemService {
         const itemIds =rows.map(item => {
             return item.id
         });
-        const listingItems = await NftMarketListingMapper.getListingItems(itemIds);
-        rows.forEach(item => {
-            const listingItem = listingItems.find(listing => listing.itemId === item.id);
-            if (listingItem) {
-                item.listing = 1;
-            } else {
+        if (listing === false) {
+            rows.forEach(item => {
                 item.listing = 0;
-            }
-        });
+            });
+        } else {
+            const listingItems = await NftMarketListingMapper.getListingItems(itemIds);
+            rows.forEach(item => {
+                const listingItem = listingItems.find(listing => listing.itemId === item.id);
+                item.listing = listingItem ? 1 : 0;
+            });
+        }
+        if (utxo) {
+            const outpointRecords = await IndexerService.getOutpointsByAlkanesIds(itemIds);
+            rows.forEach(item => {
+                const outpointRecord = outpointRecords.find(record => record.itemId === item.id);
+                item.txid = outpointRecord?.txid;
+                item.vout = outpointRecord?.vout;
+                item.value = outpointRecord?.value;
+            });
+        }
         const result = {
             page,
             size,
