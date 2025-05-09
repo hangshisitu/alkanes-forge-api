@@ -119,8 +119,9 @@ export default class MarketEventMapper {
         }
 
         const uniqueKeyFields = ['listingOutput', 'type'];
+        const updatableFields = Object.keys(eventList[0]).filter(key => !uniqueKeyFields.includes(key));
         return await MarketEvent.bulkCreate(eventList, {
-            updateOnDuplicate: Object.keys(eventList[0]).filter(key => !uniqueKeyFields.includes(key)),
+            updateOnDuplicate: updatableFields,
             returning: false
         });
     }

@@ -1,13 +1,3 @@
-// import AlkanesService from "../service/AlkanesService.js";
-import MarketService from "../service/MarketService.js";
-import * as bitcoin from "bitcoinjs-lib";
-import PsbtUtil from "../utils/PsbtUtil.js";
-import BigNumber from "bignumber.js";
-import config from "../conf/config.js";
-import MempoolUtil from "../utils/MempoolUtil.js";
-import BaseService from "../service/BaseService.js";
-import UnisatAPI from "../lib/UnisatAPI.js";
-import AddressUtil from "../lib/AddressUtil.js";
 import AlkanesService from "../service/AlkanesService.js";
 
 // const assetUtxo = {
@@ -36,11 +26,11 @@ import AlkanesService from "../service/AlkanesService.js";
 // });
 // console.log(alkanes);
 
-// console.log(Buffer.from('0x41a1', 'hex').reverse().toString('hex'))
+// console.log(Buffer.from('3602c413d6acb8a478fdb6e560321f211dc778034e29c6c6c7bf1d8e25aa62b9', 'hex').reverse().toString('hex'))
 // console.log(new BigNumber('0x1b').toNumber());
 
 // 查询代币信息
-const alkanes = await AlkanesService.getAlkanesById('2:614');
+const alkanes = await AlkanesService.getAlkanesById('2:10664');
 console.log(alkanes);
 
 //查询地址下余额信息

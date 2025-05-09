@@ -3,7 +3,7 @@ export default class FeeUtil {
     static estTxSize(inputs, outputs) {
         let baseSize = 4 + 4; // version + locktime
         let witnessSize = 0;
-        const isSegWit = inputs.some(i => i.address?.startsWith('bc1') || i.address?.startsWith('3'));
+        const isSegWit = inputs.some(i => i.address?.startsWith('bc1') || i.address?.startsWith('3') || i.address?.startsWith('tp1'));
 
         // 输入输出数量（VarInt）
         baseSize += FeeUtil.varIntSize(inputs.length) + FeeUtil.varIntSize(outputs.length);

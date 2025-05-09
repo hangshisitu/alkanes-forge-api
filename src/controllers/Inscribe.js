@@ -263,9 +263,6 @@ async function cancelMergeOrder(ctx) {
  *               size:
  *                 type: integer
  *                 description: Number of items per page
- *               receiveAddress:
- *                 type: string
- *                 description: Filter by receive address
  *     responses:
  *       200:
  *         description: List of orders
@@ -284,8 +281,9 @@ async function cancelMergeOrder(ctx) {
  *                   type: integer
  */
 async function orderPage(ctx) {
-    const { page, size, receiveAddress } = ctx.request.body;
-    return await MintOrderMapper.orderPage(page, size, receiveAddress);
+    const { page, size } = ctx.request.body;
+    const userAddress = ctx.state.address;
+    return await MintOrderMapper.orderPage(page, size, userAddress);
 }
 
 /**

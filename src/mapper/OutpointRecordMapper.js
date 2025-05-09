@@ -14,10 +14,4 @@ export default class OutpointRecordMapper {
         });
     }
 
-    static async bulkUpsert(records) {
-        await OutpointRecord.bulkCreate(records, {
-            updateOnDuplicate: ['txid', 'vout', 'alkanesId'],
-            returning: false
-        });
-    }
 }

@@ -137,8 +137,9 @@ export default class MarketListingMapper {
         }
 
         const uniqueKey = 'listing_output';
+        const updatableFields = Object.keys(listingList[0]).filter(key => key !== uniqueKey);
         const ret = await MarketListing.bulkCreate(listingList, {
-            updateOnDuplicate: Object.keys(listingList[0]).filter(key => key !== uniqueKey),
+            updateOnDuplicate: updatableFields,
             returning: false
         });
         // 从listingList获取所有alkanesId并去重后删除缓存
