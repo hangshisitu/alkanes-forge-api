@@ -20,10 +20,12 @@ export default class TokenInfoMapper {
             whereClause.mintActive = { [Op.eq]: mintActive };
         }
 
-        return await TokenInfo.findAll({
+        const tokens = await TokenInfo.findAll({
             where: whereClause,
             order: [["id", "ASC"]],
-            raw: true
+        });
+        return tokens.map(token => {
+            return token.toJSON();
         });
     }
 
