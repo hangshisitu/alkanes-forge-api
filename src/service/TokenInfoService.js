@@ -63,7 +63,7 @@ export default class TokenInfoService {
                     }
 
                     // 合并原有字段
-                    return { ...token, ...data };
+                    return { ...token, mintActive: token.actualMintActive, ...data };
                 } catch (error) {
                     logger.error(`Failed to fetch token ${token.id}:`, error);
                     failedTokens.push(token.id);
