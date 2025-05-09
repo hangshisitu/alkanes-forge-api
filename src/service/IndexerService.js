@@ -52,26 +52,26 @@ export default class IndexerService {
                 await OutpointRecordMapper.deleteAfter(block);
                 await IndexBlockMapper.deleteAfter(block);
                 const blockHash = await MempoolUtil.getBlockHash(block);
-                const txids = await MempoolUtil.getBlockTxIds(blockHash);
+                const txs = await BtcRPC.getBlockTransactions(blockHash);
+                const txids = txs.map(tx => tx.txid);
                 const errors = [];
                 // const blockTxids = {};
                 // blockTxids[blockHash] = txids;
-                await BaseUtil.concurrentExecute(txids, async (txid) => {
+                await BaseUtil.concurrentExecute(txs, async (tx) => {
+                    const txid = tx.txid;
                     try {
-                        const txHex = await MempoolUtil.getTxHexEx(txid);
-                        const tx = bitcoin.Transaction.fromHex(txHex);
-                        if (!tx.outs.find(o => o.script.toString('hex').startsWith('6a5d'))) {
-                            return false;
+                        if (!tx.vout.find(o => o.scriptPubKey.hex.startsWith('6a5d'))) {
+                            return;
                         }
-                        const result = await decodeProtorune(txHex);
+                        const result = await decodeProtorune(tx.hex);
                         if (!result) {
                             return;
                         }
                         const txIdx = txids.indexOf(txid);
                         let mempoolTx = null;
-                        for (let vout = 0; vout < tx.outs.length; vout++) {
-                            const outpoint = tx.outs[vout];
-                            if (outpoint.script.toString('hex').startsWith('6a5d')) {
+                        for (let vout = 0; vout < tx.vout.length; vout++) {
+                            const outpoint = tx.vout[vout];
+                            if (outpoint.scriptPubKey.hex.startsWith('6a5d')) {
                                 continue
                             }
                             const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
