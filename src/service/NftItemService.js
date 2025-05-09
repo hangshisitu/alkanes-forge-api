@@ -4,6 +4,7 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
 import NftItemAttribute from '../models/NftItemAttribute.js';
+import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 
 export default class NftItemService {
 
@@ -36,7 +37,7 @@ export default class NftItemService {
         return item;
     }
 
-    static async getItemPage(collectionId, holderAddress, name, page, size) {
+    static async getItemPage(collectionId, holderAddress, listing, name, page, size) {
         const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, name, page, size);
         // 查缓存
         const cacheData = await RedisHelper.get(cacheKey);
@@ -49,10 +50,16 @@ export default class NftItemService {
         ];
         const where = {
             collectionId,
-            id: {
+        };
+        if (listing === 1) {
+            where.id = {
+                [Op.in]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
+            }
+        } else if (listing === 0) {
+            where.id = {
                 [Op.notIn]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
             }
-        };
+        }
         if (holderAddress) {
             where.holder = holderAddress;
         }
@@ -70,6 +77,18 @@ export default class NftItemService {
             limit: size,
             raw: true,
             replacements: { collectionId }
+        });
+        const itemIds =rows.map(item => {
+            return item.id
+        });
+        const listingItems = await NftMarketListingMapper.getListingItems(itemIds);
+        rows.forEach(item => {
+            const listingItem = listingItems.find(listing => listing.itemId === item.id);
+            if (listingItem) {
+                item.listing = 1;
+            } else {
+                item.listing = 0;
+            }
         });
         const result = {
             page,

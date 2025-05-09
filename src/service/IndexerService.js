@@ -296,8 +296,8 @@ export default class IndexerService {
         if (errors.length > 0) {
             throw new Error(`block ${block} update alkanesId holders failed, ${errors.length} errors`);
         }
-
-        const nftItemBalances = effectAddressAlkanes.filter(item => {
+        
+        const nftItemBalances = addressAlkanesBalances.filter(item => {
             return nftItems.find(nftItem => nftItem.id === item.alkanesId) && item.balance > 0;
         });
         if (nftItemBalances.length > 0) {

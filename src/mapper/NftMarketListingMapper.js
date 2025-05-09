@@ -1,5 +1,6 @@
 import NftMarketListing from "../models/NftMarketListing.js";
 import {Constants} from "../conf/constants.js";
+import { Op } from 'sequelize';
 
 export default class NftMarketListingMapper {
 
@@ -72,6 +73,16 @@ export default class NftMarketListingMapper {
                 sellerAddress: address,
                 itemId: itemIds
             }
+        });
+    }
+
+    static async getListingItems(itemIds) {
+        return await NftMarketListing.findAll({
+            where: {
+                itemId: { [Op.in]: itemIds },
+                status: Constants.LISTING_STATUS.LIST
+            },
+            raw: true
         });
     }
     
