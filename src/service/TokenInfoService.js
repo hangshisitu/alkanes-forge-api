@@ -609,7 +609,7 @@ export default class TokenInfoService {
                         return b.progress - a.progress;
                     }
                     return x;
-                }, false, false);
+                }, false, true);
                 break
             
             case ORDER_TYPE.HOLDERS_COUNT_DESC:
