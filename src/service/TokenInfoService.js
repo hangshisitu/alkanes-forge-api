@@ -122,6 +122,7 @@ export default class TokenInfoService {
             }
 
             try {
+                logger.info(`sync new token: ${tokenId}`);
                 const alkanes = await BaseUtil.retryRequest(
                     () => AlkanesService.getAlkanesById(tokenId),
                     2, 500
@@ -235,7 +236,7 @@ export default class TokenInfoService {
             const nftItems = newNftItemList.map(item => {
                 return {
                     id: item.id,
-                    collectionId: item.collectionAlkaneId,
+                    collectionId: item.collectionIdentifier,
                     name: item.name,
                     image: item.image,
                     originalImage: item.originalImage,
@@ -254,7 +255,7 @@ export default class TokenInfoService {
                 attributes = JSON.parse(attributes);
                 return Object.keys(attributes).map(traitType => {
                     return {
-                        collectionId: item.collectionAlkaneId,
+                        collectionId: item.collectionIdentifier,
                         itemId: item.id,
                         traitType,
                         value: attributes[traitType],
