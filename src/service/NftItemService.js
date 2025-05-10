@@ -38,12 +38,14 @@ export default class NftItemService {
         return item;
     }
 
-    static async getItemPage(collectionId, holderAddress, listing, utxo, name, page, size) {
-        const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, utxo, name, page, size);
-        // 查缓存
-        const cacheData = await RedisHelper.get(cacheKey);
-        if (cacheData) {
-            return JSON.parse(cacheData);
+    static async getItemPage(collectionId, holderAddress, listing, utxo, attributes, name, page, size) {
+        const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, listing, utxo, name, page, size);
+        if (attributes?.length <= 0) {
+            // 查缓存
+            const cacheData = await RedisHelper.get(cacheKey);
+            if (cacheData) {
+                return JSON.parse(cacheData);
+            }
         }
         const order = [
             [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'ASC'],
@@ -71,6 +73,22 @@ export default class NftItemService {
                 { name: { [Op.like]: `%${name}%` } }
             ];
         }
+        if (attributes?.length > 0) {
+            // attributes 是数组，每个元素是对象，对象的属性是 trait_type 和 value
+            // 需要根据 attributes 查询 item_id
+            const itemIds = await NftItemAttribute.findAll({
+                where: {
+                    collection_id: collectionId,
+                    trait_type: attributes.map(attribute => attribute.trait_type),
+                    value: attributes.map(attribute => attribute.value)
+                },
+                attributes: ['item_id'],
+                raw: true
+            });
+            where.id = {
+                [Op.in]: itemIds.map(item => item.item_id)
+            };
+        }
         const { rows, count } = await NftItem.findAndCountAll({
             where,
             order,
@@ -91,6 +109,9 @@ export default class NftItemService {
             rows.forEach(item => {
                 const listingItem = listingItems.find(listing => listing.itemId === item.id);
                 item.listing = listingItem ? 1 : 0;
+                item.listingPrice = listingItem?.listingPrice;
+                item.sellerAmount = listingItem?.sellerAmount;
+                item.listingOutput = listingItem?.listingOutput;
             });
         }
         if (utxo) {
@@ -111,7 +132,9 @@ export default class NftItemService {
             records: rows,
         };
         // 写缓存，10秒有效期
-        await RedisHelper.setEx(cacheKey, 10, JSON.stringify(result));
+        if (attributes?.length <= 0) {
+            await RedisHelper.setEx(cacheKey, 10, JSON.stringify(result));
+        }
         return result;
     }
 

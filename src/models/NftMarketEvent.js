@@ -28,6 +28,10 @@ const NftMarketEvent = sequelize.define('NftMarketEvent', {
         type: DataTypes.STRING(128),
         comment: 'nft item 名称'
     },
+    itemImage: {
+        type: DataTypes.STRING(128),
+        comment: 'nft item 图片'
+    },
     listingPrice: {
         type: DataTypes.DECIMAL(36, 18),
         comment: '单价(单位: satoshi)',

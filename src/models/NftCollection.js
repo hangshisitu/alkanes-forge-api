@@ -129,6 +129,10 @@ const NftCollection = sequelize.define('NftCollection', {
         type: DataTypes.TEXT,
         comment: '部署元数据'
     },
+    description: {
+        type: DataTypes.TEXT,
+        comment: '描述'
+    },
     twitter: {
         type: DataTypes.STRING,
         comment: 'twitter id'

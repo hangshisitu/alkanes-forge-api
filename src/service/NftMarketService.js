@@ -17,6 +17,7 @@ import BaseUtil from "../utils/BaseUtil.js";
 import NftMarketListingMapper from "../mapper/NftMarketListingMapper.js";
 import NftMarketEventMapper from "../mapper/NftMarketEventMapper.js";
 import NftCollectionService from "./NftCollectionService.js";
+import NftItemService from "./NftItemService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 
 export default class NftMarketService {
@@ -144,7 +145,7 @@ export default class NftMarketService {
 
         const { count, rows } = await NftMarketListing.findAndCountAll({
             where: whereClause,
-            order: order,
+            order: [order],
             limit: size,
             offset: (page - 1) * size
         });
@@ -240,13 +241,21 @@ export default class NftMarketService {
         };
     }
 
-    static async putSignedListing(signedPsbt, isUpdate = false) {
+    static async putSignedListing(signedPsbt, walletType) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
         PsbtUtil.validatePsbtSignatures(originalPsbt);
 
         const listingList = [];
         const eventList = [];
         const maxHeight = await AlkanesService.getMaxHeight();
+        const outputs = [];
+        for (let i = 0; i < originalPsbt.inputCount; i++) {
+            const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
+            outputs.push(`${sellerInput.txid}:${sellerInput.vout}`);
+        }
+        const existListingList = await NftMarketListingMapper.getByOutputs(outputs);
+        const failedList = [];
+        
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
             const sellerAmount = originalPsbt.txOutputs[i].value || 0;
@@ -254,10 +263,11 @@ export default class NftMarketService {
                 throw new Error('Below the minimum sale amount: 2000 sats');
             }
             PsbtUtil.checkInput(originalPsbt.data.inputs[i]);
-
+            const output = `${sellerInput.txid}:${sellerInput.vout}`;
             const alkanes = await this.checkAlkanes(sellerInput, maxHeight);
             if (alkanes.value < 1) {
-                throw new Error('Not found alkanes value.');
+                failedList.push(output);
+                continue;
             }
 
             let listingAmount = this.reverseListingAmount(sellerAmount);
@@ -287,32 +297,42 @@ export default class NftMarketService {
                 itemName: item.name,
                 sellerAmount: sellerAmount,
                 listingPrice: listingPrice,
-                listingOutput: `${sellerInput.txid}:${sellerInput.vout}`,
+                listingOutput: output,
                 psbtData: psbt.toHex(),
                 sellerAddress: sellerInput.address,
                 sellerRecipient: originalPsbt.txOutputs[i].address,
-                status: Constants.LISTING_STATUS.LIST
+                status: Constants.LISTING_STATUS.LIST,
+                source: walletType
             }
             listingList.push(marketListing);
 
             const marketEvent = {
                 id: BaseUtil.genId(),
-                type: isUpdate ? Constants.MARKET_EVENT.UPDATE : Constants.MARKET_EVENT.LIST,
+                type: existListingList.find(listing => listing.listingOutput === output) ? Constants.MARKET_EVENT.UPDATE : Constants.MARKET_EVENT.LIST,
                 listingId: marketListing.id,
                 collectionId: item.collectionId,
                 itemId,
                 itemName: item.name,
+                itemImage: item.image,
                 listingPrice: listingPrice,
                 listingAmount: listingAmount,
-                listingOutput: `${sellerInput.txid}:${sellerInput.vout}`,
+                listingOutput: output,
                 sellerAddress: sellerInput.address
             };
             eventList.push(marketEvent);
         }
 
+        const collectionId = listingList[0].collectionId;
+
+        if (failedList.length > 0) {
+            await NftMarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', walletType);
+            await this.deleteListingCache(collectionId);
+            throw new Error('The assets have been transferred, please refresh and try again.');
+        }
+
         await NftMarketListingMapper.bulkUpsertListing(listingList);
         await NftMarketEventMapper.bulkUpsertEvent(eventList);
-        await this.deleteListingCache(listingList[0].collectionId);
+        await this.deleteListingCache(collectionId);
     }
 
     
@@ -451,6 +471,7 @@ export default class NftMarketService {
         }
 
         const listingList = await NftMarketListingMapper.getByOutputs(listingOutputList);
+        const itemList = await NftItemService.getItemsByIds(listingList.map(listing => listing.itemId));
         const eventList = [];
         for (const listing of listingList) {
             const marketEvent = {
@@ -460,6 +481,7 @@ export default class NftMarketService {
                 collectionId: listing.collectionId,
                 itemId: listing.itemId,
                 itemName: listing.itemName,
+                itemImage: itemList.find(item => item.id === listing.itemId)?.image,
                 listingPrice: listing.listingPrice,
                 listingAmount: listing.listingAmount,
                 listingOutput: listing.listingOutput,
@@ -636,6 +658,7 @@ export default class NftMarketService {
         }
 
         const listingList = await NftMarketListingMapper.getByOutputs(listingOutputList);
+        const itemList = await NftItemService.getItemsByIds(listingList.map(listing => listing.itemId));
         const eventList = [];
         for (const listing of listingList) {
             const marketEvent = {
@@ -644,6 +667,7 @@ export default class NftMarketService {
                 collectionId: listing.collectionId,
                 itemId: listing.itemId,
                 itemName: listing.itemName,
+                itemImage: itemList.find(item => item.id === listing.itemId)?.image,
                 listingPrice: listing.listingPrice,
                 listingAmount: listing.listingAmount,
                 listingOutput: listing.listingOutput,

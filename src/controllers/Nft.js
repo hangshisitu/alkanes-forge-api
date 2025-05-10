@@ -120,6 +120,16 @@ async function info(ctx) {
  *               utxo:
  *                 type: boolean
  *                 description: Filter if need utxo or not
+ *               attributes:
+ *                 type: array
+ *                 description: Filter by attributes
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     trait_type:
+ *                       type: string
+ *                     value:
+ *                       type: string
  *               name:
  *                 type: string
  *                 description: Filter by item name
@@ -147,8 +157,8 @@ async function info(ctx) {
  *                   type: integer
  */
 async function itemPage(ctx) {
-    const { collectionId, address, listing, utxo, name, page, size } = ctx.request.body;
-    return await NftItemService.getItemPage(collectionId, address, listing, utxo, name, page, size);
+    const { collectionId, address, listing, utxo, attributes, name, page, size } = ctx.request.body;
+    return await NftItemService.getItemPage(collectionId, address, listing, utxo, attributes, name, page, size);
 }
 
 /**
