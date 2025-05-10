@@ -41,7 +41,7 @@
     "urlDomain": "https://cdn.idclub.io"
   },
   "btc": {
-    "host": "http://127.0.0.1:2088",
+    "host": "http://127.0.0.1:1088",
     "username": "idclub",
     "password": "Bitcoin2088"
   }
