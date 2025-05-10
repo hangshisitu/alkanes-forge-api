@@ -215,7 +215,11 @@ export default class MempoolUtil {
     }
 
     static async getBlockHash(height) {
-        const url = `https://${mempoolHost}/api/block-height/${height}`
+        let host = `https://${mempoolHost}`;
+        if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
+            host = `https://${mempoolHost}/${config.networkName}`;
+        }
+        const url = `${host}/api/block-height/${height}`
         const resp = await axios.get(url, {
             timeout: 10000
         })
