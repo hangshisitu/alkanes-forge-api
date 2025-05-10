@@ -146,7 +146,7 @@ async function btcBalance(ctx) {
  */
 async function alkanesBalance(ctx) {
     const { address } = ctx.request.body;
-    const result = await UserService.getAlkanesBalance(address);
+    const result = await UserService.getAlkanesBalance(address, true);
     return result;
 }
 

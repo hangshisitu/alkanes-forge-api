@@ -139,9 +139,9 @@ export default class TokenInfoService {
                     continue;
                 }
 
-                if (alkanes.collectionAlkaneId) { // nft合集id
+                if (alkanes.collectionIdentifier) { // nft合集id
                     newNftCollectionList.push({
-                        id: alkanes.collectionAlkaneId,
+                        id: alkanes.collectionIdentifier,
                         identifier: alkanes.collectionIdentifier,
                     });
                     newNftItemList.push(alkanes);

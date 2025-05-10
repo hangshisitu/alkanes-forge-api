@@ -8,6 +8,10 @@ import {Constants} from "../conf/constants.js";
 import * as bitcoin from "bitcoinjs-lib";
 import config from "../conf/config.js";
 import * as logger from '../conf/logger.js';
+import IndexerService from "./IndexerService.js";
+import TokenInfoService from "./TokenInfoService.js";
+import NftItemService from "./NftItemService.js";
+import NftCollectionService from "./NftCollectionService.js";
 
 const SIGN_MESSAGE = 'idclub.io wants you to sign in with your Bitcoin account:\n' +
     '{address}\n' +
@@ -47,7 +51,44 @@ export default class UserService {
         );
     }
 
-    static async getAlkanesBalance(address) {
+    static async getAlkanesBalance(address, byIndexer = false) {
+        if (byIndexer) {
+            const addressBalances = await IndexerService.getAddressBalances(address);
+            const alkanesIds = addressBalances.map(addressBalance => addressBalance.alkanesId);
+            const tokenList = await TokenInfoService.getTokenList(alkanesIds);
+            let nftItems = [];
+            let collections = {};
+            if (tokenList.length !== alkanesIds.length) {
+                nftItems = await NftItemService.getItemsByIds(alkanesIds);
+                if (nftItems.length > 0) {
+                    collections = (await NftCollectionService.getCollectionByIds(nftItems.map(item => item.collectionId))).reduce((acc, collection) => {
+                        acc[collection.id] = collection;
+                        return acc;
+                    }, {});
+                }
+            }
+            return addressBalances.map(addressBalance => {
+                const token = tokenList.find(token => token.id === addressBalance.alkanesId) ?? {};
+                const item = nftItems.find(item => item.id === addressBalance.alkanesId) ?? {};
+                const isNft = !!item;
+                const collectionId = item?.collectionId;
+                const floorPrice = isNft ? collections[collectionId]?.floorPrice ?? 0 : token.floorPrice ?? 0;
+                const priceChange24h = isNft ? collections[collectionId]?.priceChange24h ?? 0 : token.priceChange24h ?? 0;
+                const totalValue = isNft ? floorPrice.toString() : new BigNumber(addressBalance.balance).multipliedBy(floorPrice).toString()
+                return {
+                    nft: isNft,
+                    collection: isNft ? collections[collectionId] : null,
+                    id: token.id ?? item.id,
+                    symbol: token.symbol ?? item.symbol,
+                    name: token.name ?? item.name,
+                    image: token.image ?? item.image,
+                    balance: new BigNumber(addressBalance.balance).dividedBy(10**8).toFixed(),
+                    floorPrice: floorPrice.toString(),
+                    priceChange24h: priceChange24h.toString(),
+                    totalValue
+                }
+            });
+        }
         try {
             bitcoin.address.toOutputScript(address, config.network)
         } catch (err) {

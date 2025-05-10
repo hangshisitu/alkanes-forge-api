@@ -165,12 +165,12 @@ export default class NftMarketService {
         }
 
         if (prices) {
-            if (prices.minPrice != null) {
+            if (prices.minPrice != null && prices.minPrice !== "") {
                 whereClause.listingPrice = {
                     [Op.gte]: prices.minPrice * (10 ** 8)
                 };
             }
-            if (prices.maxPrice != null) {
+            if (prices.maxPrice != null && prices.maxPrice !== "") {
                 whereClause.listingPrice = {
                     [Op.lte]: prices.maxPrice * (10 ** 8)
                 };

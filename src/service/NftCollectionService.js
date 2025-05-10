@@ -11,7 +11,7 @@ import NftCollectionMapper from '../mapper/NftCollectionMapper.js';
 import NftItemMapper from '../mapper/NftItemMapper.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
-
+import { Op } from 'sequelize';
 let nftCollectionListCache = null;
 
 export default class NftCollectionService {
@@ -408,10 +408,17 @@ export default class NftCollectionService {
         });
     }
 
+    static async getCollectionByIds(collectionIds) {
+        return await NftCollection.findAll({
+            where: {
+                id: { [Op.in]: collectionIds }
+            }
+        });
+    }
+
 }
 
 NftCollectionService.refreshNftCollectionListCache();
-
 
 
 
