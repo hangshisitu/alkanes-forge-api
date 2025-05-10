@@ -20,7 +20,7 @@ export default class NftCollectionMapper {
 
     static async batchUpdateNftCollectionStats(collectionStatsList) {
         const upsertQuery = `
-            INSERT INTO nft_collection_stats (id, 
+            INSERT INTO token_info (id, 
             price_change_24h, price_change_7d, price_change_30d,
                  trading_volume_24h, trading_volume_7d, trading_volume_30d,
                  total_trading_volume, trading_count_24h, trading_count_7d,
