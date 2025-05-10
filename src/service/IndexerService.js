@@ -62,7 +62,7 @@ export default class IndexerService {
                         if (!tx.vout.find(o => o.scriptPubKey.hex.startsWith('6a5d'))) {
                             return;
                         }
-                        const result = await decodeProtorune(tx.hex, 3, true);
+                        const result = await decodeProtorune(tx.hex, 0, true);
                         if (!result?.protostones?.length) { // 没有protostone
                             return;
                         }
