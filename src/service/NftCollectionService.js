@@ -11,6 +11,7 @@ import NftCollectionMapper from '../mapper/NftCollectionMapper.js';
 import NftItemMapper from '../mapper/NftItemMapper.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
+import NftMarketStatsMapper from '../mapper/NftMarketStatsMapper.js';
 import { Op } from 'sequelize';
 let nftCollectionListCache = null;
 
@@ -128,9 +129,9 @@ export default class NftCollectionService {
             }
 
             // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
-            const statsMap7d = await NftMarketEventMapper.getStatsMapByCollectionIds(collectionIds, 24 * 7);
-            const statsMap30d = await NftMarketEventMapper.getStatsMapByCollectionIds(collectionIds, 24 * 30);
-            const statsMapTotal = await NftMarketEventMapper.getStatsMapByCollectionIds(collectionIds);
+            const statsMap7d = await NftMarketStatsMapper.getStatsMapByCollectionIds(collectionIds, 24 * 7);
+            const statsMap30d = await NftMarketStatsMapper.getStatsMapByCollectionIds(collectionIds, 24 * 30);
+            const statsMapTotal = await NftMarketStatsMapper.getStatsMapByCollectionIds(collectionIds);
 
             // 构建完整的更新数据基于 statsMap24h
             const collectionStatsList = Object.keys(statsMap24h).map(collectionId => {
@@ -414,6 +415,10 @@ export default class NftCollectionService {
                 id: { [Op.in]: collectionIds }
             }
         });
+    }
+
+    static isCollection(collectionId) {
+        return nftCollectionListCache.some(collection => collection.id === collectionId);
     }
 
 }

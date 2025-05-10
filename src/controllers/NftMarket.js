@@ -369,6 +369,7 @@ async function putSignedDelisting(ctx) {
  *                 type: array
  *                 description: List of listing IDs to buy
  *                 items:
+ *                   type: string
  *               fundAddress:
  *                 type: string
  *                 description: Funding address

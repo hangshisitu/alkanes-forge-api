@@ -466,10 +466,6 @@ export default class TokenInfoService {
     }
 
     static async getTokenPage(name, mintActive, noPremine, orderType, page, size) {
-        if (!tokenListCache) {
-            return TokenInfoMapper.findTokenPage(name, mintActive, noPremine, orderType, page, size);
-        }
-
         let tokenList = [...tokenListCache];
         if (name) {
             tokenList = tokenList.filter(token => token.id.includes(name) || token.name.toLowerCase().includes(name.toLowerCase()));
@@ -630,7 +626,14 @@ export default class TokenInfoService {
         const startIndex = (page - 1) * size;
         const endIndex = startIndex + size;
         const rows = tokenList.slice(startIndex, endIndex).map(row => {
-            return {...row, originalImage: undefined, updateHeight: undefined, createdAt: undefined, updatedAt: undefined};
+            return {
+                ...row, 
+                originalImage: undefined, 
+                updateHeight: undefined, 
+                createdAt: undefined, 
+                updatedAt: undefined,
+                isNftCollection: NftCollectionService.isCollection(row.id)
+            };
         });
 
         return {

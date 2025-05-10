@@ -60,7 +60,7 @@ export default class NftMarketListingMapper {
 
     static async getByOutputs(listingOutputList) {
         return await NftMarketListing.findAll({
-            attributes: ["collectionId", "itemId", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
+            attributes: ["id", "collectionId", "itemId", "itemName", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
             where: {
                 listingOutput: listingOutputList
             }

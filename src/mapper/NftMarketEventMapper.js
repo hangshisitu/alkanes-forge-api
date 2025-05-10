@@ -19,43 +19,6 @@ export default class NftMarketEventMapper {
             raw: true,
         });
     }
-
-
-    static async getStatsMapByCollectionIds(collectionIds, hoursRange) {
-        let whereClause = 'WHERE collection_id IN (:collectionIds)';
-        const replacements = { collectionIds: collectionIds };
-
-        if (hoursRange) {
-            const date = new Date();
-            date.setHours(date.getHours() - hoursRange);
-
-            whereClause += ' AND stats_date >= :startDate';
-            replacements.startDate = date;
-        }
-
-        const stats = await sequelize.query(`
-            SELECT 
-                collection_id AS collectionId,
-                SUM(listing_amount) AS totalVolume, 
-                COUNT(*) AS tradeCount
-            FROM nft_market_event
-            ${whereClause}
-            GROUP BY collection_id;
-        `, {
-            replacements,
-            type: QueryTypes.SELECT,
-            raw: true
-        });
-
-        return stats.reduce((acc, item) => {
-            acc[item.collectionId] = {
-                totalVolume: item.totalVolume || 0,
-                tradeCount: item.tradeCount || 0
-            };
-            return acc;
-        }, {});
-    }
-
     
 
     static async getStatsMapForHours(hoursRange= 24) {

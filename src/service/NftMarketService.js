@@ -700,6 +700,7 @@ export default class NftMarketService {
                 id: BaseUtil.genId(),
                 type: Constants.MARKET_EVENT.SOLD,
                 collectionId: listing.collectionId,
+                listingId: listing.id,
                 itemId: listing.itemId,
                 itemName: listing.itemName,
                 itemImage: itemList.find(item => item.id === listing.itemId)?.image,

@@ -121,7 +121,7 @@ export default class IndexerService {
                         logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
                         throw e;
                     }
-                }, null, errors);
+                }, 64, errors);
                 if (errors.length > 0) {
                     throw new Error(`index block ${block} failed, ${errors.length} errors`);
                 }

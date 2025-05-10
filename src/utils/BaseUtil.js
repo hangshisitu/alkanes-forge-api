@@ -63,9 +63,13 @@ export default class BaseUtil {
     }
 
     static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4, errors = null) {
+        if (collection.length === 0) {
+            return [];
+        }
         if (!concurrency || concurrency <= 0) {
             concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4;
         }
+        concurrency = Math.min(concurrency, collection.length);
         const executeCollection = [...collection];
 
         async function execute() {
