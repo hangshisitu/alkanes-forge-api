@@ -21,7 +21,7 @@ export default class NftMarketStatsMapper {
                 collection_id AS collectionId,
                 SUM(total_volume) AS totalVolume, 
                 SUM(trade_count) AS tradeCount
-            FROM nft_market_stats
+            FROM nft_collection_stats
             ${whereClause}
             GROUP BY collection_id;
         `, {
