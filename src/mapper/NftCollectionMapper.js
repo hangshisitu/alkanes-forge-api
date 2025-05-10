@@ -20,26 +20,36 @@ export default class NftCollectionMapper {
 
     static async batchUpdateNftCollectionStats(collectionStatsList) {
         const upsertQuery = `
-            INSERT INTO nft_collection_stats (id, trading_volume_24h, trading_count_24h, trading_volume_7d, trading_count_7d, trading_volume_30d, trading_count_30d, total_trading_volume, total_trading_count)
+            INSERT INTO nft_collection_stats (id, 
+            price_change_24h, price_change_7d, price_change_30d,
+                 trading_volume_24h, trading_volume_7d, trading_volume_30d,
+                 total_trading_volume, trading_count_24h, trading_count_7d,
+                 trading_count_30d, total_trading_count)
             VALUES ${collectionStatsList.map((stats, index) => `(
-                ${stats.id},
-                ${stats.tradingVolume24h},
-                ${stats.tradingCount24h},
-                ${stats.tradingVolume7d},
-                ${stats.tradingCount7d},
-                ${stats.tradingVolume30d},
-                ${stats.tradingCount30d},
-                ${stats.totalTradingVolume},
-                ${stats.totalTradingCount}
+                '${stats.id}',
+                ${stats.priceChange24h || 0}, 
+                ${stats.priceChange7d || 0}, 
+                ${stats.priceChange30d || 0}, 
+                ${stats.tradingVolume24h || 0}, 
+                ${stats.tradingVolume7d || 0}, 
+                ${stats.tradingVolume30d || 0}, 
+                ${stats.totalTradingVolume || 0}, 
+                ${stats.tradingCount24h || 0}, 
+                ${stats.tradingCount7d || 0}, 
+                ${stats.tradingCount30d || 0}, 
+                ${stats.totalTradingCount || 0}
             )`).join(',')}
             ON DUPLICATE KEY UPDATE
+                price_change_24h = VALUES(price_change_24h),
+                price_change_7d = VALUES(price_change_7d),
+                price_change_30d = VALUES(price_change_30d),
                 trading_volume_24h = VALUES(trading_volume_24h),
-                trading_count_24h = VALUES(trading_count_24h),
                 trading_volume_7d = VALUES(trading_volume_7d),
-                trading_count_7d = VALUES(trading_count_7d),
                 trading_volume_30d = VALUES(trading_volume_30d),
-                trading_count_30d = VALUES(trading_count_30d),
                 total_trading_volume = VALUES(total_trading_volume),
+                trading_count_24h = VALUES(trading_count_24h),
+                trading_count_7d = VALUES(trading_count_7d),
+                trading_count_30d = VALUES(trading_count_30d),
                 total_trading_count = VALUES(total_trading_count)
         `;
 
