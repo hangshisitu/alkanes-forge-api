@@ -196,6 +196,9 @@ export default class MempoolUtil {
     }
 
     static async getBtcPrice(){
+        if (process.env.NODE_ENV !== 'pro') {
+            return 103179;
+        }
         const response = await axios.get(`https://${mempoolHost}/api/v1/prices`);
         return response.data['USD'];
     }
