@@ -17,6 +17,7 @@ import config from '../conf/config.js';
 import AlkanesService from './AlkanesService.js';
 import decodeProtorune from '../lib/ProtoruneDecoder.js';
 import NftCollectionService from './NftCollectionService.js';
+import Sequelize from 'sequelize';
 
 export default class IndexerService {
 
@@ -434,6 +435,19 @@ export default class IndexerService {
         }
         return await OutpointRecord.findAll({
             where,
+            raw: true,
+        });
+    }
+
+    static async getAddressBalances(address) {
+        return await AddressBalance.findAll({
+            where: {
+                address,
+            },
+            order: [
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(alkanes_id, ":", 1) AS UNSIGNED)'), 'ASC'],
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(alkanes_id, ":", -1) AS UNSIGNED)'), 'ASC']
+            ],
             raw: true,
         });
     }

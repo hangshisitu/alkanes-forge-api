@@ -32,7 +32,7 @@ export default class NftMarketListingMapper {
 
     static async getByIds(collectionId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await NftMarketListing.findAll({
-            attributes: ["id", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
+            attributes: ["id", "itemId", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
             where: {
                 id: ids,
                 collectionId: collectionId,
@@ -85,6 +85,17 @@ export default class NftMarketListingMapper {
             raw: true
         });
     }
+
+    static async getListingItem(itemId) {
+        return await NftMarketListing.findOne({
+            where: {
+                itemId: itemId,
+                status: Constants.LISTING_STATUS.LIST
+            },
+            raw: true
+        });
+    }
+    
 
     static async countListingByCollectionId(collectionId) {
         return await NftMarketListing.count({

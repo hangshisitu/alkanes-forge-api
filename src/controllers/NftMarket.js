@@ -52,6 +52,27 @@ async function assets(ctx) {
  *               name:
  *                 type: string
  *                 description: Filter by name
+ *               attributes:
+ *                 type: array
+ *                 description: Filter by attributes
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     trait_type:
+ *                       type: string
+ *                       description: Trait type
+ *                     value:
+ *                       type: string
+ *                       description: Trait value
+ *               prices:
+ *                 type: object
+ *                 properties:
+ *                   minPrice:
+ *                     type: number
+ *                     description: Minimum price
+ *                   maxPrice:
+ *                     type: number
+ *                     description: Maximum price
  *               orderType:
  *                 type: string
  *                 description: Order type for sorting
@@ -79,8 +100,8 @@ async function assets(ctx) {
  *                   type: integer
  */
 async function listingPage(ctx) {
-    const { collectionId, name, orderType, page, size } = ctx.request.body;
-    return await NftMarketService.getListingPage(collectionId, name, orderType, page, size);
+    const { collectionId, name, attributes, prices, orderType, page, size } = ctx.request.body;
+    return await NftMarketService.getListingPage(collectionId, name, attributes, prices, orderType, page, size);
 }
 
 /**

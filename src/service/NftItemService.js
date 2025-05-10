@@ -3,7 +3,7 @@ import Sequelize, {Op} from "sequelize";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
-import NftItemAttribute from '../models/NftItemAttribute.js';
+import NftAttributeService from './NftAttributeService.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import IndexerService from './IndexerService.js';
 
@@ -26,15 +26,13 @@ export default class NftItemService {
             },
             raw: true
         });
-        item.attributes = await NftItemAttribute.findAll({
-            where: {
-                itemId: id
-            },
-            attributes: {
-                exclude: ['id', 'collectionId', 'createdAt', 'updatedAt', 'itemId']
-            },
-            raw: true
-        });
+        item.attributes = await NftAttributeService.getNftItemAttributes(id);
+        const listing = await NftMarketListingMapper.getListingItem(id);
+        item.listing = listing ? 1 : 0;
+        item.listingId = listing?.id;
+        item.listingPrice = listing?.listingPrice;
+        item.sellerAmount = listing?.sellerAmount;
+        item.listingOutput = listing?.listingOutput;
         return item;
     }
 
@@ -76,15 +74,16 @@ export default class NftItemService {
         if (attributes?.length > 0) {
             // attributes 是数组，每个元素是对象，对象的属性是 trait_type 和 value
             // 需要根据 attributes 查询 item_id
-            const itemIds = await NftItemAttribute.findAll({
-                where: {
-                    collection_id: collectionId,
-                    trait_type: attributes.map(attribute => attribute.trait_type),
-                    value: attributes.map(attribute => attribute.value)
-                },
-                attributes: ['item_id'],
-                raw: true
-            });
+            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes);
+            if (itemIds.length <= 0) {
+                return {
+                    page,
+                    size,
+                    total: 0,
+                    pages: 0,
+                    records: []
+                };
+            }
             where.id = {
                 [Op.in]: itemIds.map(item => item.item_id)
             };
@@ -109,6 +108,7 @@ export default class NftItemService {
             rows.forEach(item => {
                 const listingItem = listingItems.find(listing => listing.itemId === item.id);
                 item.listing = listingItem ? 1 : 0;
+                item.listingId = listingItem?.id;
                 item.listingPrice = listingItem?.listingPrice;
                 item.sellerAmount = listingItem?.sellerAmount;
                 item.listingOutput = listingItem?.listingOutput;
@@ -142,7 +142,8 @@ export default class NftItemService {
         return await NftItem.findAll({
             where: {
                 id: { [Op.in]: ids }
-            }
+            },
+            raw: true,
         });
     }
 

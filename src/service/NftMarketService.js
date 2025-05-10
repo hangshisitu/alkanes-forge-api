@@ -19,6 +19,7 @@ import NftMarketEventMapper from "../mapper/NftMarketEventMapper.js";
 import NftCollectionService from "./NftCollectionService.js";
 import NftItemService from "./NftItemService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
+import NftAttributeService from "./NftAttributeService.js";
 
 export default class NftMarketService {
 
@@ -117,12 +118,14 @@ export default class NftMarketService {
         await NftCollectionService.refreshCollectionFloorPrice(collectionId);
     }
 
-    static async getListingPage(collectionId, name, orderType, page, size) {
+    static async getListingPage(collectionId, name, attributes, prices, orderType, page, size) {
         const cacheKey = this.getListingCacheKey(collectionId, name, orderType, page, size);
-        // 查缓存
-        const cacheData = await RedisHelper.get(cacheKey);
-        if (cacheData) {
-            return JSON.parse(cacheData);
+        if (attributes?.length <= 0 && (!prices || Object.keys(prices).length <= 0)) {
+            // 查缓存
+            const cacheData = await RedisHelper.get(cacheKey);
+            if (cacheData) {
+                return JSON.parse(cacheData);
+            }
         }
         // orderType取值: listingPriceAsc, listingPriceDesc
         // 如果name为null, 则直接NftMarketListing分页查询, 然后根据查询结果从NftItem表中取出item
@@ -138,9 +141,40 @@ export default class NftMarketService {
             order = ["listingPrice", "DESC"];
         }
         if (name) {
-            whereClause.itemName = {
-                [Op.like]: `%${name}%`
+            whereClause[Op.or] = [
+                { itemName: { [Op.like]: `%${name}%` } },
+                { itemId: { [Op.like]: `%${name}%` } }
+            ];
+        }
+        if (attributes?.length > 0) {
+            // attributes 是数组，每个元素是对象，对象的属性是 trait_type 和 value
+            // 需要根据 attributes 查询 item_id
+            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes);
+            if (itemIds.length <= 0) {
+                return {
+                    page,
+                    size,
+                    total: 0,
+                    pages: 0,
+                    records: []
+                };
+            }
+            whereClause.id = {
+                [Op.in]: itemIds.map(item => item.item_id)
             };
+        }
+
+        if (prices) {
+            if (prices.minPrice != null) {
+                whereClause.listingPrice = {
+                    [Op.gte]: prices.minPrice * (10 ** 8)
+                };
+            }
+            if (prices.maxPrice != null) {
+                whereClause.listingPrice = {
+                    [Op.lte]: prices.maxPrice * (10 ** 8)
+                };
+            }
         }
 
         const { count, rows } = await NftMarketListing.findAndCountAll({
@@ -177,8 +211,10 @@ export default class NftMarketService {
             records
         };
 
-        // 写缓存，3秒有效期
-        await RedisHelper.setEx(cacheKey, 3, JSON.stringify(result));
+        if (attributes?.length <= 0 && (!prices || Object.keys(prices).length <= 0)) {
+            // 写缓存，3秒有效期
+            await RedisHelper.setEx(cacheKey, 3, JSON.stringify(result));
+        }
         return result;
     }
 
@@ -440,7 +476,6 @@ export default class NftMarketService {
                 output: i
             });
         }
-
         const protostone = AlkanesService.getBatchTransferProtostone(transferList);
         outputList.push({
             script: protostone,

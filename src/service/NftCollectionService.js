@@ -23,7 +23,7 @@ export default class NftCollectionService {
             },
             raw: true
         });
-        collection.attributes = await NftCollectionAttribute.findAll({
+        collection.attributes = (await NftCollectionAttribute.findAll({
             where: {
                 collectionId: id
             },
@@ -31,7 +31,11 @@ export default class NftCollectionService {
                 exclude: ['id', 'collectionId', 'createdAt', 'updatedAt']
             },
             raw: true
-        });
+        })).reduce((acc, attr) => {
+            acc[attr.traitType] = acc[attr.traitType] ?? [];
+            acc[attr.traitType].push({value: attr.value, count: attr.count});
+            return acc;
+        }, {});
         return collection;
     }
 

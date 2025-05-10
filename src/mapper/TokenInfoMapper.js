@@ -446,6 +446,15 @@ export default class TokenInfoMapper {
             }
         });
     }
+
+    static async getTokenList(ids) {
+        return TokenInfo.findAll({
+            where: {
+                id: { [Op.in]: ids }
+            },
+            raw: true,
+        });
+    }
     
 
 }

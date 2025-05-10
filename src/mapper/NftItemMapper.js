@@ -29,7 +29,7 @@ export default class NftItemMapper {
             },
             attributes: [
                 'collectionId', 
-                [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('address'))), 'holderCount'], 
+                [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('holder'))), 'holderCount'], 
                 [sequelize.fn('COUNT', sequelize.col('id')), 'itemCount']
             ],
             group: ['collectionId'],

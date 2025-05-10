@@ -691,6 +691,11 @@ export default class TokenInfoService {
         }
         return token;
     }
+
+    static async getTokenList(alkanesIds) {
+        const tokenList = tokenListCache ? tokenListCache.filter(t => alkanesIds.includes(t.id)) : await TokenInfoMapper.getTokenList(alkanesIds);
+        return tokenList;
+    }
 }
 
 TokenInfoService.refreshTokenListCache();

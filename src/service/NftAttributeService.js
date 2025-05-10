@@ -1,8 +1,6 @@
 import NftItemAttribute from '../models/NftItemAttribute.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 import sequelize from '../lib/SequelizeHelper.js';
-import BaseUtil from '../utils/BaseUtil.js';
-import AlkanesService from './AlkanesService.js';
 
 export default class NftAttributeService {
 
@@ -19,6 +17,9 @@ export default class NftAttributeService {
         return await NftItemAttribute.findAll({
             where: {
                 itemId
+            },
+            attributes: {
+                exclude: ['id', 'collectionId', 'createdAt', 'updatedAt', 'itemId']
             },
             raw: true,
         });
@@ -53,6 +54,18 @@ export default class NftAttributeService {
         }));
         await NftCollectionAttribute.bulkCreate(attributes, {
             updateOnDuplicate: ['count']
+        });
+    }
+
+    static async getItemIdsByAttributes(collectionId, attributes) {
+        return await NftItemAttribute.findAll({
+            where: {
+                collection_id: collectionId,
+                trait_type: attributes.map(attribute => attribute.trait_type),
+                value: attributes.map(attribute => attribute.value)
+            },
+            attributes: ['item_id'],
+            raw: true
         });
     }
 
