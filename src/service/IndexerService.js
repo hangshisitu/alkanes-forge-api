@@ -44,7 +44,7 @@ export default class IndexerService {
                     block = indexBlock.block + 1;
                 }
                 const maxHeight = await AlkanesService.metashrewHeight();
-                if (block > maxHeight - 1) {
+                if (block > maxHeight) {
                     break;
                 }
                 logger.putContext({block});

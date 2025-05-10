@@ -222,4 +222,8 @@ export default class MempoolUtil {
     static async getOutspend(txid, vout) {
         return await transactions.getTxOutspend({txid, vout});
     }
+
+    static async getCurrentHeight() {
+        return await blocks.getBlocksTipHeight();
+    }
 }
