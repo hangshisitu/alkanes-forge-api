@@ -43,8 +43,7 @@ export default class IndexerService {
                     block = indexBlock.block + 1;
                 }
                 const maxHeight = await AlkanesService.metashrewHeight();
-                const mempoolHeight = await MempoolUtil.getCurrentHeight();
-                if (mempoolHeight === maxHeight || block > maxHeight - 1) {
+                if (block > maxHeight) {
                     break;
                 }
                 logger.putContext({block});
