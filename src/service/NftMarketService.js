@@ -68,12 +68,12 @@ export default class NftMarketService {
         }).filter(item => item != null);
     }
 
-    static getEventCacheKey(collectionId, sellerAddress, type, page, size) {
-        return `nft-events:${collectionId}:${sellerAddress || 'all'}:${type || 'all'}:${page}:${size}`;
+    static getEventCacheKey(collectionId, address, type, page, size) {
+        return `nft-events:${collectionId}:${address || 'all'}:${type || 'all'}:${page}:${size}`;
     }
 
-    static async getEventPage(collectionId, sellerAddress, type, page, size) {
-        const cacheKey = this.getEventCacheKey(collectionId, sellerAddress, type, page, size);
+    static async getEventPage(collectionId, address, type, page, size) {
+        const cacheKey = this.getEventCacheKey(collectionId, address, type, page, size);
         // 查缓存
         const cacheData = await RedisHelper.get(cacheKey);
         if (cacheData) {
@@ -86,12 +86,16 @@ export default class NftMarketService {
         if (type != null) {
             whereClause.type = type;
         }
-        if (sellerAddress) {
-            whereClause.sellerAddress = sellerAddress;
+        if (address) {
+            whereClause[Op.or] = [
+                { sellerAddress: address },
+                { buyerAddress: address }
+            ];
         }
 
         const { rows, count } = await NftMarketEvent.findAndCountAll({
             where: whereClause,
+            order: [["createdAt", "DESC"]],
             offset: (page - 1) * size,
             limit: size
         });
