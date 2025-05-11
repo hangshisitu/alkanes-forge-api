@@ -389,7 +389,7 @@ export default class IndexerService {
             if (errors.length > 0) {
                 throw new Error(`block ${block} update nft item holder failed, ${errors.length} errors`);
             }
-            await NftCollectionService.refreshCollectionHolderAndItemCount([...new Set(nftItemBalances.map(item => item.alkanesId))]);
+            await NftCollectionService.refreshCollectionHolderAndItemCountByItemIds([...new Set(nftItemBalances.map(item => item.alkanesId))]);
         }
     }
 

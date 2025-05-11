@@ -390,9 +390,8 @@ export default class NftCollectionService {
         }
     }
 
-    static async refreshCollectionHolderAndItemCount(itemIds) {
-        const items = await NftItemService.getItemsByIds(itemIds);
-        const collectionHolderAndItemCounts = await NftItemMapper.countCollectionHolderAndItem([...new Set(items.map(item => item.collectionId))]);
+    static async refreshCollectionHolderAndItemCountByCollectionIds(collectionIds) {
+        const collectionHolderAndItemCounts = await NftItemMapper.countCollectionHolderAndItem(collectionIds);
         for (const collectionHolderAndItemCount of collectionHolderAndItemCounts) {
             await NftCollection.update({
                 holders: collectionHolderAndItemCount.holderCount,
@@ -403,6 +402,11 @@ export default class NftCollectionService {
                 }
             });
         }
+    }
+
+    static async refreshCollectionHolderAndItemCountByItemIds(itemIds) {
+        const items = await NftItemService.getItemsByIds(itemIds);
+        await this.refreshCollectionHolderAndItemCountByCollectionIds([...new Set(items.map(item => item.collectionId))]);
     }
 
     static async updateCollectionListing(collectionId, listing) {
