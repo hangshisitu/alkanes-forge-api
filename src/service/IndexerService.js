@@ -184,7 +184,32 @@ export default class IndexerService {
                     });
                 }).flat();
                 const errors = [];
-                const effectCounts = await BaseUtil.concurrentExecute(vins, async (vin) => {
+                let effectTxids = await BaseUtil.concurrentExecute(BaseUtil.splitArray([...new Set(vins.map(vin => vin.inputTxid))], 100), async (inputTxids) => {
+                    try {
+                        const outpointRecords = await OutpointRecord.findAll({
+                            where: {
+                                txid: {
+                                    [Op.in]: inputTxids,
+                                },
+                            },
+                            attributes: ['txid'],
+                            raw: true,
+                        });
+                        return outpointRecords.map(record => {
+                            return record.txid;
+                        });
+                    } catch (e) {
+                        logger.error(`get outpoint records failed, ${e.message}`, e);
+                        throw e;
+                    }
+                }, null, errors);
+                if (errors.length > 0) {
+                    throw new Error(`get input txids outpoint records failed, ${errors.length} errors`);
+                }
+                effectTxids = new Set(effectTxids.flat());
+                const effectVins = vins.filter(vin => effectTxids.has(vin.inputTxid));
+
+                const effectCounts = await BaseUtil.concurrentExecute(effectVins, async (vin) => {
                     const { txIdx, txid, inputTxid, inputVout, inputIndex } = vin;
                     try {
                         const stxIdx = `${txIdx}`.padStart(5, '0');
@@ -202,7 +227,7 @@ export default class IndexerService {
                         logger.error(`handle block ${block} input ${txid}:${inputIndex} spend info failed, ${e.message}`, e);
                         throw e;
                     }
-                }, 16, errors);
+                }, null, errors);
                 if (errors.length > 0) {
                     throw new Error(`handle block ${block} spend info failed, ${errors.length} errors`);
                 }
