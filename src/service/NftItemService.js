@@ -188,4 +188,12 @@ export default class NftItemService {
         });
         return maxIdItem?.id;
     }
+
+    static async getNftItemCount(collectionId) {
+        return await NftItem.count({
+            where: {
+                collectionId
+            }
+        });
+    }
 }

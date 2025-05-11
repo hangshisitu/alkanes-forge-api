@@ -217,22 +217,26 @@ export default class TokenInfoService {
         // 10. 更新nft合集和nft item
         if (newNftCollectionList.length > 0) {
             const tokens = await TokenInfoMapper.getAllTokens();
-            await NftCollectionService.bulkUpsertNftCollection(tokens.filter(token => newNftCollectionList.some(nftCollection => nftCollection.id === token.id)).map(token => {
+            const nftCollections = [];
+            for (const token of tokens) {
                 const nftCollection = newNftCollectionList.find(nftCollection => nftCollection.id === token.id);
-                return {
-                    id: token.id,
-                    identifier: nftCollection?.identifier,
-                    name: token.name,
-                    image: nftCollection?.image || token.image,
-                    originalImage: nftCollection?.originalImage || token.originalImage,
-                    // contentType: nftCollection?.contentType || token.contentType,
-                    symbol: token.symbol,
-                    data: token.data,
-                    contentType: token.contentType,
-                    minted: token.cap,
-                    updateHeight: blockHeight,
-                };
-            }));
+                if (nftCollection) {
+                    nftCollections.push({
+                        id: token.id,
+                        identifier: nftCollection?.identifier,
+                        name: token.name,
+                        image: nftCollection?.image || token.image,
+                        originalImage: nftCollection?.originalImage || token.originalImage,
+                        symbol: token.symbol,
+                        data: token.data,
+                        contentType: token.contentType,
+                        minted: await NftItemService.getNftItemCount(token.id),
+                        totalSupply: token.totalSupply,
+                        updateHeight: blockHeight,
+                    });
+                }
+            }
+            await NftCollectionService.bulkUpsertNftCollection(nftCollections);
             const nftItems = newNftItemList.map(item => {
                 return {
                     id: item.id,
