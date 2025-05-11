@@ -68,20 +68,20 @@ export default class UserService {
                 }
             }
             return addressBalances.map(addressBalance => {
-                const token = tokenList.find(token => token.id === addressBalance.alkanesId) ?? {};
-                const item = nftItems.find(item => item.id === addressBalance.alkanesId) ?? {};
+                const token = tokenList.find(token => token.id === addressBalance.alkanesId);
+                const item = nftItems.find(item => item.id === addressBalance.alkanesId);
                 const isNft = !!item;
                 const collectionId = item?.collectionId;
-                const floorPrice = isNft ? collections[collectionId]?.floorPrice ?? 0 : token.floorPrice ?? 0;
-                const priceChange24h = isNft ? collections[collectionId]?.priceChange24h ?? 0 : token.priceChange24h ?? 0;
+                const floorPrice = isNft ? collections[collectionId]?.floorPrice ?? 0 : token?.floorPrice ?? 0;
+                const priceChange24h = isNft ? collections[collectionId]?.priceChange24h ?? 0 : token?.priceChange24h ?? 0;
                 const totalValue = isNft ? floorPrice.toString() : new BigNumber(addressBalance.balance).multipliedBy(floorPrice).toString()
                 return {
                     nft: isNft,
                     collection: isNft ? collections[collectionId] : null,
-                    id: token.id ?? item.id,
-                    symbol: token.symbol ?? item.symbol,
-                    name: token.name ?? item.name,
-                    image: token.image ?? item.image,
+                    id: token?.id ?? item?.id,
+                    symbol: token?.symbol ?? item?.symbol,
+                    name: token?.name ?? item?.name,
+                    image: token?.image ?? item?.image,
                     balance: new BigNumber(addressBalance.balance).dividedBy(10**8).toFixed(),
                     floorPrice: floorPrice.toString(),
                     priceChange24h: priceChange24h.toString(),

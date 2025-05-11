@@ -159,7 +159,7 @@ export default class NftMarketService {
                     records: []
                 };
             }
-            whereClause.id = {
+            whereClause.itemId = {
                 [Op.in]: itemIds.map(item => item.item_id)
             };
         }

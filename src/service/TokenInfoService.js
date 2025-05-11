@@ -171,7 +171,9 @@ export default class TokenInfoService {
                 if (nftCollection) {
                     if (nftCollection.totalSupply != null) {
                         alkanes.totalSupply = nftCollection.totalSupply;
-                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.cap, nftCollection.totalSupply);
+                        alkanes.minted = nftCollection.minted;
+                        alkanes.cap = nftCollection.minted;
+                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, nftCollection.totalSupply);
                         alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
                     }
                 }
