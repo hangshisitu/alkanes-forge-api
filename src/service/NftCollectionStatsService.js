@@ -35,7 +35,6 @@ export default class NftCollectionStatsService {
 
             const marketCap = new BigNumber(averagePrice)
                 .multipliedBy(nftCollection.totalSupply)
-                .dividedBy(10 ** 8)
                 .integerValue(BigNumber.ROUND_CEIL)
                 .toNumber();
             await NftCollectionMapper.updateMarketCap(nftCollection.id, marketCap);

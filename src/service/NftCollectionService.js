@@ -13,6 +13,7 @@ import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 import NftMarketStatsMapper from '../mapper/NftMarketStatsMapper.js';
 import { Op } from 'sequelize';
+import NftItemService from './NftItemService.js';
 let nftCollectionListCache = null;
 
 export default class NftCollectionService {
@@ -347,6 +348,10 @@ export default class NftCollectionService {
                     return x;
                 }, false, false);
                 break
+            
+            case ORDER_TYPE.HOLDERS_COUNT_DESC:
+                nftCollectionList = this.sortNftCollectionList(nftCollectionList, (a, b) => b.holders - a.holders);
+                break;
 
             // 默认排序 - 进度降序
             default:
@@ -385,8 +390,9 @@ export default class NftCollectionService {
         }
     }
 
-    static async refreshCollectionHolderAndItemCount(collectionIds) {
-        const collectionHolderAndItemCounts = await NftItemMapper.countCollectionHolderAndItem(collectionIds);
+    static async refreshCollectionHolderAndItemCount(itemIds) {
+        const items = await NftItemService.getItemsByIds(itemIds);
+        const collectionHolderAndItemCounts = await NftItemMapper.countCollectionHolderAndItem([...new Set(items.map(item => item.collectionId))]);
         for (const collectionHolderAndItemCount of collectionHolderAndItemCounts) {
             await NftCollection.update({
                 holders: collectionHolderAndItemCount.holderCount,
