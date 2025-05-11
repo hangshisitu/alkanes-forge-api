@@ -45,7 +45,15 @@ const NftCollection = sequelize.define('NftCollection', {
     },
     progress: {
         type: DataTypes.FLOAT,
-        comment: '铸造进度'
+        comment: '铸造进度',
+        get() {
+            const totalSupply = this.getDataValue('totalSupply');
+            if (totalSupply == null || totalSupply === 0) {
+                return 0;
+            }
+            const minted = this.getDataValue('minted');
+            return Number((minted / totalSupply * 100).toFixed(2));
+        }   
     },
     mintActive: {
         type: DataTypes.INTEGER,
