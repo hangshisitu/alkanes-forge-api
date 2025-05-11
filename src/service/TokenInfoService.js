@@ -263,6 +263,12 @@ export default class TokenInfoService {
                     return;
                 }
                 attributes = JSON.parse(attributes);
+                if (Array.isArray(attributes)) {
+                    attributes = attributes.reduce((acc, curr) => {
+                        acc[curr.trait_type] = curr.value;
+                        return acc;
+                    }, {});
+                }
                 return Object.keys(attributes).map(traitType => {
                     return {
                         collectionId: item.collectionIdentifier,
