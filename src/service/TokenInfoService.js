@@ -237,7 +237,7 @@ export default class TokenInfoService {
                         data: token.data,
                         contentType: token.contentType,
                         minted: await NftItemService.getNftItemCount(token.id),
-                        totalSupply: token.totalSupply,
+                        totalSupply: token.totalSupply || nftCollection.totalSupply,
                         updateHeight: blockHeight,
                     });
                 }
