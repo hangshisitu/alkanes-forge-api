@@ -202,7 +202,7 @@ export default class IndexerService {
                         logger.error(`handle block ${block} input ${txid}:${inputIndex} spend info failed, ${e.message}`, e);
                         throw e;
                     }
-                }, 64, errors);
+                }, 16, errors);
                 if (errors.length > 0) {
                     throw new Error(`handle block ${block} spend info failed, ${errors.length} errors`);
                 }
