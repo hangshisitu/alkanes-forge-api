@@ -303,7 +303,7 @@ export default class AlkanesService {
             }, 4);
 
             // 收集返回结果
-            const contentType = opcodeResults.find(x => x?.opcodeHRV === 'contentType');
+            const contentType = opcodeResults.find(x => x?.opcodeHRV === 'contentType')?.result?.string;
             for (const item of opcodeResults) {
                 if (!item || !item.opcodeHRV) {
                     continue;
