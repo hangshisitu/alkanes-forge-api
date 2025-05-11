@@ -147,7 +147,7 @@ export default class TokenInfoService {
                         id: alkanes.collectionIdentifier,
                         identifier: alkanes.collectionIdentifier,
                     });
-                    if (alkanes.cap <= 0) {
+                    if (!alkanes.cap || alkanes.cap <= 0) {
                         newNftItemList.push(alkanes);
                         continue;
                     }
