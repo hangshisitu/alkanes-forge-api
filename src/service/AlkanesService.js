@@ -303,6 +303,7 @@ export default class AlkanesService {
             }, 4);
 
             // 收集返回结果
+            const contentType = opcodeResults.find(x => x?.opcodeHRV === 'contentType');
             for (const item of opcodeResults) {
                 if (!item || !item.opcodeHRV) {
                     continue;
@@ -313,7 +314,7 @@ export default class AlkanesService {
                     if (opcodeHRV === 'data' && text) {
                         if (text.startsWith('data:image/')) {
                             tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadBuffer({ buffer: Buffer.from(text.split(',')[1], 'base64'), filename: `${id}.png`, prefix: config.r2.prefix, type: 'image/png' });
-                        } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
+                        } else if (contentType  === 'image/svg+xml' || (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>'))) {
                             tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.svg`, prefix: config.r2.prefix, type: 'image/svg+xml' });
                         } else {
                             tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.txt`, prefix: config.r2.prefix, type: 'text/plain' });
