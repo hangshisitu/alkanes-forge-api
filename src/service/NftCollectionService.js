@@ -10,10 +10,11 @@ import { QueryTypes } from 'sequelize';
 import NftCollectionMapper from '../mapper/NftCollectionMapper.js';
 import NftItemMapper from '../mapper/NftItemMapper.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
-import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 import NftMarketStatsMapper from '../mapper/NftMarketStatsMapper.js';
 import { Op } from 'sequelize';
 import NftItemService from './NftItemService.js';
+import NftAttributeService from './NftAttributeService.js';
+
 let nftCollectionListCache = null;
 
 export default class NftCollectionService {
@@ -25,19 +26,13 @@ export default class NftCollectionService {
             },
             raw: true
         });
-        collection.attributes = (await NftCollectionAttribute.findAll({
-            where: {
-                collectionId: id
-            },
-            attributes: {
-                exclude: ['id', 'collectionId', 'createdAt', 'updatedAt']
-            },
-            raw: true
-        })).reduce((acc, attr) => {
-            acc[attr.traitType] = acc[attr.traitType] ?? [];
-            acc[attr.traitType].push({value: attr.value, count: attr.count});
-            return acc;
-        }, {});
+        if (collection) {
+            collection.attributes = (await NftAttributeService.getNftAttributes(id)).reduce((acc, attr) => {
+                acc[attr.traitType] = acc[attr.traitType] ?? [];
+                acc[attr.traitType].push({value: attr.value, count: attr.count});
+                return acc;
+            }, {});
+        }
         return collection;
     }
 
@@ -175,6 +170,7 @@ export default class NftCollectionService {
             logger.error('Error refreshing nft collection stats:', error);
         }
     }
+    
     static async refreshNftCollectionListCache() {
         while (true) {
             try {

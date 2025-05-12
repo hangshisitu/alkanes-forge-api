@@ -18,7 +18,7 @@ import NftCollectionService from "./NftCollectionService.js";
 import NftItemService from "./NftItemService.js";
 import NftAttributeService from "./NftAttributeService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
-import decodeProtorune from "../utils/ProtoruneDecoder.js";
+import decodeProtorune from "../lib/ProtoruneDecoder.js";
 
 let tokenListCache = null;
 
