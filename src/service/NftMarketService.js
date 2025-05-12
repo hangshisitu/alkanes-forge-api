@@ -240,6 +240,11 @@ export default class NftMarketService {
         return sellAmount + config.market.minimumFee;
     }
 
+    static async checkSpendable(utxo) {
+        const spendInfo = await MempoolUtil.getTxOutspend(utxo.txid, utxo.vout);
+        return !spendInfo.spent;
+    }
+
     static async createUnsignedListing(assetAddress, assetPublicKey, fundAddress, listingList) {
         const psbt = new bitcoin.Psbt({network: config.network});
 
@@ -306,6 +311,11 @@ export default class NftMarketService {
             const output = `${sellerInput.txid}:${sellerInput.vout}`;
             const alkanes = await this.checkAlkanes(sellerInput, maxHeight);
             if (alkanes.value < 1) {
+                failedList.push(output);
+                continue;
+            }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
                 failedList.push(output);
                 continue;
             }
@@ -402,6 +412,11 @@ export default class NftMarketService {
                 failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
                 continue;
             }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
 
             const vin = await PsbtUtil.utxo2PsbtInputEx(sellerInput);
             vin.sighashType = bitcoin.Transaction.SIGHASH_SINGLE | bitcoin.Transaction.SIGHASH_ANYONECANPAY;
@@ -453,6 +468,11 @@ export default class NftMarketService {
 
             const alkanes = await this.checkAlkanes(sellerInput, 0);
             if (alkanes.value < 1) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
                 failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
                 continue;
             }
