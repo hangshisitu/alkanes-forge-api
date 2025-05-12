@@ -4,6 +4,39 @@ import util from "util";
 
 const sleep = util.promisify(setTimeout);
 
+const FILE_SIGNATURES = {
+    '89504e470d0a1a0a': {
+      type: 'png',
+      mimeType: 'image/png',
+      extension: '.png',
+      image: true,
+    },
+    'ffd8ff': {
+      type: 'jpeg',
+      mimeType: 'image/jpeg',
+      extension: '.jpg',
+      image: true,
+    },
+    '47494638': {
+      type: 'gif',
+      mimeType: 'image/gif',
+      extension: '.gif',
+      image: true,
+    },
+    '25504446': {
+      type: 'pdf',
+      mimeType: 'application/pdf',
+      extension: '.pdf',
+      document: true,
+    },
+    '504b0304': {
+      type: 'zip',
+      mimeType: 'application/zip',
+      extension: '.zip',
+      document: true,
+    }
+  };
+
 export default class BaseUtil {
 
     static async sleep(ms) {
@@ -63,7 +96,7 @@ export default class BaseUtil {
     }
 
     static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4, errors = null) {
-        if (collection.length === 0) {
+        if (!collection || collection.length === 0) {
             return [];
         }
         if (!concurrency || concurrency <= 0) {
@@ -150,6 +183,24 @@ export default class BaseUtil {
         }
     
         return result;
+    }
+
+    static detectFileType(hexData) {
+        if (hexData.startsWith('0x')) {
+            hexData = hexData.slice(2);
+        }
+        // Remove any whitespace and convert to lowercase
+        const cleanHex = hexData.replace(/\s/g, '').toLowerCase();
+        
+        // Get the first few bytes
+        const header = cleanHex.substring(0, 16);
+        
+        // Check for common file signatures
+        for (const [signature, info] of Object.entries(FILE_SIGNATURES)) {
+          if (header.startsWith(signature)) {
+            return info;
+          }
+        }
     }
 
 }

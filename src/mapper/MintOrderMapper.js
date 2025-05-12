@@ -37,6 +37,17 @@ export default class MintOrderMapper {
         await MintOrder.create(order);
     }
 
+    static async getByIdInLock(id, transaction) {
+        return await MintOrder.findByPk(id, {
+            attributes: {
+                exclude: ['createdAt', 'updatedAt']
+            },
+            raw: true,
+            transaction,
+            lock: Sequelize.Transaction.LOCK.UPDATE
+        });
+    }
+
     static async getById(id) {
         return await MintOrder.findByPk(id, {
             attributes: {
@@ -125,10 +136,28 @@ export default class MintOrderMapper {
         });
     }
 
-    static async getAllOrdersByMintStatus(mintStatus) {
+    static async getAllOrdersByMintStatus(mintStatus, checkPaymentHash = false) {
+        const where = { mintStatus };
+        if (checkPaymentHash) {
+            where.paymentHash = {
+                [Op.not]: ""
+            };
+        }
         return await MintOrder.findAll({
-            where: { mintStatus },
+            where,
             order: [["latestFeerate", "DESC"]]
         });
+    }
+
+    static async updateUnpaidOrderPaymentHash(orderId, paymentHash) {
+        await MintOrder.update(
+            { paymentHash },
+            { 
+                where: { 
+                    id: orderId,
+                    mintStatus: Constants.MINT_ORDER_STATUS.UNPAID
+                } 
+            }
+        );
     }
 }

@@ -6,6 +6,11 @@ import BaseUtil from '../utils/BaseUtil.js';
 import NftAttributeService from './NftAttributeService.js';
 import NftMarketListingMapper from '../mapper/NftMarketListingMapper.js';
 import IndexerService from './IndexerService.js';
+import AlkanesService from "./AlkanesService.js";
+import UnisatAPI from "../lib/UnisatAPI.js";
+import FeeUtil from "../utils/FeeUtil.js";
+import config from "../conf/config.js";
+import PsbtUtil from "../utils/PsbtUtil.js";
 
 export default class NftItemService {
 
@@ -13,10 +18,69 @@ export default class NftItemService {
         return `nft-items:${collectionId}:${holderAddress || 'all'}:${listing ?? 'all'}:${utxo ?? 'all'}:${name || 'all'}:${page}:${size}`;
     }
 
-    static async bulkUpsertNftItem(infos) {
+    static async bulkUpsertNftItem(infos, options = {transaction: null}) {
         await NftItem.bulkCreate(infos, {
-            updateOnDuplicate: ['updateHeight']
+            ignoreDuplicates: true,
+            transaction: options.transaction
         });
+    }
+
+    static async transfer(fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate, assetsList) {
+        if (!assetsList || assetsList.length === 0) {
+            throw new Error('No transfer request')
+        }
+
+        let index = 0;
+        const inputList = [];
+        const outputList = [];
+        const transferList = [];
+        const existsOutpoints = new Set();
+        for (const assets of assetsList) {
+            const outpoint = `${assets.txid}:${assets.vout}`;
+            if (!existsOutpoints.has(outpoint)) {
+                inputList.push({
+                    txid: assets.txid,
+                    vout: parseInt(assets.vout),
+                    value: parseInt(assets.value),
+                    address: assetAddress,
+                    pubkey: assetPublicKey
+                });
+
+                existsOutpoints.add(outpoint);
+            }
+
+            transferList.push({
+                id: assets.id,
+                amount: 0,
+                output: index
+            });
+            index++;
+
+            outputList.push({
+                address: assets.toAddress,
+                value: 330
+            });
+        }
+
+        const protostone = AlkanesService.getBatchTransferProtostone(transferList);
+        outputList.push({
+            script: protostone,
+            value: 0
+        });
+
+        const transferFee = 1000;
+        outputList.push({
+            address: config.revenueAddress.transfer,
+            value: transferFee
+        });
+
+        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
+        const txFee = Math.floor(txSize * feerate);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + transferFee + 3000, feerate);
+        utxoList.map(utxo => utxo.pubkey = fundPublicKey);
+        inputList.push(...utxoList);
+
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
     }
 
     static async getItemById(id) {
@@ -96,7 +160,7 @@ export default class NftItemService {
             raw: true,
             replacements: { collectionId }
         });
-        const itemIds =rows.map(item => {
+        const itemIds = rows.map(item => {
             return item.id
         });
         if (listing === false) {
@@ -114,10 +178,15 @@ export default class NftItemService {
                 item.listingOutput = listingItem?.listingOutput;
             });
         }
-        if (utxo) {
+        const removeItemIds = new Set();
+        if (holderAddress) {
             const outpointRecords = await IndexerService.getOutpointsByAlkanesIds(itemIds);
             rows.forEach(item => {
                 const outpointRecord = outpointRecords.find(record => record.alkanesId === item.id);
+                if (!outpointRecord) {
+                    removeItemIds.add(item.id);
+                    return;
+                }
                 item.txid = outpointRecord?.txid;
                 item.vout = outpointRecord?.vout;
                 item.value = outpointRecord?.value;
@@ -129,7 +198,7 @@ export default class NftItemService {
             size,
             total: count,
             pages: Math.ceil(count / size),
-            records: rows,
+            records: rows.filter(item => !removeItemIds.has(item.id)),
         };
         // 写缓存，10秒有效期
         if (attributes?.length <= 0) {
@@ -194,6 +263,15 @@ export default class NftItemService {
             where: {
                 collectionId
             }
+        });
+    }
+
+    static async getItemsByCollectionId(collectionId) {
+        return await NftItem.findAll({
+            where: {
+                collectionId
+            },
+            raw: true,
         });
     }
 }

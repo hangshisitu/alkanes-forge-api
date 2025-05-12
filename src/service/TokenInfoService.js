@@ -3,7 +3,6 @@ import {QueryTypes} from "sequelize";
 import TokenStatsMapper from "../mapper/TokenStatsMapper.js";
 import TokenInfoMapper from "../mapper/TokenInfoMapper.js";
 import MarketListingMapper from "../mapper/MarketListingMapper.js";
-import asyncPool from "tiny-async-pool";
 import config from "../conf/config.js";
 import BaseUtil from "../utils/BaseUtil.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
@@ -19,241 +18,125 @@ import NftItemService from "./NftItemService.js";
 import NftAttributeService from "./NftAttributeService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import decodeProtorune from "../lib/ProtoruneDecoder.js";
+import BigNumber from "bignumber.js";
 
 let tokenListCache = null;
 
 export default class TokenInfoService {
 
-    static async refreshTokenInfo(blockHeight) {
-        // 1. 获取所有现有token
-        const tokenList = await TokenInfoMapper.getAllTokens();
-        logger.info(`found existing tokens: ${tokenList.length}`);
-
-        // 2. 获取需要更新的活跃token
-        const nftCollectionList = await NftCollectionService.getAllNftCollection();
-        const activeTokens = tokenList.filter(token => {
-            return (token.isSync) || nftCollectionList.find(nftCollection => nftCollection.id === token.id);
-        });
-        logger.info(`found active tokens: ${activeTokens.length}`);
-
-        // 3. 并行获取活跃token的最新数据
-        const alkaneList = [];
-        const failedTokens = [];
-
-        for await (const result of asyncPool(
-            config.concurrencyLimit,
-            activeTokens,
-            async (token) => {
-                const fieldsToQuery = ['101', '102', '103'];
-                try {
-                    const data = await BaseUtil.retryRequest(
-                        () => AlkanesService.getAlkanesById(token.id, fieldsToQuery),
-                        3, 500
-                    );
-                    if (data === null) {
-                        failedTokens.push(token.id);
-                        return null;
-                    }
-
-                    // 外部做业务逻辑
-                    // 这里只是示例，可依业务需要再加
-                    if (token.id === '2:0' && data.totalSupply !== undefined) {
-                        data.mintAmount = 3.125 * 1e8;
-                        data.cap = 500000;
-                        data.minted = Math.ceil(data.totalSupply / data.mintAmount);
-                        data.premine = 440000 * 1e8;
-                    } else if (
-                        data.totalSupply !== undefined &&
-                        data.minted !== undefined
-                    ) {
-                        data.premine = data.totalSupply - data.minted * token.mintAmount;
-                        data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
-                        data.mintActive = data.progress >= 100 ? 0 : 1;
-                    }
-
-                    // 合并原有字段
-                    return { ...token, mintActive: token.actualMintActive, ...data };
-                } catch (error) {
-                    logger.error(`Failed to fetch token ${token.id}:`, error);
-                    failedTokens.push(token.id);
-                    return null;
-                }
-            }
-        )) {
-            if (result !== null) {
-                alkaneList.push(result);
-            }
-        }
-
-        if (failedTokens.length > 0) {
-            logger.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
-        }
-        logger.info(`updated active tokens: ${alkaneList.length}`);
-
-        // 4. 确定新token的搜索范围
+    static async refreshNewTokenInfo(blockHeight) {
+        const lastTokenInfo = await TokenInfoMapper.getLastTokenInfo();
         let lastIndex = 0;
-        if (tokenList.length > 0) {
-            lastIndex = Math.max(
-                ...tokenList
-                    .map(token => {
-                        const parts = token.id.split(':');
-                        return (parts.length === 2 && !isNaN(parts[1])) ? parseInt(parts[1]) : -1;
-                    })
-                    .filter(n => n >= 0),
-                0 // 防止tokenList为空时Math.max()为-Infinity
-            ) + 1;
+        if (lastTokenInfo) {
+            lastIndex = parseInt(lastTokenInfo.id.split(':')[1]);
+            const lastNftItemId = await NftItemService.findMaxItemId();
+            if (lastNftItemId) {
+                lastIndex = Math.max(lastIndex, parseInt(lastNftItemId.split(':')[1]));
+            }
+            lastIndex += 1;
         }
-        if (lastIndex > 0) {
-            // 获取nft item的最大id
-            const maxItemId = await NftItemService.findMaxItemId();
-            lastIndex = Math.max(lastIndex, (parseInt(maxItemId?.split(':')[1]) || 0) + 1);
-        }
+        logger.info(`find new token start at index: ${lastIndex}`);
 
         // 5. 查找新token
-        const newAlkaneList = [];
-        const newNftCollectionList = [];
-        const newNftItemList = [];
-        const maxNewTokensToCheck = 999999;
-        const existingIds = new Set(tokenList.map(t => t.id));
-        const activeIds = new Set(alkaneList.map(t => t.id));
-        let tryMore = 10;
-
-        for (let i = lastIndex; i < lastIndex + maxNewTokensToCheck; i++) {
-            const tokenId = `2:${i}`;
-
-            if (existingIds.has(tokenId) || activeIds.has(tokenId)) {
-                continue;
+        const errors = [];
+        const batch = 16;
+        while (true) {
+            const idxs = [];
+            for (let i = lastIndex; i < lastIndex + batch; i++) {
+                idxs.push(i);
             }
-
-            try {
-                logger.info(`sync new token: ${tokenId}`);
-                const alkanes = await BaseUtil.retryRequest(
-                    () => AlkanesService.getAlkanesById(tokenId),
-                    2, 500
-                );
-
-                if (Object.keys(alkanes).length === 1) { // 只有id
-                    if (--tryMore <= 0) {
-                        break;
+            const newAlkaneList = [];
+            const newNftCollectionList = [];
+            const newNftItemList = [];
+            const results = await BaseUtil.concurrentExecute(idxs, async (idx) => {
+                const tokenId = `2:${idx}`;
+                try {
+                    // logger.info(`sync new token: ${tokenId}`);
+                    const alkanes = await BaseUtil.retryRequest(
+                        () => AlkanesService.getAlkanesById(tokenId),
+                        2, 500
+                    );
+    
+                    if (Object.keys(alkanes).length === 1) { // 只有id
+                        // logger.warn(`new token ${tokenId} not found`);
+                        return false;
                     }
-                    continue;
-                }
-                tryMore = 10;
-
-                if (!alkanes.name) {
-                    continue;
-                }
-
-                if (alkanes.collectionIdentifier) { // nft合集id
-                    newNftCollectionList.push({
-                        id: alkanes.collectionIdentifier,
-                        identifier: alkanes.collectionIdentifier,
-                    });
-                    if (!alkanes.cap || alkanes.cap <= 0) {
-                        newNftItemList.push(alkanes);
-                        continue;
+    
+                    if (!alkanes.name) {
+                        // logger.warn(`new token ${tokenId} not found name`);
+                        return false;
                     }
-                }
-
-                if (
-                    alkanes.totalSupply !== undefined &&
-                    alkanes.minted !== undefined &&
-                    alkanes.mintAmount !== undefined
-                ) {
-                    alkanes.premine = alkanes.totalSupply - alkanes.minted * alkanes.mintAmount;
-                }
-
-                if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
-                    alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, alkanes.cap);
-                    alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
-                }
-
-                const nftCollection = nftCollectionList.find(nftCollection => nftCollection.id === tokenId);
-                
-                if (nftCollection) {
-                    if (nftCollection.totalSupply != null) {
-                        alkanes.totalSupply = nftCollection.totalSupply;
-                        alkanes.minted = nftCollection.minted;
-                        alkanes.cap = nftCollection.minted;
-                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, nftCollection.totalSupply);
+                    logger.info(`found new token ${tokenId} name: ${alkanes.name}`);
+                    if (alkanes.collectionIdentifier) { // nft合集id
+                        if (!alkanes.cap || alkanes.cap <= 0) {
+                            newNftItemList.push(alkanes);
+                            return true;
+                        }
+                    }
+    
+                    if (
+                        alkanes.totalSupply !== undefined &&
+                        alkanes.minted !== undefined &&
+                        alkanes.mintAmount !== undefined
+                    ) {
+                        alkanes.premine = alkanes.totalSupply.minus(alkanes.minted.multipliedBy(alkanes.mintAmount));
+                    }
+    
+                    if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
+                        alkanes.progress = AlkanesService.calculateProgress(tokenId, alkanes.minted, alkanes.cap);
                         alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
                     }
+                    for (const key in alkanes) {
+                        const value = alkanes[key];
+                        if (value instanceof BigNumber) {
+                            alkanes[key] = value.toFixed();
+                        }
+                    }
+    
+                    const idOutpoint = await AlkanesService.alkanesidtooutpoint(2, idx);
+                    const txHex = await MempoolUtil.getTxHex(idOutpoint.outpoint.txid);
+                    const result = await decodeProtorune(txHex);
+                    const message = BaseUtil.decodeLEB128Array(JSON.parse(result.protostones[0].message));
+                    if (message[0] === 6) {
+                        alkanes.reserveNumber = message[1];
+                    } else {
+                        alkanes.reserveNumber = 0;
+                    }
+                    logger.info(`new token ${tokenId} reserve number: ${alkanes.reserveNumber}`);
+                    newAlkaneList.push(alkanes);
+                    if (alkanes.collectionIdentifier) {
+                        newNftCollectionList.push(alkanes);
+                    }
+                    return true;
+                } catch (error) {
+                    logger.error(`Error checking new token ${tokenId}:`, error);
+                    throw error;
                 }
-                const idOutpoint = await AlkanesService.alkanesidtooutpoint(2, i);
-                const txHex = await MempoolUtil.getTxHex(idOutpoint.outpoint.txid);
-                const result = await decodeProtorune(txHex);
-                const message = BaseUtil.decodeLEB128Array(JSON.parse(result.protostones[0].message));
-                if (message[0] === 6) {
-                    alkanes.reserveNumber = message[1];
-                } else {
-                    alkanes.reserveNumber = 0;
-                }
-                logger.info(`new token ${tokenId} reserve number: ${alkanes.reserveNumber}`);
-                newAlkaneList.push(alkanes);
-                existingIds.add(tokenId);
-            } catch (error) {
-                logger.error(`Error checking new token ${tokenId}:`, error);
-                break; // 遇到错误停止检查新token
+            }, null, errors);
+            if (errors.length > 0) {
+                logger.error(`Error checking new tokens: ${errors.length}`);
+                return;
             }
-        }
-        logger.info(`found new tokens: ${newAlkaneList.length}, new nft item: ${newNftItemList.length}`);
 
-        // 6. 合并所有token数据
-        const tokenMap = new Map();
-        tokenList.forEach(token => tokenMap.set(token.id, token));
-        alkaneList.forEach(token => {
-            tokenMap.set(token.id, {
-                ...tokenMap.get(token.id),
-                ...token
+            logger.info(`found new tokens: ${newAlkaneList.length}, new nft item: ${newNftItemList.length}, index: ${lastIndex}`);
+            if (newAlkaneList.length <= 0 && newNftItemList.length <= 0) {
+                break;
+            }
+            newAlkaneList.sort((a, b) => {
+                return parseInt(a.id.split(':')[1]) - parseInt(b.id.split(':')[1]);
             });
-        });
-        newAlkaneList.forEach(token => {
-            if (!tokenMap.has(token.id)) {
-                tokenMap.set(token.id, token);
-            }
-        });
+            newNftItemList.sort((a, b) => {
+                return parseInt(a.id.split(':')[1]) - parseInt(b.id.split(':')[1]);
+            });
+            newAlkaneList.forEach(alkanes => {
+                alkanes.updateHeight = blockHeight;
+                alkanes.image = alkanes.image || TokenInfoService.getDefaultTokenImage(alkanes.name);
+            });
+            newNftItemList.forEach(nftItem => {
+                nftItem.updateHeight = blockHeight;
+                nftItem.image = nftItem.image || TokenInfoService.getDefaultTokenImage(nftItem.name);
+            });
 
-        // 7. 数据验证和处理
-        const allTokens = Array.from(tokenMap.values()).sort((a, b) => {
-            const aParts = a.id.split(':');
-            const bParts = b.id.split(':');
-            const aNum = aParts.length === 2 ? parseInt(aParts[1]) : 0;
-            const bNum = bParts.length === 2 ? parseInt(bParts[1]) : 0;
-            return aNum - bNum;
-        });
-
-        // 设置更新区块与默认图片
-        allTokens.forEach(token => {
-            token.updateHeight = blockHeight;
-            token.image = token.image || TokenInfoService.getDefaultTokenImage(token.name);
-        });
-
-        // 9. 更新数据库和缓存
-        await TokenInfoMapper.bulkUpsertTokensInBatches(allTokens);
-
-        // 10. 更新nft合集和nft item
-        if (newNftCollectionList.length > 0) {
-            const tokens = await TokenInfoMapper.getAllTokens();
-            const nftCollections = [];
-            for (const token of tokens) {
-                const nftCollection = newNftCollectionList.find(nftCollection => nftCollection.id === token.id);
-                if (nftCollection) {
-                    nftCollections.push({
-                        id: token.id,
-                        identifier: nftCollection?.identifier,
-                        name: token.name,
-                        image: nftCollection?.image || token.image,
-                        originalImage: nftCollection?.originalImage || token.originalImage,
-                        symbol: token.symbol,
-                        data: token.data,
-                        contentType: token.contentType,
-                        minted: await NftItemService.getNftItemCount(token.id),
-                        totalSupply: token.totalSupply || nftCollection.totalSupply,
-                        updateHeight: blockHeight,
-                    });
-                }
-            }
-            await NftCollectionService.bulkUpsertNftCollection(nftCollections);
             const nftItems = newNftItemList.map(item => {
                 return {
                     id: item.id,
@@ -267,7 +150,22 @@ export default class TokenInfoService {
                     updateHeight: blockHeight,
                 }
             });
-            await NftItemService.bulkUpsertNftItem(nftItems);
+            const newNftCollections = newNftCollectionList.map(alkanes => {
+                return {
+                    id: alkanes.collectionIdentifier,
+                    identifier: alkanes.collectionIdentifier,
+                    name: alkanes.name,
+                    image: alkanes.image,
+                    originalImage: alkanes.originalImage,
+                    symbol: alkanes.symbol,
+                    data: alkanes.data,
+                    contentType: alkanes.contentType,
+                    minted: (BigInt(alkanes.totalSupply) / BigInt(alkanes.mintAmount)) || 0,
+                    premine: ((BigInt(alkanes.totalSupply) - BigInt(alkanes.minted) * BigInt(alkanes.mintAmount)) / BigInt(alkanes.mintAmount)) || 0,
+                    totalSupply: (BigInt(alkanes.cap) + ((BigInt(alkanes.totalSupply) - BigInt(alkanes.minted) * BigInt(alkanes.mintAmount)) / BigInt(alkanes.mintAmount))) || 0,
+                    updateHeight: blockHeight,
+                }
+            });
             const nftItemAttributes = newNftItemList.map(item => {
                 let attributes = item.attributes;
                 if (!attributes) {
@@ -280,22 +178,158 @@ export default class TokenInfoService {
                         return acc;
                     }, {});
                 }
+                
                 return Object.keys(attributes).map(traitType => {
+                    let value = attributes[traitType];
+                    if (Array.isArray(value)) {
+                        value = value.join(',');
+                    } else if (typeof value === 'object') {
+                        value = JSON.stringify(value);
+                    }
                     return {
                         collectionId: item.collectionIdentifier,
                         itemId: item.id,
-                        traitType,
-                        value: attributes[traitType],
+                        traitType: traitType,
+                        value,
                     }
                 });
             }).flat().filter(item => item != null);
-            if (nftItemAttributes.length > 0) {
-                await NftAttributeService.bulkUpsertNftItemAttributes(nftItemAttributes);
+
+            await sequelize.transaction(async (transaction) => {
+                if (newAlkaneList?.length > 0) {
+                    await TokenInfoMapper.bulkUpsertTokensInBatches(newAlkaneList, 100, {transaction});
+                }
+                if (nftItems?.length > 0) {
+                    await NftItemService.bulkUpsertNftItem(nftItems, {transaction});
+                }
+                if (newNftCollections?.length > 0) {
+                    await NftCollectionService.bulkUpsertNftCollection(newNftCollections, {transaction});
+                }
+                if (nftItemAttributes?.length > 0) {
+                    await NftAttributeService.bulkUpsertNftItemAttributes(nftItemAttributes, {transaction});
+                }
+            });
+            if (nftItemAttributes?.length > 0) {
                 const nftCollectionIds = new Set(nftItemAttributes.map(item => item.collectionId));
                 for (const nftCollectionId of nftCollectionIds) {
                     await NftAttributeService.refreshNftCollectionAttributes(nftCollectionId);
                 }
             }
+
+            if (results.filter(x => x).length < batch) {
+                break;
+            }
+            lastIndex += batch;
+        }
+    }
+
+    static async refreshTokenInfo(blockHeight) {
+        // 1. 获取所有现有token
+        const tokenList = await TokenInfoMapper.getAllTokens();
+        logger.info(`found existing tokens: ${tokenList.length}`);
+
+        // 2. 获取需要更新的活跃token
+        const nftCollectionList = await NftCollectionService.getAllNftCollection();
+        const activeTokens = tokenList.filter(token => {
+            return (token.isSync) || nftCollectionList.find(nftCollection => nftCollection.id === token.id && nftCollection.mintActive === 1);
+        });
+        logger.info(`found active tokens: ${activeTokens.length}`);
+
+        // 3. 并行获取活跃token的最新数据
+        const alkaneList = [];
+        const failedTokens = [];
+        const fieldsToQuery = ['101', '102', '103'];
+        activeTokens.sort((a, b) => {
+            return b.progress - a.progress;
+        });
+
+        await BaseUtil.concurrentExecute(activeTokens, async (token) => {
+            try {
+                const data = await BaseUtil.retryRequest(
+                    () => AlkanesService.getAlkanesById(token.id, fieldsToQuery),
+                    3, 500
+                );
+                if (data === null) {
+                    failedTokens.push(token.id);
+                    return null;
+                }
+
+                // 外部做业务逻辑
+                // 这里只是示例，可依业务需要再加
+                if (token.id === '2:0' && data.totalSupply !== undefined) {
+                    data.mintAmount = new BigNumber(3.125).multipliedBy(1e8);
+                    data.cap = new BigNumber(500000);
+                    data.minted = data.totalSupply.dividedBy(data.mintAmount).integerValue(BigNumber.ROUND_CEIL);
+                    data.premine = new BigNumber(440000).multipliedBy(1e8);
+                } else if (
+                    data.totalSupply !== undefined &&
+                    data.minted !== undefined &&
+                    data.cap !== undefined
+                ) {
+                    data.premine = data.totalSupply.minus(data.minted.multipliedBy(token.mintAmount));
+                    data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
+                    data.mintActive = data.progress >= 100 ? 0 : 1;
+                }
+                for (const key in data) {
+                    const value = data[key];
+                    if (value instanceof BigNumber) {
+                        data[key] = value.toFixed();
+                    }
+                }
+
+                // 合并原有字段
+                const result = { ...token, mintActive: token.actualMintActive, ...data };
+                result.updateHeight = blockHeight;
+                result.image = result.image || TokenInfoService.getDefaultTokenImage(result.name);
+                await TokenInfoMapper.bulkUpsertTokensInBatches([result]);
+                alkaneList.push(result);
+            } catch (error) {
+                logger.error(`Failed to fetch token ${token.id}:`, error);
+                failedTokens.push(token.id);
+            }
+        });
+
+        if (failedTokens.length > 0) {
+            logger.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
+        }
+        logger.info(`updated active tokens: ${alkaneList.length}`);
+
+        // 6. 合并所有token数据
+        const tokenMap = new Map();
+        tokenList.forEach(token => tokenMap.set(token.id, token));
+        alkaneList.forEach(token => {
+            tokenMap.set(token.id, {
+                ...tokenMap.get(token.id),
+                ...token
+            });
+        });
+
+        // 7. 数据验证和处理
+        const allTokens = Array.from(tokenMap.values()).sort((a, b) => {
+            const aParts = a.id.split(':');
+            const bParts = b.id.split(':');
+            const aNum = aParts.length === 2 ? parseInt(aParts[1]) : 0;
+            const bNum = bParts.length === 2 ? parseInt(bParts[1]) : 0;
+            return aNum - bNum;
+        });
+
+        // 9. 更新数据库和缓存
+
+        const needUpdateNftCollectionTokens = allTokens.filter(token => {
+            return nftCollectionList.find(nftCollection => nftCollection.id === token.id);
+        });
+        if (needUpdateNftCollectionTokens.length > 0) {
+            const needUpdateNftCollections = [];
+            for (const token of needUpdateNftCollectionTokens) {
+                const nftCollection = nftCollectionList.find(nftCollection => nftCollection.id === token.id);
+                needUpdateNftCollections.push({
+                    id: token.id,
+                    minted: BigNumber.max(nftCollection.minted, token.minted),
+                    premine: token.premine || nftCollection.premine,
+                    updateHeight: blockHeight,
+                });
+            }
+            await NftCollectionService.bulkUpsertNftCollection(needUpdateNftCollections);
         }
 
         await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
@@ -321,20 +355,20 @@ export default class TokenInfoService {
                 return; // 如果没有 24 小时的交易数据，直接跳过更新流程
             }
 
-            // 获取代币 ID 列表（从 24 小时的统计数据中提取）
-            const alkanesIds = Object.keys(statsMap24h);
+            // 获取需要更新的代币 ID 列表
+            const alkanesIds = [...new Set([...Object.keys(statsMap24h), ...await TokenInfoMapper.getTradingCountGt0Ids('total_trading_count')])];
 
             // Step 2: 查询每个代币的最新成交价格（listing_price）
             const latestPrices = await sequelize.query(`
-                SELECT me1.alkanes_id AS alkanesId, me1.listing_price AS latestPrice
+                SELECT 
+                    me1.alkanes_id AS alkanesId,
+                    CAST(SUM(me1.listing_amount) AS DECIMAL(65,18)) / CAST(SUM(me1.token_amount) AS DECIMAL(65,18)) AS latestPrice
                 FROM market_event me1
-                INNER JOIN (
-                    SELECT alkanes_id, MAX(created_at) as latest_time
-                    FROM market_event
-                    WHERE type = 2 AND created_at < NOW()
-                    GROUP BY alkanes_id
-                ) me2 ON me1.alkanes_id = me2.alkanes_id AND me1.created_at = me2.latest_time
-                WHERE me1.type = 2;
+                WHERE me1.type = 2 
+                AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 HOUR), '%Y-%m-%d %H:00:00')
+                AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+                GROUP BY me1.alkanes_id
+                HAVING SUM(me1.token_amount) > 0;
             `, { type: QueryTypes.SELECT });
 
             const latestPriceMap = {};
@@ -385,11 +419,11 @@ export default class TokenInfoService {
             const statsMapTotal = await TokenStatsMapper.getStatsMapByAlkanesIds(alkanesIds);
 
             // 构建完整的更新数据基于 statsMap24h
-            const tokenStatsList = Object.keys(statsMap24h).map(alkanesId => {
+            const tokenStatsList = alkanesIds.map(alkanesId => {
                 const item = {
                     id: alkanesId,
-                    tradingVolume24h: statsMap24h[alkanesId].totalVolume,
-                    tradingCount24h: statsMap24h[alkanesId].tradeCount,
+                    tradingVolume24h: statsMap24h[alkanesId]?.totalVolume || 0,
+                    tradingCount24h: statsMap24h[alkanesId]?.tradeCount || 0,
                     tradingVolume7d: statsMap7d[alkanesId]?.totalVolume || 0,
                     tradingCount7d: statsMap7d[alkanesId]?.tradeCount || 0,
                     tradingVolume30d: statsMap30d[alkanesId]?.totalVolume || 0,
@@ -405,10 +439,14 @@ export default class TokenInfoService {
                 item.totalTradingCount = Math.max(item.totalTradingCount, item.tradingCount24h);
 
                 // 添加涨跌幅信息
-                const existingUpdate = updateMap.get(alkanesId);
-                if (existingUpdate) {
-                    Object.assign(item, existingUpdate); // 合并涨跌幅信息
+                let existingUpdate = updateMap.get(alkanesId);
+                if (!existingUpdate) {
+                    existingUpdate = { id: alkanesId };
+                    timeframes.forEach(timeframe => {
+                        existingUpdate[`priceChange${timeframe.label}`] = 0;
+                    });
                 }
+                Object.assign(item, existingUpdate); // 合并涨跌幅信息
 
                 return item;
             });

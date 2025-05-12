@@ -27,8 +27,8 @@ export default class MintService {
             logger.error(`calc merge order outputs token ${id} minting is unavailable.`);
             throw new Error(`Token ${id} minting is unavailable`);
         }
-        const mintProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
-        const transferProtostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.MERGE);
+        const mintProtostone = AlkanesService.getMintProtostone(id, 77, Constants.MINT_MODEL.NORMAL);
+        const transferProtostone = AlkanesService.getMintProtostone(id, 77, Constants.MINT_MODEL.MERGE);
 
         const orderId = BaseUtil.genId();
         const privateKey = MintService.getMintPrivateKey(orderId);
@@ -225,46 +225,50 @@ export default class MintService {
         return psbt;
     }
 
-    static async createMergeOrder(orderId, userAddress, psbt) {
-        const mintOrder = await MintOrderMapper.getById(orderId);
-        if (!mintOrder) {
-            logger.error(`create merge order ${orderId} not found.`);
-            throw new Error('Not found order, please refresh and try again.');
-        }
-
-        if (mintOrder.userAddress !== userAddress) {
-            throw new Error("You cannot operate on another user's order.");
-        }
-
+    static async createMergeOrderDetail(mintOrder, paymentTxHex, paymentPsbt = null) {
+        const {id: orderId, paymentHash} = mintOrder;
         const mintTxs = [];
-        const {txid, hex, txSize, error} = await UnisatAPI.unisatPush(psbt);
-        if (error) {
-            logger.error(`push tx for merge order ${orderId} error: ${error}`);
-            throw new Error(error);
-        }
-
         mintTxs.push({
-            mintHash: txid,
-            txSize: txSize,
+            mintHash: paymentHash,
+            txSize: PsbtUtil.convertPsbtHex(paymentTxHex).txSize,
             mintStatus: Constants.MINT_STATUS.WAITING
         });
 
         const privateKey = MintService.getMintPrivateKey(orderId);
         const mintAddress = mintOrder.mintAddress;
 
-        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
+        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);
         const transferSize = FeeUtil.estTxSize([{address: mintAddress}], [{address: mintAddress}, {script: transferProtostone}]);
         let transferFee = Math.ceil(transferSize * mintOrder.feerate);
 
-        const originalPsbt = PsbtUtil.fromPsbt(psbt);
-        const paymentUtxo = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
-        const originalTx = originalPsbt.extractTransaction();
+        let paymentUtxo, fundValue, originalWeight;
+        try {
+            if (!paymentPsbt) {
+                throw new Error('Payment psbt is required.');
+            }
+            const originalPsbt = PsbtUtil.fromPsbt(paymentPsbt);
+            const originalTx = originalPsbt.extractTransaction();
 
-        let fundValue = originalPsbt.txOutputs[0].value;
+            fundValue = originalPsbt.txOutputs[0].value;
+            paymentUtxo = PsbtUtil.extractInputFromPsbt(originalPsbt, 0);
+            originalWeight = originalTx.weight();
+        } catch (err) {
+            // 兼容修复时传的已广播的hex
+            const tx = await MempoolUtil.getTx(paymentHash);
+            paymentUtxo = {
+                txid: tx.vin[0].txid,
+                vout: tx.vin[0].vout,
+                value: tx.vin[0].prevout.value,
+                address: tx.vin[0].prevout.scriptpubkey_address
+            }
+            originalWeight = tx.weight;
+            fundValue = tx.vout[0].value;
+        }
+
         let receiveAddress = mintAddress;
         let changeValue = 0;
 
-        let inputTxid = txid;
+        let inputTxid = paymentHash;
         const itemList = [{
             id: BaseUtil.genId(),
             orderId: orderId,
@@ -272,9 +276,9 @@ export default class MintService {
             batchIndex: 0,
             mintIndex: 0,
             receiveAddress: receiveAddress,
-            txSize: BaseUtil.divCeil(originalTx.weight(), 4),
-            mintHash: txid,
-            psbt: hex,
+            txSize: BaseUtil.divCeil(originalWeight, 4),
+            mintHash: paymentHash,
+            psbt: paymentTxHex,
             mintStatus: Constants.MINT_STATUS.MINTING
         }];
 
@@ -347,10 +351,16 @@ export default class MintService {
         const submittedAmount = mintTxs.length;
         const mintStatus = submittedAmount === mintOrder.mintAmount ? Constants.MINT_ORDER_STATUS.MINTING : Constants.MINT_ORDER_STATUS.PARTIAL;
         await sequelize.transaction(async (transaction) => {
-            await MintOrderMapper.updateOrder(orderId, txid, submittedAmount, mintStatus, {transaction});
+            const mintOrder = await MintOrderMapper.getByIdInLock(orderId, transaction);
+            if (mintOrder.mintStatus !== Constants.MINT_ORDER_STATUS.UNPAID) {
+                return;
+            }
+            await MintOrderMapper.updateOrder(orderId, paymentHash, submittedAmount, mintStatus, {transaction, acceptStatus: Constants.MINT_ORDER_STATUS.UNPAID});
             await MintItemMapper.bulkUpsertItem(itemList, {transaction});
         });
-        broadcastQueue.put([itemList, Constants.MINT_MODEL.MERGE]);
+        if (paymentPsbt) { // 创建接口订单调用的, 非补偿任务
+            broadcastQueue.put([itemList, Constants.MINT_MODEL.MERGE]);
+        }
 
         return {
             id: orderId,
@@ -374,6 +384,31 @@ export default class MintService {
             mintStatus: mintStatus,
             mintTxs: mintTxs
         };
+    }
+
+    static async createMergeOrder(orderId, userAddress, psbt) {
+        const mintOrder = await MintOrderMapper.getById(orderId);
+        if (!mintOrder) {
+            logger.error(`create merge order ${orderId} not found.`);
+            throw new Error('Not found order, please refresh and try again.');
+        }
+
+        if (mintOrder.userAddress !== userAddress) {
+            throw new Error("You cannot operate on another user's order.");
+        }
+
+
+        const paymentHash = PsbtUtil.convertPsbtHex(psbt).txid;
+        await MintOrderMapper.updateUnpaidOrderPaymentHash(orderId, paymentHash);
+        mintOrder.paymentHash = paymentHash;
+
+        const {hex, error} = await UnisatAPI.unisatPush(psbt);
+        if (error) {
+            logger.error(`push tx for merge order ${orderId} error: ${error}`);
+            throw new Error(error);
+        }
+
+        return this.createMergeOrderDetail(mintOrder, hex, psbt);
     }
 
     static async orderInfo(orderId) {
@@ -412,18 +447,10 @@ export default class MintService {
             throw new Error('All minting has been broadcast, no refundable amount.');
         }
 
-        const txSize = mintTxs.reduce((sum, output) => sum + output.txSize, 0);
-        // 第一笔转账Mint + 最后一笔合并Mint
-        const payTxSize = mintTxs
-            .map(output => output.txSize)
-            .sort((a, b) => b - a)      // 从大到小排序
-            .slice(0, 2)                // 取前两个
-            .reduce((sum, v) => sum + v, 0);  // 求和
-        const networkFee = Math.ceil((txSize - payTxSize) * (mintOrder.latestFeerate + 0.5));
-
         const tx = await MempoolUtil.getTx(mintOrder.paymentHash);
         const inputList = [];
-        let totalInputValue = 0;
+        let refundValue = 0;
+        let oldTxFee = Math.ceil(BaseUtil.divCeil(tx.weight, 4) * (mintOrder.latestFeerate + 1));
         for (let i = 0; i < tx.vout.length; i++) {
             if (tx.vout[i].scriptpubkey_address !== mintOrder.mintAddress) {
                 break;
@@ -435,11 +462,25 @@ export default class MintService {
                 value: tx.vout[i].value,
                 address: mintOrder.mintAddress
             });
-            totalInputValue += tx.vout[i].value;
+            refundValue += tx.vout[i].value;
         }
-        let refundValue = totalInputValue - networkFee;
-        refundValue = refundValue < 546 ? 0 : refundValue;
 
+        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);
+        const outputList = [];
+        outputList.push({
+            address: mintOrder.receiveAddress,
+            value: mintOrder.postage
+        })
+        outputList.push({
+            script: transferProtostone,
+            value: 0
+        })
+
+        // 退款需要扣除已经花费的资金，发送子交易完成，子交易必须将父交易的Gas速率提升1聪
+        const newTxSize = FeeUtil.estTxSize(inputList, [...outputList, {address: mintOrder.paymentAddress}]);
+        const newTxFee = Math.ceil(newTxSize * (mintOrder.latestFeerate + 1));
+
+        refundValue -= oldTxFee + newTxFee + mintOrder.postage;
         return {
             mintOrder: mintOrder,
             inputList,
@@ -458,7 +499,7 @@ export default class MintService {
             throw new Error("You cannot operate on another user's order.");
         }
 
-        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
+        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);
         const outputList = [];
         outputList.push({
             address: mintOrder.receiveAddress,
@@ -509,7 +550,7 @@ export default class MintService {
         }
 
         const privateKey = MintService.getMintPrivateKey(orderId);
-        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
+        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);
 
         const mintItems = [];
         let totalChangeValue = 0;
@@ -662,8 +703,8 @@ export default class MintService {
     static async submitBatch(mintOrder, inputUtxo, batchIndex, mintAmount) {
         const mintAddress = mintOrder.mintAddress;
         const privateKey = MintService.getMintPrivateKey(mintOrder.id);
-        const mintProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.NORMAL);
-        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, Constants.MINT_MODEL.MERGE);
+        const mintProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.NORMAL);
+        const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);
 
         let fundValue = inputUtxo.value;
         let inputTxid = inputUtxo.txid;
@@ -841,6 +882,26 @@ export default class MintService {
             }
             if (tx.status.confirmed) {
                 await MintItemMapper.updateItemStatus(item.id, Constants.MINT_STATUS.MINTING, Constants.MINT_STATUS.COMPLETED);
+            }
+        });
+    }
+
+    static async batchHandleUnpaidOrderPaymentHash() {
+        const orderList = await MintOrderMapper.getAllOrdersByMintStatus(Constants.MINT_ORDER_STATUS.UNPAID, true);
+        if (orderList.length === 0) {
+            return;
+        }
+        await BaseUtil.concurrentExecute(orderList, async (order) => {
+            try {
+                const tx = await MempoolUtil.getTxEx(order.paymentHash);
+                if (!tx) {
+                    logger.error(`tx ${order.paymentHash} for order ${order.id} not found.`);
+                    return;
+                }
+                await MintService.createMergeOrderDetail(order, tx.hex);
+                logger.info(`fix unpaid order ${order.id} create merge order detail success.`);
+            } catch (err) {
+                logger.error(`fix unpaid order ${order.id} create merge order detail error`, err);
             }
         });
     }

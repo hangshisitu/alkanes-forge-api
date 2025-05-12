@@ -71,9 +71,13 @@ class BtcRPC {
      */
     async getBlockTransactions(blockHash) {
         // Get block with full transaction data
-        const blockData = await this.call('getblock', [blockHash, 2]);
+        const blockData = await this.getBlockDetails(blockHash);
         
         return blockData.tx;
+    }
+
+    async getBlockDetails(blockHash) {
+        return await this.call('getblock', [blockHash, 2]);
     }
 
     writeBigUInt64LE(buf, value, offset = 0) {

@@ -18,6 +18,7 @@ import AlkanesService from './AlkanesService.js';
 import decodeProtorune from '../lib/ProtoruneDecoder.js';
 import NftCollectionService from './NftCollectionService.js';
 import Sequelize from 'sequelize';
+import BigNumber from 'bignumber.js';
 
 export default class IndexerService {
 
@@ -53,7 +54,9 @@ export default class IndexerService {
                 await OutpointRecordMapper.deleteAfter(block);
                 await IndexBlockMapper.deleteAfter(block);
                 const blockHash = await MempoolUtil.getBlockHash(block);
-                const txs = await BtcRPC.getBlockTransactions(blockHash);
+                const blockDetails = await BtcRPC.getBlockDetails(blockHash);
+                const txs = blockDetails.tx;
+                const blockTime = blockDetails.time;
                 const txids = txs.map(tx => tx.txid);
                 const errors = [];
                 let handledTxs = 0;
@@ -83,7 +86,7 @@ export default class IndexerService {
                                     txid,
                                     vout,
                                     height: block,
-                                });
+                                }, block, null, 10000);
                                 const alkanesIdCount = outpoint_balances.length;
                                 if (alkanesIdCount === 0) {
                                     return;
@@ -105,7 +108,7 @@ export default class IndexerService {
                                         balance: balance.toString(),
                                         alkanesIdCount,
                                         spent: false,
-                                        blockTime: mempoolTx.status.block_time
+                                        blockTime,
                                     });
                                 }
                                 await OutpointRecord.bulkCreate(records);
@@ -121,7 +124,7 @@ export default class IndexerService {
                         logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
                         throw e;
                     }
-                }, 64, errors);
+                }, null, errors);
                 if (errors.length > 0) {
                     throw new Error(`index block ${block} failed, ${errors.length} errors`);
                 }
@@ -375,6 +378,15 @@ export default class IndexerService {
         const nftItemBalances = addressAlkanesBalances.filter(item => {
             return nftItems.find(nftItem => nftItem.id === item.alkanesId) && item.balance > 0;
         });
+        nftItems.forEach(nftItem => {
+            if (!nftItemBalances.find(item => item.alkanesId === nftItem.id)) {
+                nftItemBalances.push({
+                    address: '',
+                    alkanesId: nftItem.id,
+                    balance: 0,
+                });
+            }
+        });
         if (nftItemBalances.length > 0) {
             const errors = [];
             await BaseUtil.concurrentExecute(nftItemBalances, async (nftItemBalance) => {
@@ -431,7 +443,7 @@ export default class IndexerService {
         };
     }
 
-    static async getAddressAlkanesOutpoints(address, alkanesId, limit = 10, spent = false) {
+    static async getAddressAlkanesOutpoints(address, alkanesId, multiple = null, spent = null, page = 1, pageSize = 10) {
         const where = {
             address,
             alkanesId,
@@ -439,14 +451,38 @@ export default class IndexerService {
         if (spent != null) {
             where.spent = spent;
         }
-        const outpoints = await OutpointRecord.findAll({
+        if (multiple === false) {
+            where.alkanesIdCount = 1;
+        } else if (multiple === true) {
+            where.alkanesIdCount = {
+                [Op.gt]: 1,
+            };
+        }
+        const {rows, count} = await OutpointRecord.findAndCountAll({
             where,
-            limit: limit + 1,
-            order: [['block', 'ASC']],
+            limit: pageSize,
+            offset: (page - 1) * pageSize,
+            order: [
+                ['block', 'ASC'],
+                ['txIdx', 'ASC'],
+                ['vout', 'ASC'],
+            ],
+            raw: true,
         });
+        if (spent != null) {
+            await this.checkOutpointRecordsSpent(rows);
+        }
         return {
-            outpoints: outpoints.slice(0, limit),
-            hasMore: outpoints.length > limit,
+            page,
+            pageSize,
+            pages: Math.ceil(count / pageSize),
+            total: count,
+            records: rows.filter(row => {
+                if (spent == null) {
+                    return true;
+                }
+                return !!row.spent === spent;
+            }),
         };
     }
 
@@ -476,6 +512,151 @@ export default class IndexerService {
         });
     }
 
+    static async getOutpointsByOutput(txid, vout) {
+        return await OutpointRecord.findAll({
+            where: {
+                txid,
+                vout,
+            },
+            raw: true,
+        });
+    }
+
+    static async getOutpointByOutput(txid, vout) {
+        return await OutpointRecord.findOne({
+            where: {
+                txid,
+                vout,
+            },
+            raw: true,
+        });
+    }
+
+    static async getOutpointRecords(address, alkanesId, spent = null, page = 1, pageSize = 10) {
+        const where = {};
+        const isCollection = NftCollectionService.isCollection(alkanesId);
+        where.alkanesId = isCollection ? {
+            [Op.in]: Sequelize.literal(`(SELECT id FROM nft_item WHERE collection_id = '${alkanesId}')`)
+        } : alkanesId;
+        if (address != null) {
+            where.address = address;
+        }
+        if (spent != null) {
+            where.spent = spent;
+        }
+        const {rows, count} = await OutpointRecord.findAndCountAll({
+            where,
+            order: [
+                ['block', 'DESC'],
+                ['txIdx', 'DESC'],
+                ['vout', 'DESC'],
+            ],
+            limit: pageSize,
+            offset: (page - 1) * pageSize,
+            raw: true,
+        });
+        const nftItems = isCollection ? await NftItemService.getItemsByIds(rows.map(row => row.alkanesId)) : null;
+        return {
+            page,
+            pageSize,
+            pages: Math.ceil(count / pageSize),
+            total: count,
+            records: rows.map((row) => {
+                row.isNft = isCollection;
+                row.nftItem = nftItems?.find(item => item.id === row.alkanesId);
+                return row;
+            }),
+        };
+    }
+
+    static async checkOutpointRecordsSpent(outpointRecords) {
+        const errors = [];
+        await BaseUtil.concurrentExecute(outpointRecords, async (outpoint) => {
+            if (outpoint.checked) {
+                return;
+            }
+            if (outpoint.spent) {
+                outpoint.checked = true;
+                return;
+            }
+            try {
+                const outspend = await MempoolUtil.getOutspend(outpoint.txid, outpoint.vout);
+                if (outspend.spent) {
+                    outpoint.spent = true;
+                }
+                outpoint.checked = true;
+            } catch (e) {
+                logger.error(`update outpoint checked failed, ${outpoint.txid} ${outpoint.vout}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`update outpoint checked failed, ${errors.length} errors`);
+        }
+    }
+
+    static async getOutpointListByTarget(address, id, amount, multiple = false) {
+        const where = {
+            address,
+            spent: false,
+            alkanesId: id,
+        };
+        if (!multiple) {
+            where.alkanesIdCount = 1;
+        }
+        const outpointList = await OutpointRecord.findAll({
+            where,
+            order: [
+                [Sequelize.literal('CAST(balance AS DECIMAL(64,0))'), 'DESC']
+            ],
+            raw: true,
+        });
+        const retOutpointList = [];
+        let totalBalance = new BigNumber(0);
+        for (const outpoint of outpointList) {
+            retOutpointList.push(outpoint);
+            if (retOutpointList.filter(o => !o.checked).length >= 16) { // 所需额度比较小的时候, 这里比较浪费资源
+                await this.checkOutpointRecordsSpent(retOutpointList);
+                totalBalance = retOutpointList.reduce((acc, outpoint) => {
+                    if (!outpoint.spent) {
+                        return acc.plus(new BigNumber(outpoint.balance));
+                    }
+                    return acc;
+                }, new BigNumber(0));
+                if (amount.gt(0) && totalBalance.gte(amount)) {
+                    break;
+                }
+            }
+        }
+        if (retOutpointList.filter(o => !o.checked).length > 0) {
+            await this.checkOutpointRecordsSpent(retOutpointList);
+            totalBalance = retOutpointList.reduce((acc, outpoint) => {
+                if (!outpoint.spent) {
+                    return acc.plus(new BigNumber(outpoint.balance));
+                }
+                return acc;
+            }, new BigNumber(0));
+        }
+        if (totalBalance.lt(amount)) {
+            throw new Error(`Insufficient alkanes balance: ${totalBalance.dividedBy(1e8).toFixed()} target: ${new BigNumber(amount).dividedBy(1e8).toFixed()}`);
+        }
+        if (amount.lte(0)) {
+            return retOutpointList.filter(o => !o.spent);
+        }
+        // 重新计算totalBalance
+        totalBalance = new BigNumber(0);
+        const finalRetOutpointList = [];
+        for (const outpoint of retOutpointList) {
+            if (!outpoint.spent) {
+                totalBalance = totalBalance.plus(new BigNumber(outpoint.balance));
+                finalRetOutpointList.push(outpoint);
+                if (totalBalance.gte(amount)) {
+                    break;
+                }
+            }
+        }
+        return finalRetOutpointList;
+    }
 }
 
 

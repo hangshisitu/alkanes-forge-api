@@ -25,6 +25,9 @@ export default class AddressBalanceMapper {
             limit: 1,
             raw: true
         });
-        return addressBalance;
+        if (BigInt(addressBalance.balance) > 0) {
+            return addressBalance;
+        }
+        return null;
     }
 }

@@ -7,14 +7,14 @@ const redisClient = await createClient({url: config.redisUrl})
     .connect();
 const KEY_PREFIX = 'alkanes-api-' + (process.env.NODE_ENV || 'dev') + ':';
 
-export async function del(key, genKey = true) {
+export async function del(key, genKey_ = true) {
     if (Array.isArray(key)) {
         if (key.length === 0) {
             return 0;
         }
-        return await redisClient.del(key.map(k => genKey ? genKey(k) : k));
+        return await redisClient.del(key.map(k => genKey_ ? genKey(k) : k));
     }
-    return await redisClient.del(genKey ? genKey(key) : key);
+    return await redisClient.del(genKey_ ? genKey(key) : key);
 }
 
 export async function get(key) {

@@ -175,6 +175,11 @@ export const Constants = Object.freeze({
         COMPLETED: 'completed',    // 已完成
     },
 
+    PAYMENT_TYPE: {
+        BTC: 'BTC',
+        ALKANES: 'Alkanes',
+    },
+
     REDIS_KEY: {
         TOKEN_INFO_LIST: 'token_info_list',
         TOKEN_INFO_LIST2: 'token_info_list2',
@@ -218,6 +223,8 @@ export const Constants = Object.freeze({
             INFO: '/nft/info',
             ITEM_PAGE: '/nft/item/page',
             ITEM_INFO: '/nft/item/info',
+            TRANSFER: '/nft/item/transfer',
+            HOLDER_PAGE: '/nft/holderPage'
         },
 
         NFT_MARKET: {
@@ -253,6 +260,9 @@ export const Constants = Object.freeze({
             BTC_BALANCE: '/user/btcBalance',
             ALKANES_BALANCE: '/user/alkanesBalance',
             TRANSFER_ALKANES: '/user/transferAlkanes',
+            ASSETS_BY_UTXO: '/user/assetsByUtxo',
+            SPLIT_ALKANES_UTXO: '/user/splitAlkanesUtxo',
+            COMBINE_ALKANES_UTXO: '/user/combineAlkanesUtxo',
         },
 
         METHANE: {
@@ -262,13 +272,21 @@ export const Constants = Object.freeze({
         INDEXER: {
             PUSH: '/indexer/push',
             HOLDER_PAGE: '/indexer/holderPage',
-            ADDRESS_ALKANES_OUTPOINTS: '/indexer/outpoints'
+            ADDRESS_ALKANES_OUTPOINTS: '/indexer/addressAlkanesOutpoints',
+            OUTPOINT_RECORDS: '/indexer/outpointRecords'
         },
 
         LAUNCH: {
             DETAIL: '/launch/detail',
             CREATE_ORDER: '/launch/createOrder',
-            START_ORDER: '/launch/startOrder'
+            START_ORDER: '/launch/startOrder',
+            ORDER_PAGE: '/launch/orderPage',
+            MINT_LIMIT: '/launch/mintLimit',
+            CHECK_WHITELIST: '/launch/checkWhitelist',
+            BANNER_COLLECTIONS: '/launch/banner',
+            MINTING_COLLECTIONS: '/launch/minting',
+            UPCOMING_COLLECTIONS: '/launch/upcoming',
+            COMPLETED_COLLECTIONS: '/launch/completed'
         }
     },
 

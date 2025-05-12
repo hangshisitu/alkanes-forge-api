@@ -44,12 +44,15 @@ export default class NftAttributeService {
         });
     }
 
-    static async bulkUpsertNftItemAttributes(nftItemAttributes) {
+    static async bulkUpsertNftItemAttributes(nftItemAttributes, options = {transaction: null}) {
         if (nftItemAttributes.length <= 0) {
             return;
         }
+        const uniqueKeyFields = ['itemId', 'traitType'];
+        const updatableFields = Object.keys(nftItemAttributes[0]).filter(key => !uniqueKeyFields.includes(key));
         await NftItemAttribute.bulkCreate(nftItemAttributes, {
-            updateOnDuplicate: ['value'],
+            updateOnDuplicate: updatableFields,
+            transaction: options.transaction
         });
     }
 

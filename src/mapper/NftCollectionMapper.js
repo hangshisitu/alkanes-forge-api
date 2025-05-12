@@ -83,4 +83,13 @@ export default class NftCollectionMapper {
             }
         );
     }
+
+    static async getTradingCountGt0Ids(field) {
+        const result = await sequelize.query(`
+            SELECT id FROM nft_collection WHERE ${field} > 0
+        `, {
+            type: QueryTypes.SELECT
+        });
+        return result.map(item => item.id);
+    }
 }

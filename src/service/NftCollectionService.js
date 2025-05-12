@@ -14,18 +14,40 @@ import NftMarketStatsMapper from '../mapper/NftMarketStatsMapper.js';
 import { Op } from 'sequelize';
 import NftItemService from './NftItemService.js';
 import NftAttributeService from './NftAttributeService.js';
+import AlkanesService from './AlkanesService.js';
+import LaunchService from './LaunchService.js';
+import BigNumber from 'bignumber.js';
 
 let nftCollectionListCache = null;
 
 export default class NftCollectionService {
 
+    static getCollectionCacheKey(collectionId) {
+        return `nft-collection:${collectionId}`;
+    }
+
+    static async deleteCollectionCache(collectionId) {
+        const cacheKey = this.getCollectionCacheKey(collectionId);
+        await RedisHelper.del(cacheKey);
+    }
+
     static async getCollectionById(id) {
-        const collection = await NftCollection.findByPk(id, {
-            attributes: {
-                exclude: ['updateHeight', 'createdAt', 'updatedAt']
-            },
-            raw: true
-        });
+        const cacheKey = this.getCollectionCacheKey(id);
+        const cacheData = await RedisHelper.get(cacheKey);
+        let collection = null;
+        if (cacheData) {
+            collection = JSON.parse(cacheData);
+        } else {
+            collection = await NftCollection.findByPk(id, {
+                attributes: {
+                    exclude: ['updateHeight', 'createdAt', 'updatedAt']
+                },
+                raw: true
+            });
+            if (collection) {
+                await RedisHelper.setEx(cacheKey, 10, JSON.stringify(collection));
+            }
+        }
         if (collection) {
             collection.attributes = (await NftAttributeService.getNftAttributes(id)).reduce((acc, attr) => {
                 acc[attr.traitType] = acc[attr.traitType] ?? [];
@@ -52,10 +74,18 @@ export default class NftCollectionService {
         return nftCollectionList;
     }
 
-    static async bulkUpsertNftCollection(infos) {
+    static async bulkUpsertNftCollection(infos, options = {transaction: null}) {
+        const uniqueKeyFields = ['id'];
+        const updatableFields = Object.keys(infos[0]).filter(key => !uniqueKeyFields.includes(key));
         await NftCollection.bulkCreate(infos, {
-            updateOnDuplicate: ['minted', 'updateHeight']
+            updateOnDuplicate: updatableFields,
+            transaction: options.transaction
         });
+        await LaunchService.updateCollectionsMinted(infos.map(info => ({
+            collectionId: info.id,
+            minted: info.minted,
+            updateHeight: info.updateHeight
+        })), {transaction: options.transaction});
     }
 
     static async refreshNftCollectionStats() {
@@ -72,28 +102,31 @@ export default class NftCollectionService {
 
             if (Object.keys(statsMap24h).length === 0) {
                 logger.info('No 24-hour trading data found. Skipping updates.');
-                return; // 如果没有 24 小时的交易数据，直接跳过更新流程
+                return;
             }
 
-            // 获取合集 ID 列表（从 24 小时的统计数据中提取）
-            const collectionIds = Object.keys(statsMap24h);
+            // 获取需要更新的合集 ID 列表
+            const collectionIds = [...new Set([...Object.keys(statsMap24h), ...await NftCollectionMapper.getTradingCountGt0Ids('total_trading_count')])];
 
-            // Step 2: 查询每个合集的最新成交价格（listing_price）
+            // Step 2: 查询每个合集的最新成交价格（使用最近3小时的平均价格）
             const latestPrices = await sequelize.query(`
-                SELECT me1.collection_id AS collectionId, me1.listing_price AS latestPrice
+                SELECT 
+                    me1.collection_id AS collectionId,
+                    CAST(AVG(listing_price) as DECIMAL(65, 18)) AS latestPrice,
+                    COUNT(*) as tradeCount
                 FROM nft_market_event me1
-                INNER JOIN (
-                    SELECT collection_id, MAX(created_at) as latest_time
-                    FROM nft_market_event
-                    WHERE type = 2 AND created_at < NOW()
-                    GROUP BY collection_id
-                ) me2 ON me1.collection_id = me2.collection_id AND me1.created_at = me2.latest_time
-                WHERE me1.type = 2;
+                WHERE me1.type = 2 
+                AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 3 HOUR), '%Y-%m-%d %H:00:00')
+                AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+                GROUP BY me1.collection_id
+                HAVING COUNT(*) >= 3;  -- 确保至少有3笔交易
             `, { type: QueryTypes.SELECT });
 
             const latestPriceMap = {};
             latestPrices.forEach(row => {
-                latestPriceMap[row.collectionId] = parseFloat(row.latestPrice); // 转换价格为浮点数
+                if (row.tradeCount >= 3) {  // 只使用有足够交易量的数据
+                    latestPriceMap[row.collectionId] = parseFloat(row.latestPrice);
+                }
             });
 
             // 使用 Map 保存更新数据
@@ -101,17 +134,23 @@ export default class NftCollectionService {
 
             // Step 3: 遍历其他时间段（7 天、30 天）
             for (const timeframe of timeframes) {
-                // 查询历史价格
+                // 查询历史价格（使用时间段内前3小时的平均价格）
                 const historicalPrices = await sequelize.query(`
-                    SELECT ts1.id AS collectionId, 
-                           ts1.average_price AS historicalPrice
+                    SELECT 
+                        ts1.collection_id AS collectionId, 
+                        CAST(AVG(ts1.average_price) as DECIMAL(65, 18)) AS historicalPrice,
+                        COUNT(*) as dataPoints
                     FROM nft_collection_stats ts1
                     INNER JOIN (
                         SELECT collection_id, MIN(stats_date) AS minStatsTime
                         FROM nft_collection_stats
-                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit}) 
+                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit})
                         GROUP BY collection_id
-                    ) ts2 ON ts1.collection_id = ts2.collection_id AND ts1.stats_date = ts2.minStatsTime;
+                    ) ts2 ON ts1.collection_id = ts2.collection_id 
+                    WHERE ts1.stats_date >= ts2.minStatsTime
+                    AND ts1.stats_date <= DATE_ADD(ts2.minStatsTime, INTERVAL 3 HOUR)
+                    GROUP BY ts1.collection_id
+                    HAVING COUNT(*) >= 3;  -- 确保至少有3个数据点
                 `, { type: QueryTypes.SELECT });
 
                 // 计算每个代币的涨跌幅
@@ -123,9 +162,18 @@ export default class NftCollectionService {
                     // 获取或创建更新对象
                     const existingUpdate = updateMap.get(collectionId) || { id: collectionId };
 
-                    // 涨跌幅计算逻辑
+                    // 涨跌幅计算逻辑 - 添加合理性检查
                     if (historicalPrice > 0 && recentPrice > 0) {
-                        existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - historicalPrice) / historicalPrice) * 100; // 添加涨跌幅
+                        const priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
+                        
+                        // 添加合理性检查：如果价格变化超过500%，则使用更保守的计算方式
+                        if (Math.abs(priceChange) > 500) {
+                            // 使用中位数价格计算
+                            const medianPrice = (historicalPrice + recentPrice) / 2;
+                            existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - medianPrice) / medianPrice) * 100;
+                        } else {
+                            existingUpdate[`priceChange${timeframe.label}`] = priceChange;
+                        }
                     }
 
                     // 存入更新 Map
@@ -139,11 +187,11 @@ export default class NftCollectionService {
             const statsMapTotal = await NftMarketStatsMapper.getStatsMapByCollectionIds(collectionIds);
 
             // 构建完整的更新数据基于 statsMap24h
-            const collectionStatsList = Object.keys(statsMap24h).map(collectionId => {
+            const collectionStatsList = collectionIds.map(collectionId => {
                 const item = {
                     id: collectionId,
-                    tradingVolume24h: statsMap24h[collectionId].totalVolume,
-                    tradingCount24h: statsMap24h[collectionId].tradeCount,
+                    tradingVolume24h: statsMap24h[collectionId]?.totalVolume || 0,
+                    tradingCount24h: statsMap24h[collectionId]?.tradeCount || 0,
                     tradingVolume7d: statsMap7d[collectionId]?.totalVolume || 0,
                     tradingCount7d: statsMap7d[collectionId]?.tradeCount || 0,
                     tradingVolume30d: statsMap30d[collectionId]?.totalVolume || 0,
@@ -159,10 +207,14 @@ export default class NftCollectionService {
                 item.totalTradingCount = Math.max(item.totalTradingCount, item.tradingCount24h);
 
                 // 添加涨跌幅信息
-                const existingUpdate = updateMap.get(collectionId);
-                if (existingUpdate) {
-                    Object.assign(item, existingUpdate); // 合并涨跌幅信息
+                let existingUpdate = updateMap.get(collectionId);
+                if (!existingUpdate) {
+                    existingUpdate = { id: collectionId };
+                    timeframes.forEach(timeframe => {
+                        existingUpdate[`priceChange${timeframe.label}`] = 0;
+                    });
                 }
+                Object.assign(item, existingUpdate); // 合并涨跌幅信息
 
                 return item;
             });
@@ -174,6 +226,10 @@ export default class NftCollectionService {
             } else {
                 logger.info('No updates required for nft collection stats.');
             }
+            
+            collectionIds.forEach(async (collectionId) => {
+                await this.deleteCollectionCache(collectionId);
+            });
 
         } catch (error) {
             logger.error('Error refreshing nft collection stats:', error);
@@ -189,6 +245,10 @@ export default class NftCollectionService {
             }
             await BaseUtil.sleep(10000);
         }
+    }
+
+    static async getAllNftCollectionByCache() {
+        return nftCollectionListCache ?? await this.getAllNftCollection();
     }
 
     static sortNftCollectionList(nftCollectionList, callback = null, idReverse = false, sortId = true) {
@@ -400,7 +460,7 @@ export default class NftCollectionService {
         for (const collectionHolderAndItemCount of collectionHolderAndItemCounts) {
             await NftCollection.update({
                 holders: collectionHolderAndItemCount.holderCount,
-                minted: collectionHolderAndItemCount.itemCount
+                // minted: collectionHolderAndItemCount.itemCount
             }, {
                 where: {
                     id: collectionHolderAndItemCount.collectionId
@@ -434,6 +494,58 @@ export default class NftCollectionService {
 
     static isCollection(collectionId) {
         return nftCollectionListCache.some(collection => collection.id === collectionId);
+    }
+
+    static async refreshNftCollectionInfo() {
+        const fieldsToQuery = ['101', '102', '103'];
+        await BaseUtil.concurrentExecute(nftCollectionListCache, async (collection) => {
+            try {
+                if (collection.mintActive === 0) {
+                    return;
+                }
+                const data = await BaseUtil.retryRequest(
+                    () => AlkanesService.getAlkanesById(collection.id, fieldsToQuery),
+                    3, 500
+                    );
+                if (data === null) {
+                    return null;
+                }
+                if (
+                    data.totalSupply !== undefined &&
+                    data.minted !== undefined &&
+                    data.cap !== undefined
+                ) {
+                    data.progress = AlkanesService.calculateProgress(collection.id, data.minted, data.cap);
+                    data.mintActive = data.progress >= 100 ? 0 : 1;
+                    for (const key in data) {
+                        const value = data[key];
+                        if (value instanceof BigNumber) {
+                            data[key] = value.toFixed();
+                        }
+                    }
+
+                    const update = {
+                        minted: data.totalSupply,
+                        cap: data.cap,
+                        premine: data.premine || 0,
+                        progress: data.progress,
+                        mintActive: data.mintActive
+                    };
+                    await NftCollection.update(update, {
+                        where: {
+                            id: collection.id
+                        }
+                    });
+                }
+            } catch (error) {
+                logger.error(`Failed to fetch collection ${collection.id}:`, error);
+                return null;
+            }
+        });
+    }
+
+    static async getHolderPage(collectionId, page, size) {
+        return NftItemMapper.getHolderPage(collectionId, page, size);
     }
 
 }

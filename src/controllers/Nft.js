@@ -201,6 +201,114 @@ async function itemInfo(ctx) {
     return await NftItemService.getItemById(id);
 }
 
+/**
+ * @swagger
+ * /nft/item/transfer:
+ *   post:
+ *     summary: Transfer NFT assets
+ *     tags: [NFT]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fundAddress
+ *               - fundPublicKey
+ *               - assetAddress
+ *               - assetPublicKey
+ *               - feerate
+ *               - assetsList
+ *             properties:
+ *               fundAddress:
+ *                 type: string
+ *                 description: Fund address for the transfer
+ *               fundPublicKey:
+ *                 type: string
+ *                 description: Public key for the fund address
+ *               assetAddress:
+ *                 type: string
+ *                 description: Asset address for the transfer
+ *               assetPublicKey:
+ *                 type: string
+ *                 description: Public key for the asset address
+ *               feerate:
+ *                 type: number
+ *                 description: Fee rate for the transfer
+ *               assetsList:
+ *                 type: array
+ *                 description: List of assets to transfer
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     txid:
+ *                       type: string
+ *                     vout:
+ *                       type: number
+ *                     value:
+ *                       type: number
+ *     responses:
+ *       200:
+ *         description: Transfer executed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+async function transfer(ctx) {
+    const { fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate, assetsList } = ctx.request.body;
+    return await NftItemService.transfer(fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate, assetsList);
+}
+
+/**
+ * @swagger
+ * /nft/holderPage:
+ *   post:
+ *     summary: Get paginated list of NFT holders for a collection
+ *     tags: [NFT]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - collectionId
+ *             properties:
+ *               collectionId:
+ *                 type: string
+ *                 description: ID of the NFT collection
+ *               page:
+ *                 type: integer
+ *                 description: Page number
+ *               size:
+ *                 type: integer
+ *                 description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: Paginated list of NFT holders
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                 pages:
+ *                   type: integer
+ */
+async function holderPage(ctx) {
+    const { collectionId, page, size } = ctx.request.body;
+    return await NftCollectionService.getHolderPage(collectionId, page, size);
+}
+
 export default [
     {
         path: Constants.API.NFT.PAGE,
@@ -221,6 +329,16 @@ export default [
         path: Constants.API.NFT.ITEM_INFO,
         method: 'post',
         handler: itemInfo
+    },
+    {
+        path: Constants.API.NFT.TRANSFER,
+        method: 'post',
+        handler: transfer
+    },
+    {
+        path: Constants.API.NFT.HOLDER_PAGE,
+        method: 'post',
+        handler: holderPage
     }
 ]
 

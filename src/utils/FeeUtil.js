@@ -1,4 +1,27 @@
 export default class FeeUtil {
+
+    static getTaprootScriptPathWitnessSize(tapLeafScript) {
+        let size = 0;
+    
+        const stackItems = tapLeafScript.stack || [];
+    
+        // Witness item count: stack items + script + control block
+        const itemCount = stackItems.length + 2;
+        size += FeeUtil.varIntSize(itemCount);
+    
+        // Add each stack item
+        for (const item of stackItems) {
+            size += FeeUtil.varIntSize(item.length) + item.length;
+        }
+    
+        // Add script
+        size += FeeUtil.varIntSize(tapLeafScript.script.length) + tapLeafScript.script.length;
+    
+        // Add control block
+        size += FeeUtil.varIntSize(tapLeafScript.controlBlock.length) + tapLeafScript.controlBlock.length;
+    
+        return size;
+    }
     
     static estTxSize(inputs, outputs) {
         let baseSize = 4 + 4; // version + locktime
@@ -11,6 +34,9 @@ export default class FeeUtil {
         // ============= 输入计算 =============
         for (const input of inputs) {
             baseSize += FeeUtil.getInputSize(input.address);
+            if (input.tapLeafScript) {
+                witnessSize += FeeUtil.getTaprootScriptPathWitnessSize(input.tapLeafScript[0]); // 因为是数组
+            }
         }
 
         // ============= 输出计算 =============

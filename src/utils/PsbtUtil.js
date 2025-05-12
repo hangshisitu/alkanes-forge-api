@@ -141,7 +141,10 @@ export default class PsbtUtil {
         } else if (psbtUtils.isP2SHScript(outScript)) {
             input.witnessUtxo = {script: outScript, value: input.value};
             if (utxo.pubkey) {
-                input.redeemScript = bitcoin.payments.p2wpkh({network: config.network, pubkey: Buffer.from(utxo.pubkey, 'hex')}).output;
+                input.redeemScript = bitcoin.payments.p2wpkh({
+                    network: config.network,
+                    pubkey: Buffer.from(utxo.pubkey, 'hex')
+                }).output;
             }
         } else {
             if (!txHex) {
@@ -184,55 +187,14 @@ export default class PsbtUtil {
 
 
     static validatePsbtSignatures(psbt) {
-        for (const input of psbt.data.inputs) {
-            const {tapInternalKey, finalScriptWitness} = input;
-            if (tapInternalKey) {
-                if (!finalScriptWitness || finalScriptWitness.length === 0) {
-                    throw new Error(`Invalid signature - no finalScriptWitness`);
-                }
-                if (finalScriptWitness.toString('hex') === '0141') {
-                    throw new Error(`Invalid signature - no taproot signature present on the finalScriptWitness`);
-                }
-            }
-        }
-
         for (let i = 0; i < psbt.inputCount; i++) {
             const input = psbt.data.inputs[i];
-
-            // 检查现存签名数据是否存在
-            let isSigned = false;
-
-            // 1. 检查 partialSig（用于 P2PKH、P2SH-P2PKH）
-            if (input.partialSig && input.partialSig.length > 0) {
-                isSigned = true;
-            }
-
-            // 2. 检查 taproot 签名（单签模式 - tapKeySig）
-            if (input.tapKeySig) {
-                isSigned = true;
-            }
-
-            // 3. 检查 taproot 多签（复杂模式 - tapScriptSig）
-            if (input.tapScriptSig && input.tapScriptSig.length > 0) {
-                isSigned = true;
-            }
-
-            // 4. 检查是否有 witness 数据，用于 SegWit v0 类型（如 P2WPKH 或 P2WSH）
-            if (input.witnessUtxo && input.witnessUtxo.script) {
-                isSigned = true;
-            }
-
-            // 如果以上条件均未匹配到有效签名，则认为此输入未签名
-            if (!isSigned) {
-                return false;
-            }
+            PsbtUtil.checkInput(input);
         }
     }
 
     static checkInput(input) {
-        // 检查现存签名数据是否存在
         let isSigned = false;
-
         // 1. 检查 partialSig（用于 P2PKH、P2SH-P2PKH）
         if (input.partialSig && input.partialSig.length > 0) {
             isSigned = true;
@@ -248,14 +210,13 @@ export default class PsbtUtil {
             isSigned = true;
         }
 
-        // 4. 检查是否有 witness 数据，用于 SegWit v0 类型（如 P2WPKH 或 P2WSH）
-        if (input.witnessUtxo && input.witnessUtxo.script) {
+        if (input.finalScriptSig || input.finalScriptWitness) {
             isSigned = true;
         }
 
-        // 如果以上条件均未匹配到有效签名，则认为此输入未签名
+        // 只要有一项不符合，直接抛出异常
         if (!isSigned) {
-            throw new Error(`Invalid signature`);
+            throw new Error(`PSBT input is not signed`);
         }
     }
 
@@ -294,5 +255,47 @@ export default class PsbtUtil {
         });
         return psbt.extractTransaction();
     }
-}
 
+    static removePartialSignature(psbt) {
+        for (const i in psbt.data.inputs) {
+            try {
+                psbt.clearFinalizedInput(i);
+            } catch (Error) {
+                //无需清理
+            }
+
+            const input = psbt.data.inputs[i];
+            delete input.tapKeySig;
+            delete input.partialSig;
+            delete input.tapScriptSig;
+            delete input.finalScriptSig;
+            delete input.finalScriptWitness;
+        }
+    }
+
+    static fillListingSign(param) {
+        let map = new Map();
+        for (const s in param.assetPsbtList) {
+            const psbt = this.fromPsbt(param.assetPsbtList[s]);
+            const key = psbt.txInputs[0].hash + "|" + psbt.txInputs[0].index;
+            map.set(key, psbt.data.inputs[0]);
+        }
+
+        const dstPsbt = this.fromPsbt(param.dstPsbt);
+        for (const i in dstPsbt.txInputs) {
+            const key = dstPsbt.txInputs[i].hash + "|" + dstPsbt.txInputs[i].index;
+            if (map.has(key)) {
+                dstPsbt.data.inputs[i] = map.get(key);
+            }
+        }
+        return dstPsbt.toBase64();
+    }
+
+    static checkPushConflict(error) {
+        return !!(error && (error.includes('txn-mempool-conflict')
+            || error.includes("bad-txns-spends-conflicting-tx")
+            || error.includes('bad-txns-inputs-missingorspent')
+            || error.includes('rejecting replacement')
+            || error.includes('replacement-adds-unconfirmed')));
+    }
+}

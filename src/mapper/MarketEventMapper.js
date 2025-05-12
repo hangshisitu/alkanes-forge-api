@@ -126,4 +126,13 @@ export default class MarketEventMapper {
         });
     }
 
+    static async bulkDeleteSoldEvent(listingOutputList) {
+        return await MarketEvent.destroy({
+            where: {
+                listingOutput: { [Op.in]: listingOutputList },
+                type: Constants.MARKET_EVENT.SOLD
+            }
+        });
+    }
+
 }

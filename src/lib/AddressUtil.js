@@ -7,18 +7,18 @@ import {createHash} from "crypto";
 
 export default class AddressUtil {
 
-    static fromP2wpkhAddress(privateKey) {
+    static fromP2wpkhAddress(privateKey, network = config.network) {
         bitcoin.initEccLib(ecc);
 
         const rootKey = AddressUtil.convertKeyPair(privateKey);
-        return bitcoin.payments.p2wpkh({network: config.network, pubkey: rootKey.publicKey}).address;
+        return bitcoin.payments.p2wpkh({network: network, pubkey: rootKey.publicKey}).address;
     }
 
-    static fromP2trAddress(privateKey) {
+    static fromP2trAddress(privateKey, network = config.network) {
         bitcoin.initEccLib(ecc);
 
         const rootKey = AddressUtil.convertKeyPair(privateKey);
-        const {address} = bitcoin.payments.p2tr({network: bitcoin.networks.bitcoin, internalPubkey: Buffer.from(toXOnly(rootKey.publicKey))});
+        const {address} = bitcoin.payments.p2tr({network: network, internalPubkey: Buffer.from(toXOnly(rootKey.publicKey))});
         return address;
     }
 
@@ -38,6 +38,10 @@ export default class AddressUtil {
             keyPair = ECPair.fromWIF(privateKey);
         }
         return keyPair;
+    }
+
+    static toPublicKey(address) {
+        return bitcoin.address.toOutputScript(address, config.network);
     }
 
 }

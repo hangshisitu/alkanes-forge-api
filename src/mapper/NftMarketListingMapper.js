@@ -58,9 +58,26 @@ export default class NftMarketListingMapper {
         );
     }
 
+    static async bulkRollbackListingFromSold(listingOutputList, status, buyerAddress, txHash, walletType) {
+        await NftMarketListing.update(
+            {
+                status: status,
+                buyerAddress: buyerAddress,
+                txHash: txHash,
+                source: walletType
+            },
+            {
+                where: {
+                    listingOutput: listingOutputList,
+                    status: Constants.LISTING_STATUS.SOLD
+                }
+            }
+        );
+    }
+
     static async getByOutputs(listingOutputList) {
         return await NftMarketListing.findAll({
-            attributes: ["id", "collectionId", "itemId", "itemName", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
+            attributes: ["id", "collectionId", "itemId", "itemName", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData"],
             where: {
                 listingOutput: listingOutputList
             }
@@ -105,5 +122,31 @@ export default class NftMarketListingMapper {
             }
         });
     }
-    
+
+    static async findByOutput(output, status = Constants.LISTING_STATUS.LIST) {
+        return await NftMarketListing.findOne({
+            where: {
+                listingOutput: output,
+                status: status
+            }
+        });
+    }
+
+    static async updateListing(id, data, acceptStatus = Constants.LISTING_STATUS.LIST) {
+        return await NftMarketListing.update(data, {
+            where: {
+                id: id,
+                status: acceptStatus
+            }
+        });
+    }
+
+    static async getByTxids(txids) {
+        return await NftMarketListing.findAll({
+            where: {
+                txHash: txids
+            },
+            raw: true
+        });
+    }
 }

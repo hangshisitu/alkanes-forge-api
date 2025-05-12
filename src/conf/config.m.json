@@ -1,9 +1,9 @@
 {
   "mempoolHost": "idclub.mempool.space",
   "redisUrl": "redis://:bicords%402088@127.0.0.1:6379",
-  "alkanesUrl": "https://alkanes-rpc.idclub.io",
-  "alkanesAddressUrl": "https://alkanes-rpc.idclub.io",
-  "alkanesUtxoUrl": "https://alkanes-rpc.idclub.io",
+  "alkanesUrl": "http://localhost:18888",
+  "alkanesAddressUrl": "http://localhost:18888",
+  "alkanesUtxoUrl": "http://localhost:18888",
   "reserveNumber": 797,
   "startHeight": 880000,
   "concurrencyLimit": 100,
@@ -25,7 +25,9 @@
   "revenueAddress": {
     "market": "bc1qtr2m8tr797v2z6tptuqlveh0egper6m6m0vtls",
     "inscribe": "bc1qlvzra75ux287gp2wtn6msdmn4vhsnghxxp4x2p",
-    "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra"
+    "transfer": "bc1qguxrypytmfft9cst9nckxsl3999gagtlg8v2ra",
+    "nftMarket": "bc1qvdyqz4uyjf40vq9h5jr5uyv9vrs8gcxne6u7pf",
+    "launch": "bc1q3fkjzvq8rjj38ekuuvekphq3h5tsfcgvvj42ad"
   },
   "api": {
     "protoruneParseEndpoint": "http://192.168.31.15:58888",

@@ -64,54 +64,33 @@ export default class MempoolTxMapper {
         };
     }
 
-    static getAlkanesMempoolFeeRange(alkanesStats) {
-        let mergedRanges = [];
-        if (alkanesStats.length <= 3) {
-            // 当区间数量小于等于3时，保持不变
-            mergedRanges = alkanesStats.map(x => {
+    static getAlkanesMempoolFeeRange(alkanesStats, medianFeeRate) {
+        if (alkanesStats.length <= 4) {
+            return alkanesStats.map(x => {
                 return {
                     feeRateRange: x.fee_rate_range,
                     count: x.cnt
                 };
             });
-        } else if (alkanesStats.length <= 10) {
-            // 当区间数量在4-10之间时，合并为原来的一半
-            const rangeSize = 2;
-            for (let i = 0; i < alkanesStats.length; i += rangeSize) {
-                const endIndex = Math.min(i + rangeSize, alkanesStats.length);
-                const currentRanges = alkanesStats.slice(i, endIndex);
-
-                const startRange = currentRanges[0].fee_rate_range.split('~')[0];
-                const endRange = currentRanges[currentRanges.length - 1].fee_rate_range.split('~')[1];
-
-                const totalCount = currentRanges.reduce((sum, range) => sum + parseInt(range.cnt), 0);
-
-                mergedRanges.push({
-                    feeRateRange: `${startRange}~${endRange}`,
-                    count: totalCount
-                });
-            }
-        } else {
-            // 当区间数量大于10时，合并为最多10个区间
-            const targetRangeCount = 10;
-            const rangeSize = Math.ceil(alkanesStats.length / targetRangeCount);
-
-            for (let i = 0; i < alkanesStats.length; i += rangeSize) {
-                const endIndex = Math.min(i + rangeSize, alkanesStats.length);
-                const currentRanges = alkanesStats.slice(i, endIndex);
-
-                const startRange = currentRanges[0].fee_rate_range.split('~')[0];
-                const endRange = currentRanges[currentRanges.length - 1].fee_rate_range.split('~')[1];
-
-                const totalCount = currentRanges.reduce((sum, range) => sum + parseInt(range.cnt), 0);
-
-                mergedRanges.push({
-                    feeRateRange: `${startRange}~${endRange}`,
-                    count: totalCount
-                });
+        }
+        let idx = 0;
+        for (let i = 0; i < alkanesStats.length; i++) {
+            if (parseFloat(alkanesStats[i].fee_rate_range.split('~')[1]) >= medianFeeRate) {
+                idx = i;
+                break;
             }
         }
-        return mergedRanges;
+        // Get up to 2 ranges before and after the medianFeeRate
+        const startIdx = Math.max(0, idx - 2);
+        const endIdx = Math.min(alkanesStats.length - 1, idx + 2);
+        const pickedStatus = alkanesStats.slice(startIdx, endIdx + 1);
+        
+        return pickedStatus.map(x => {
+            return {
+                feeRateRange: x.fee_rate_range,
+                count: x.cnt
+            };
+        });
     }
 
     static async getAlkanesMedianFeeRate(alkanesId, offset) {
@@ -156,13 +135,20 @@ export default class MempoolTxMapper {
             acc[stat.alkanes_id].push(stat);
             return acc;
         }, {});
+        const medianFeeRates = await BaseUtil.concurrentExecute(stats.map(x => x.alkanes_id), async (alkanesId) => {
+            return {
+                alkanesId,
+                medianFeeRate: await this.getAlkanesMedianFeeRate(alkanesId, Math.floor(statsMap[alkanesId].reduce((sum, stat) => sum + parseInt(stat.cnt), 0) / 2))
+            };
+        });
+        logger.info(`getAllAlkanesIdMempoolData query medianFeeRate: ${medianFeeRates.length}`);
         for (const alkanesId of Object.keys(statsMap)) {
             const alkanesStats = statsMap[alkanesId];
             const count = alkanesStats.reduce((sum, stat) => sum + parseInt(stat.cnt), 0);
             const addressCount = alkanesStats[0].address_count;
             const nextBlockCount = alkanesStats.reduce((sum, stat) => sum + parseInt(stat.next_block_count), 0);
-
-            const mergedRanges = this.getAlkanesMempoolFeeRange(alkanesStats);
+            const medianFeeRate = medianFeeRates.find(x => x.alkanesId === alkanesId).medianFeeRate;
+            const mergedRanges = this.getAlkanesMempoolFeeRange(alkanesStats, medianFeeRate);
 
             mempoolDatas[alkanesId] = {
                 alkanesId,
@@ -170,17 +156,8 @@ export default class MempoolTxMapper {
                 addressCount,
                 nextBlockCount,
                 feeRateRanges: mergedRanges,
+                medianFeeRate
             };
-        }
-        const medianFeeRates = await BaseUtil.concurrentExecute(Object.values(mempoolDatas), async (data) => {
-            return {
-                alkanesId: data.alkanesId,
-                medianFeeRate: await this.getAlkanesMedianFeeRate(data.alkanesId, Math.floor(data.count / 2))
-            };
-        });
-        logger.info(`getAllAlkanesIdMempoolData query medianFeeRate: ${medianFeeRates.length}`);
-        for (const data of medianFeeRates) {
-            mempoolDatas[data.alkanesId].medianFeeRate = data.medianFeeRate;
         }
         return mempoolDatas;
     }

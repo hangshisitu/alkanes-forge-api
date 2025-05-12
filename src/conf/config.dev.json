@@ -25,7 +25,9 @@
   "revenueAddress": {
     "market": "tb1q235uy7hre5k780xynpsm96mjwngtv8ywsttl6x",
     "inscribe": "tb1qn0z4vuxay90kuxu2ghf833gtvlph0xgxx29vuv",
-    "transfer": "tb1q4y980n4367t3nuz3vkz8nex3vtxjsfrfuxdpkv"
+    "transfer": "tb1q4y980n4367t3nuz3vkz8nex3vtxjsfrfuxdpkv",
+    "nftMarket": "tb1qvdyqz4uyjf40vq9h5jr5uyv9vrs8gcxne6u7pf",
+    "launch": "tb1q3fkjzvq8rjj38ekuuvekphq3h5tsfcgvx5wex7"
   },
   "api": {
     "protoruneParseEndpoint": "http://127.0.0.1:58888",

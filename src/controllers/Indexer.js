@@ -72,7 +72,7 @@ async function holderPage(ctx) {
 
 /**
  * @swagger
- * /indexer/outpoints:
+ * /indexer/addressAlkanesOutpoints:
  *   post:
  *     summary: Get Alkanes outpoints for an address
  *     tags: [Indexer]
@@ -92,12 +92,18 @@ async function holderPage(ctx) {
  *               alkanesId:
  *                 type: string
  *                 description: Alkanes token ID
- *               limit:
- *                 type: integer
- *                 description: Maximum number of outpoints to return
+ *               multiple:
+ *                 type: boolean
+ *                 description: Whether to include multiple assets
  *               spent:
  *                 type: boolean
  *                 description: Whether to include spent outpoints
+ *               page:
+ *                 type: integer
+ *                 description: Page number
+ *               pageSize:
+ *                 type: integer
+ *                 description: Number of items per page
  *     responses:
  *       200:
  *         description: List of Alkanes outpoints
@@ -114,8 +120,64 @@ async function holderPage(ctx) {
  *                   type: boolean
  */
 async function addressAlkanesOutpoints(ctx) {
-    const { address, alkanesId, limit, spent } = ctx.request.body;
-    const result = await IndexerService.getAddressAlkanesOutpoints(address, alkanesId, limit, spent);
+    const { address, alkanesId, multiple, spent, page, size } = ctx.request.body;
+    const result = await IndexerService.getAddressAlkanesOutpoints(address, alkanesId, multiple, spent, page, size);
+    return result;
+}
+
+/**
+ * @swagger
+ * /indexer/outpointRecords:
+ *   post:
+ *     summary: Get paginated outpoint records for an address
+ *     tags: [Indexer]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - address
+ *               - alkanesId
+ *               - page
+ *               - pageSize
+ *             properties:
+ *               address:
+ *                 type: string
+ *                 description: Wallet address
+ *               alkanesId:
+ *                 type: string
+ *                 description: Alkanes token ID
+ *               spent:
+ *                 type: boolean
+ *                 description: Whether to include spent outpoints
+ *               page:
+ *                 type: integer
+ *                 description: Page number
+ *               pageSize:
+ *                 type: integer
+ *                 description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of outpoint records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                 pages:
+ *                   type: integer
+ */
+async function outpointRecords(ctx) {
+    const { address, alkanesId, spent, page, pageSize } = ctx.request.body;
+    const result = await IndexerService.getOutpointRecords(address, alkanesId, spent, page, pageSize);
     return result;
 }
 
@@ -134,6 +196,11 @@ export default [
         path: Constants.API.INDEXER.ADDRESS_ALKANES_OUTPOINTS,
         method: 'post',
         handler: addressAlkanesOutpoints
+    },
+    {
+        path: Constants.API.INDEXER.OUTPOINT_RECORDS,
+        method: 'post',
+        handler: outpointRecords
     }
 ]
 

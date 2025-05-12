@@ -35,6 +35,10 @@ const NftCollection = sequelize.define('NftCollection', {
         type: DataTypes.DECIMAL,
         comment: '累计铸造次数'
     },
+    premine: {
+        type: DataTypes.DECIMAL,
+        comment: '预铸造数量'
+    },
     totalSupply: {
         type: DataTypes.DECIMAL,
         comment: '总供应量'
@@ -153,10 +157,19 @@ const NftCollection = sequelize.define('NftCollection', {
         type: DataTypes.STRING,
         comment: '电报链接'
     },
+    isLaunch: {
+        type: DataTypes.BOOLEAN,
+        comment: '是否Launch(0:否,1:是)'
+    },
     startBlock: {
         field: 'start_block',
         type: DataTypes.INTEGER,
         comment: '开始区块'
+    },
+    endBlock: {
+        field: 'end_block',
+        type: DataTypes.INTEGER,
+        comment: '结束区块'
     },
     launchImage: {
         field: 'launch_image',
@@ -172,6 +185,11 @@ const NftCollection = sequelize.define('NftCollection', {
         field: 'launch_stages',
         type: DataTypes.STRING,
         comment: 'Launch阶段(JSON格式)'
+    },
+    launchRank: {
+        field: 'launch_rank',
+        type: DataTypes.INTEGER,
+        comment: 'Launch排名'
     },
     createdAt: {
         type: DataTypes.DATE,

@@ -3,7 +3,7 @@ import cors from 'koa2-cors';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
 import * as util from 'util'
-import {jobMintStatus, jobs, jobIndexer} from "./job/index.js";
+import {jobMintStatus, jobs, jobIndexer, launchJobs} from "./job/index.js";
 import ControllerPaths from './controllers/index.js';
 import * as mempool from "./mempool/index.js";
 import {Constants} from "./conf/constants.js";
@@ -32,6 +32,9 @@ const AUTH_PATHS = [
     Constants.API.INSCRIBE.CANCEL_MERGE_ORDER,
     Constants.API.INSCRIBE.ORDER_PAGE,
     Constants.API.METHANE.COMMUNITY_CHECK,
+    Constants.API.LAUNCH.ORDER_PAGE,
+    Constants.API.LAUNCH.CREATE_ORDER,
+    Constants.API.LAUNCH.START_ORDER,
 ];
 
 async function jwtAuth(ctx, next) {
@@ -84,14 +87,12 @@ app.use(bodyParser({
 app.use(async (ctx, next) => {
     logger.putContext({'traceId': BaseUtil.genId()});
     try {
-        const start = Date.now();
-        const bodyParams = JSON.stringify(ctx.request.body) || '';
         await next();
-        const ms = Date.now() - start;
-        const content = JSON.stringify(ctx.response.body) || '';
-        const walletType = ctx.request.headers['wallet-type'] || '';
-        logger.info(`request ${ctx.method} ${ctx.url} cost: ${ms}ms ${walletType} params: ${ctx.querystring} body: ${bodyParams} response: ${content}`);
-    } finally {
+        logger.info(`request ${ctx.method} ${ctx.url} ${ctx.request.headers['wallet-type'] || ''}`);
+    } catch (err) {
+        console.error(`process ${ctx.url} error, params: ${ctx.request.body}`, err);
+    }
+    finally {
         logger.clearContext();
     }
 });
@@ -112,11 +113,11 @@ async function safe_request(func, ctx) {
                 'data': result
             }
         }
-    } catch (e) {
-        logger.error(`${ctx.method} ${ctx.url} error: ${util.inspect(e)}`)
+    } catch (err) {
+        logger.error(`${ctx.method} ${ctx.url} ${ctx.request.headers['wallet-type'] || ''} params: ${ctx.querystring} body: ${JSON.stringify(ctx.request.body) || ''} error`, err);
         ctx.body = {
             'code': 1,
-            'msg': e.message
+            'msg': err.message
         }
     }
 }
@@ -168,8 +169,13 @@ if (process.env.jobMintStatusEnable === 'true') {
     logger.info(`jobMintStatus started.`)
 }
 
+if (process.env.launchJobEnable === 'true') {
+    launchJobs();
+    logger.info(`launchJobs started.`)
+}
+
 if (process.env.mempoolEnable === 'true') {
-    mempool.start();
+    mempool.start(false, true);
     logger.info(`Mempool started.`)
 }
 

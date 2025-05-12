@@ -21,13 +21,18 @@ const NftMarketListing = sequelize.define('NftMarketListing', {
     },
     listingPrice: {
         type: DataTypes.DECIMAL(36, 18),
-        comment: '单价(单位: satoshi)'
+        comment: '单价(单位: satoshi)',
+        get() {
+            const value = this.getDataValue('listingPrice');
+            return value ? Number(value) : 0;
+        }
     },
     listingAmount: {
         type: DataTypes.DECIMAL(36, 0),
         comment: '总价(单位: satoshi)',
         get() {
-            return this.getDataValue('listingAmount') ?? this.getDataValue('listingPrice');
+            const value = this.getDataValue('listingPrice');
+            return value ? Number(value) : 0;
         }
     },
     sellerAmount: {

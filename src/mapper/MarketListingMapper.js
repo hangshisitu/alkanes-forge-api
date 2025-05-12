@@ -1,7 +1,7 @@
 import MarketListing from "../models/MarkeListing.js";
 import {Constants} from "../conf/constants.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
-
+import { Op } from "sequelize";
 export default class MarketListingMapper {
 
     static getListingCacheKey(alkanesId, sellerAddress, page, size, orderType) {
@@ -81,13 +81,12 @@ export default class MarketListingMapper {
 
     static async getByOutputs(listingOutputList) {
         return await MarketListing.findAll({
-            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput"],
+            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData"],
             where: {
                 listingOutput: listingOutputList
             }
         });
     }
-
     static async getByIds(alkanesId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await MarketListing.findAll({
             attributes: ["id", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
@@ -131,6 +130,26 @@ export default class MarketListingMapper {
         }
     }
 
+    static async bulkRollbackListingFromSold(listingOutputList, status, buyerAddress, txHash, walletType, alkanesId = null) {
+        await MarketListing.update(
+            {
+                status: status,
+                buyerAddress: buyerAddress,
+                txHash: txHash,
+                source: walletType
+            },
+            {
+                where: {
+                    listingOutput: listingOutputList,
+                    status: Constants.LISTING_STATUS.SOLD
+                }
+            }
+        );
+        if (alkanesId) {
+            await MarketListingMapper.deleteListingCache(alkanesId);
+        }
+    }
+
     static async bulkUpsertListing(listingList) {
         if (!listingList || listingList.length === 0) {
             return [];
@@ -148,6 +167,33 @@ export default class MarketListingMapper {
             await MarketListingMapper.deleteListingCache(alkanesId);
         }
         return ret;
+    }
+
+    static async findByOutput(output, status = Constants.LISTING_STATUS.LIST) {
+        return await MarketListing.findOne({
+            where: {
+                listingOutput: output,
+                status: status
+            }
+        });
+    }
+
+    static async updateListing(id, data, acceptStatus = Constants.LISTING_STATUS.LIST) {
+        return await MarketListing.update(data, {
+            where: {
+                id: id,
+                status: acceptStatus
+            }
+        });
+    }
+
+    static async getByTxids(txids) {
+        return await MarketListing.findAll({
+            where: {
+                txHash: txids
+            },
+            raw: true
+        });
     }
 
 }

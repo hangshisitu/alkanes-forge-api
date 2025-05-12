@@ -12,11 +12,15 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import BaseUtil from '../utils/BaseUtil.js';
 import decodeProtorune from '../lib/ProtoruneDecoder.js';
+import MempoolAsset from '../models/MempoolAsset.js';
+import MarketService from '../service/MarketService.js';
+import NftMarketService from '../service/NftMarketService.js';
+import IndexerService from '../service/IndexerService.js';
+import schedule from 'node-schedule';
 
 const new_block_callbacks = [];
 const concurrent = process.env.NODE_ENV === 'pro' ? 16 : 1;
 const blocks = process.env.NODE_ENV === 'pro' ? 8 : 1
-let last_refresh_cache_time = 0;
 const block_message_queues = {};
 for (let i = 0; i < blocks; i++) {
     block_message_queues[i] = new Queue();
@@ -32,17 +36,26 @@ async function delete_mempool_txs(txids) {
     // logger.info(`delete mempool txs: ${JSON.stringify(txids)}`);
 }
 
+async function delete_mempool_assets(txids) {
+    if (!txids?.length) {
+        return;
+    }
+    return await MempoolAsset.destroy({
+        where: { txid: txids }
+    });
+}
+
 async function remove_by_block_height(hash) {
     const blockTxids = await MempoolUtil.getBlockTxIds(hash);
     if (!blockTxids?.length) {
         return;
     }
-    let count = 0;
-    for (let i = 0; i < blockTxids.length; i += 100) {
-        const txids = blockTxids.slice(i, i + 100);
-        count += await delete_mempool_txs(txids);
-    }
-    return count;
+    const counts = await BaseUtil.concurrentExecute(BaseUtil.splitArray(blockTxids, 100), async (txids) => {
+        const count1 = await delete_mempool_assets(txids);
+        const count2 = await delete_mempool_txs(txids);
+        return count1 + count2;
+    });
+    return counts.reduce((a, b) => +b + a, 0);
 }
 
 async function detect_tx_status(txs) {
@@ -68,6 +81,39 @@ async function detect_tx_status(txs) {
     }
     return ret_txids;
 }
+
+async function scan_mempool_asset() {
+    const size = 100;
+    let minId = 0;
+    while (true) {
+        const assets = await MempoolAsset.findAll({
+            offset: 0,
+            limit: size,
+            where: {
+                id: {
+                    [Op.gt]: minId
+                }
+            },
+            order: [
+                ['id', 'ASC']
+            ]
+        });
+        if (assets.length === 0) {
+            break;
+        }
+        minId = assets[assets.length - 1].id;
+        const promises = [];
+        for (let i = 0; i < concurrent; i++) {
+            promises.push(detect_tx_status(assets));
+        }
+        const results = await Promise.all(promises);
+        const txids = results.flat();
+        if (txids.length) {
+            await delete_mempool_txs(txids);
+        }
+    }
+}
+
 
 async function scan_mempool_tx() {
     const size = 100;
@@ -101,9 +147,12 @@ async function scan_mempool_tx() {
     }
 }
 
-async function try_scan_mempool_tx() {
+async function try_scan_mempool() {
     try {
-        await scan_mempool_tx();
+        await Promise.all([
+            scan_mempool_tx(),
+            scan_mempool_asset()
+        ]);
     } catch (err) {
         logger.error('scan mempool tx error', err);
     }
@@ -133,6 +182,115 @@ async function handle_mempool_txs(txids) {
     return count;
 }
 
+async function handle_mempool_mint(txid, protostones) {
+    const mempoolTxs = [];
+    for (const protostone of protostones ?? []) {
+        const message = protostone.message;
+        if (!message) {
+            continue;
+        }
+        const mintData = BaseUtil.decodeLEB128Array(JSON.parse(message));
+        if (mintData.length < 3) {
+            continue;
+        }
+        if (await MempoolTx.findOne({
+            where: {
+                txid
+            }
+        })) {
+            break;
+        }
+        logger.info(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
+        let feeRate = null;
+        let i = 0;
+        let address = null;
+        while (i < mintData.length) {
+            const code = mintData[i];
+            if (code === 2 && mintData[i + 2] === 77) {
+                if (!feeRate) {
+                    const electrsTx = await MempoolUtil.getTxEx(txid);
+                    if (!electrsTx || electrsTx.status.confirmed) {
+                        await MempoolTx.destroy({
+                            where: { txid }
+                        });
+                        break;
+                    }
+                    feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
+                    address = electrsTx.vout.find(v => v.scriptpubkey_address)?.scriptpubkey_address;
+                }
+                mempoolTxs.push({
+                    txid,
+                    alkanesId: `2:${mintData[i + 1]}`,
+                    op: 'mint',
+                    address,
+                    feeRate,
+                });
+                i += 3;
+            } else {
+                i++;
+            }
+        }
+    }
+    if (mempoolTxs.length > 0) {
+        return bulkInsertMempoolTxs(mempoolTxs);
+    }
+    return 0;
+}
+
+async function handle_mempool_asset(txid, protostones) {
+    if (!protostones?.some(p => p.edicts?.length > 0)) {
+        return 0;
+    }
+    const electrsTx = await MempoolUtil.getTxEx(txid);
+    if (!electrsTx || electrsTx.status.confirmed) {
+        await MempoolTx.destroy({
+            where: { txid }
+        });
+        return 0;
+    }
+    for (const [idx, vin] of electrsTx.vin.entries()) {
+        vin.idx = idx;
+    }
+    const feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
+    let mempoolAssets = await BaseUtil.concurrentExecute(electrsTx.vin, async (vin) => {
+        const records = await IndexerService.getOutpointByOutput(vin.txid, vin.vout);
+        if (!records?.length) {
+            return null;
+        }
+        return {
+            txid,
+            vin: vin.idx,
+            assetAddress: vin.prevout.scriptpubkey_address,
+            assetTxid: vin.txid,
+            assetVout: vin.vout,
+            feeRate
+        };
+    });
+    mempoolAssets = mempoolAssets.filter(asset => asset !== null);
+    if (mempoolAssets.length) {
+        await Promise.all([
+            MempoolAsset.bulkCreate(mempoolAssets, {
+                ignoreDuplicates: true,
+                returning: false
+            }),
+            BaseUtil.concurrentExecute(mempoolAssets, async (asset) => {
+                await MarketService.delistingByOutput(txid, {
+                    txid: asset.assetTxid,
+                    vout: asset.assetVout
+                });
+            }),
+            BaseUtil.concurrentExecute(mempoolAssets, async (asset) => {
+                await NftMarketService.delistingByOutput(txid, {
+                    txid: asset.assetTxid,
+                    vout: asset.assetVout
+                });
+            })
+        ]);
+        return mempoolAssets.length;
+    }
+    return 0;
+}
+
 async function handle_mempool_tx(txid) {
     const hex = await MempoolUtil.getTxHexEx(txid);
     if (!hex) {
@@ -151,75 +309,21 @@ async function handle_mempool_tx(txid) {
         logger.error(`parse tx [${txid}] error`, result);
         return false;
     }
-    const mempoolTxs = [];
-    for (const protostone of result.protostones ?? []) {
-        const message = protostone.message;
-        if (!message) {
-            continue;
-        }
-        const mintData = BaseUtil.decodeLEB128Array(JSON.parse(message));
-        if (mintData.length < 3) {
-            continue;
-        }
-        if (await MempoolTx.findOne({
-            where: {
-                txid
-            }
-        })) {
-            break;
-        }
-        logger.info(`handle mempool tx: ${txid}, protostone message: ${JSON.stringify(mintData)}`);
-        let address = null;
-        let feeRate = null;
-        let i = 0;
-        while (i < mintData.length) {
-            const code = mintData[i];
-            if (code === 2 && mintData[i + 2] === 77) {
-                if (!address) {
-                    address = PsbtUtil.script2Address(tx.outs[0].script);
-                }
-                if (!feeRate) {
-                    const electrsTx = await MempoolUtil.getTxEx(txid);
-                    if (!electrsTx || electrsTx.status.confirmed) {
-                        await MempoolTx.destroy({
-                            where: { txid }
-                        });
-                        break;
-                    }
-                    feeRate = Math.round(electrsTx.fee / (electrsTx.weight / 4) * 100) / 100;
-                }
-                mempoolTxs.push({
-                    txid,
-                    alkanesId: `2:${mintData[i + 1]}`,
-                    op: 'mint',
-                    address,
-                    feeRate,
-                });
-                i += 3;
-            } else {
-                i++;
-            }
-        }
-    }
-    if (mempoolTxs.length > 0) {
-        return bulkInsertMempoolTxs(mempoolTxs);
-    }
-    return false;
+    const [mintTxCount, assetTxCount] = await Promise.all([
+        handle_mempool_mint(txid, result.protostones),
+        handle_mempool_asset(txid, result.protostones)
+    ]);
+    return +mintTxCount + +assetTxCount;
 }
 
 async function bulkInsertMempoolTxs(mempoolTxs) {
     if (!mempoolTxs || mempoolTxs.length === 0) {
-        return false;
+        return 0;
     }
-
-    for (let i = 0; i < mempoolTxs.length; i += Constants.MYSQL_UPSERT_PER_BATCH) {
-        const batch = mempoolTxs.slice(i, i + Constants.MYSQL_UPSERT_PER_BATCH);
-        await MempoolTx.bulkCreate(batch, {
-            ignoreDuplicates: true,
-            returning: false
-        });
-    }
-    return true;
+    return await MempoolTx.bulkCreate(mempoolTxs, {
+        ignoreDuplicates: true,
+        returning: false
+    });
 }
 
 function safe_call(callback, ...args) {
@@ -250,7 +354,11 @@ async function handle_removed_txs(txids) {
     const results = await Promise.all(promises);
     const remove_txids = results.flat();
     if (remove_txids.length) {
-        return await delete_mempool_txs(remove_txids);
+        const [count1, count2] = await Promise.all([
+            delete_mempool_txs(remove_txids),
+            delete_mempool_assets(remove_txids)
+        ]);
+        return +count1 + +count2;
     }
     return 0;
 }
@@ -267,6 +375,7 @@ async function flat_rbf_latest(replaces, txids) {
 }
 
 async function refresh_cache() {
+    logger.info('refresh mempool data cache');
     const existKeys = await RedisHelper.scan(`${Constants.REDIS_KEY.MEMPOOL_ALKANES_DATA_CACHE_PREFIX}*`, 1000, false);
     const keys = [];
     const mempoolDatas = await MempoolTxMapper.getAllAlkanesIdMempoolData();
@@ -346,15 +455,12 @@ async function handle_mempool_message(block_index) {
                         updated = true;
                     }
                     logger.info(`handle rbf latest txs: ${txids.length}, effect: ${count}`);
+                    await MarketService.rollbackListingFromSold(txids);
+                    await NftMarketService.rollbackListingFromSold(txids);
                 }
             }
-            if (updated || Date.now() - last_refresh_cache_time >= 10000) {
-                last_refresh_cache_time = Date.now();
-                try_scan_mempool_tx().then(() => {
-                    return refresh_cache();
-                }).catch(err => {
-                    logger.error('refresh cache error', err);
-                });
+            if (updated) {
+                await refresh_cache();
             }
         } catch (e) {
             logger.error('parse mempool message occur error', e);
@@ -374,7 +480,7 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
             if (monitor_new_block_only) {
                 handle_new_block(null, false);
             } else {
-                try_scan_mempool_tx();  
+                try_scan_mempool();  
             }
         }
         connect_count ++;      
@@ -403,10 +509,54 @@ function connect_mempool(block, onmessage, monitor_new_block_only = false) {
     return rws;
 }
 
+async function scan_mempool_periodically() {
+    while (true) {
+        await BaseUtil.sleep(60000);
+        try {
+            await try_scan_mempool();
+        } catch (e) {
+            logger.error('scan mempool error', e);
+        }
+    }
+}
 
-export function start(monitor_new_block_only = false) {
+let isScanRbf = false;
+function scanRbf() {
+    schedule.scheduleJob('*/30 * * * * *', async () => {
+        if (isScanRbf) {
+            return;
+        }
+
+        try {
+            isScanRbf = true;
+            logger.info('scan rbf start');
+            const startTime = Date.now();
+
+            const rbfLatest = await MempoolUtil.getRbfLatest();
+            const txids = [];
+            rbfLatest.forEach(item => {
+                flat_rbf_latest(item.replaces, txids);
+            });
+            if (txids.length > 0) {
+                await MarketService.rollbackListingFromSold(txids);
+                await NftMarketService.rollbackListingFromSold(txids);
+            }
+            logger.info(`scan rbf finish. cost ${Date.now() - startTime}ms.`);
+        } catch (err) {
+            logger.error(`scan rbf error: ${err.message}`, err);
+        } finally {
+            isScanRbf = false;
+        }
+    });
+}
+
+
+export function start(monitor_new_block_only = false, scan_rbf = false) {
+    if (scan_rbf) {
+        scanRbf();
+    }
     if (!monitor_new_block_only) {
-        try_scan_mempool_tx().finally(() => {
+        try_scan_mempool().finally(() => {
             for (let i = 0; i < blocks; i++) {
                 handle_mempool_message(i).catch(err => {
                     logger.error('handle mempool message queue error', err);
@@ -415,6 +565,7 @@ export function start(monitor_new_block_only = false) {
                     block_message_queues[i].put(data);
                 });
             }
+            scan_mempool_periodically();
         });
         return;
     }

@@ -30,25 +30,26 @@ export default class TokenStatsService {
     };
 
     static async refreshStatsForTimeRange(startTime, endTime) {
+        const additionalStartTime = new Date(startTime.getTime() - 1000 * 60 * 60); // 往前再推一小时
         const tokenList = await TokenInfoMapper.getAllTokens();
         for (const token of tokenList) {
-            const trades = await MarketEventMapper.queryTradesInLastHour(token.id, startTime, endTime);
+            const trades = await MarketEventMapper.queryTradesInLastHour(token.id, additionalStartTime, endTime);
             if (trades.length === 0) {
                 continue;
             }
 
-            const averagePrice = trades.reduce((sum, trade) => + trade.listingPrice + sum, 0) / trades.length;
-            const totalAmount = trades.reduce((sum, trade) => + trade.tokenAmount + sum, 0);
-            const totalVolume = trades.reduce((sum, trade) => + trade.listingAmount + sum, 0);
+            const totalAmount = trades.reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0));
+            const totalVolume = trades.reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0));
+            const averagePrice = totalVolume.dividedBy(totalAmount);
             const tradeCount = trades.length;
 
             const stats = {
                 id: BaseUtil.genId(),
                 alkanesId: token.id,
                 statsDate: startTime,
-                averagePrice,
-                totalAmount,
-                totalVolume,
+                averagePrice: averagePrice.toFixed(),
+                totalAmount: totalAmount.toFixed(),
+                totalVolume: totalVolume.toFixed(),
                 tradeCount
             };
 

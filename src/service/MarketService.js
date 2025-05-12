@@ -11,17 +11,34 @@ import MarketEventMapper from "../mapper/MarketEventMapper.js";
 import TokenInfoService from "./TokenInfoService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import BaseUtil from "../utils/BaseUtil.js";
+import IndexerService from "./IndexerService.js";
 
 export default class MarketService {
 
     static async assets(alkanesId, assetAddress) {
-        const maxHeight = await AlkanesService.getMaxHeight();
-        const alkanesList = await AlkanesService.getAlkanesUtxoByAddress(assetAddress, alkanesId, maxHeight);
+        const outpointList = await IndexerService.getOutpointListByTarget(assetAddress, alkanesId, new BigNumber(0), true);
+        if (outpointList.length === 0) {
+            return [];
+        }
         const listingList = await MarketListingMapper.getUserListing(assetAddress, alkanesId);
-
         const listingOutputs = new Set(listingList.map(listing => listing.listingOutput));
-        return alkanesList.filter(utxo => {
-            return !listingOutputs.has(`${utxo.txid}:${utxo.vout}`);
+        const tokenInfo = await TokenInfoService.getTokenInfo(alkanesId);
+        return outpointList.filter(outpoint => {
+            return !listingOutputs.has(`${outpoint.txid}:${outpoint.vout}`);
+        }).map(outpoint => {
+            return {
+                address: assetAddress,
+                txid: outpoint.txid,
+                vout: outpoint.vout,
+                block: outpoint.block,
+                value: parseInt(outpoint.value),
+                alkanesId: outpoint.alkanesId,
+                alkanesIdCount: outpoint.alkanesIdCount,
+                name: tokenInfo.name,
+                symbol: tokenInfo.symbol,
+                balance: outpoint.balance,
+                tokenAmount: new BigNumber(outpoint.balance).dividedBy(10 ** 8).toFixed()
+            };
         });
     }
 
@@ -30,6 +47,9 @@ export default class MarketService {
 
         const signingIndexes = [];
         for (const [index, listing] of listingList.entries()) {
+            if (parseInt(listing.listingAmount) > 10000000) {
+                throw new Error('Maximum price: 0.1 BTC');
+            }
             const utxo = {
                 txid: listing.txid,
                 vout: listing.vout,
@@ -66,13 +86,20 @@ export default class MarketService {
         };
     }
 
+    static async checkSpendable(utxo) {
+        const spendInfo = await MempoolUtil.getTxOutspend(utxo.txid, utxo.vout);
+        return !spendInfo.spent;
+    }
+
     static async putSignedListing(signedPsbt, isUpdate = false) {
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
         PsbtUtil.validatePsbtSignatures(originalPsbt);
 
         const listingList = [];
+        const failedList = [];
         const eventList = [];
         const maxHeight = await AlkanesService.getMaxHeight();
+        let alkanesId = null;
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
             const sellerAmount = originalPsbt.txOutputs[i].value || 0;
@@ -80,11 +107,19 @@ export default class MarketService {
                 throw new Error('Below the minimum sale amount: 2000 sats');
             }
             PsbtUtil.checkInput(originalPsbt.data.inputs[i]);
-
+            const output = `${sellerInput.txid}:${sellerInput.vout}`;
             const alkanes = await MarketService.checkAlkanes(sellerInput, maxHeight);
+            alkanesId = alkanes.id;
             if (alkanes.value < 1) {
-                throw new Error('Not found alkanes value.');
+                failedList.push(output);
+                continue;
             }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
+                failedList.push(output);
+                continue;
+            }
+
             const tokenAmount = new BigNumber(alkanes.value).div(10 ** 8)
                 .decimalPlaces(8, BigNumber.ROUND_DOWN);
 
@@ -110,7 +145,7 @@ export default class MarketService {
                 listingPrice: listingPrice,
                 listingAmount: listingAmount,
                 sellerAmount: sellerAmount,
-                listingOutput: `${sellerInput.txid}:${sellerInput.vout}`,
+                listingOutput: output,
                 psbtData: psbt.toHex(),
                 sellerAddress: sellerInput.address,
                 sellerRecipient: originalPsbt.txOutputs[i].address,
@@ -131,8 +166,16 @@ export default class MarketService {
             eventList.push(marketEvent);
         }
 
-        await MarketListingMapper.bulkUpsertListing(listingList);
-        await MarketEventMapper.bulkUpsertEvent(eventList);
+        if (failedList.length > 0) {
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', '', alkanesId);
+            throw new Error('The assets have been transferred, please refresh and try again.');
+        }
+
+        if (listingList.length > 0) {
+            await MarketListingMapper.bulkUpsertListing(listingList);
+            await MarketEventMapper.bulkUpsertEvent(eventList);
+            await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
+        }
 
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
@@ -160,6 +203,11 @@ export default class MarketService {
 
             const alkanes = await MarketService.checkAlkanes(sellerInput, 0);
             if (alkanes.value < 1) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
                 failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
                 continue;
             }
@@ -215,6 +263,11 @@ export default class MarketService {
                 failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
                 continue;
             }
+            const spendable = await this.checkSpendable(sellerInput);
+            if (!spendable) {
+                failedList.push(`${sellerInput.txid}:${sellerInput.vout}`);
+                continue;
+            }
 
             sellerInput.pubkey = assetPublicKey;
             inputList.push(sellerInput);
@@ -248,7 +301,12 @@ export default class MarketService {
 
     static async putSignedDelisting(signedPsbt, walletType) {
         const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
-        if (error) {
+        if (error && (error.includes('txn-mempool-conflict')
+            || error.includes("bad-txns-spends-conflicting-tx")
+            || error.includes('bad-txns-inputs-missingorspent')
+            || error.includes('replacement-adds-unconfirmed'))) {
+            throw new Error('Assets have been transferred. Please refresh and try again shortly.');
+        } else if (error) {
             throw new Error(error);
         }
 
@@ -283,11 +341,32 @@ export default class MarketService {
         await TokenInfoService.refreshTokenFloorPrice(listingList[0].alkanesId);
     }
 
+    static async checkListingSpendable(listingOutputList, alkanesId) {
+        const errors = [];
+        let failedList = await BaseUtil.concurrentExecute(listingOutputList, async (listingOutput) => {
+            const [txid, vout] = listingOutput.split(':');
+            const spendable = await this.checkSpendable({txid, vout});
+            if (!spendable) {
+                return listingOutput;
+            }
+            return null;
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error('Listing spendable check failed, please refresh and try again.');
+        }
+        failedList = failedList.filter(listingOutput => listingOutput !== null);
+        if (failedList.length > 0) {
+            await MarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', '', alkanesId);
+            throw new Error('The assets have been transferred, please refresh and try again.');
+        }
+    }
+
     static async createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate) {
         const listingList = await MarketListingMapper.getByIds(alkanesId, listingIds);
         if (listingList === null || listingList.length !== listingIds.length) {
             throw new Error('Some items in your order are already purchased or delisted.');
         }
+        await this.checkListingSpendable(listingList.map(listing => listing.listingOutput), alkanesId);
 
         const sellerAddressList = listingList.map(listing => {
             return {
@@ -401,6 +480,9 @@ export default class MarketService {
             });
         }
 
+        // 将buyingPsbt的所有为部分签名类型的input的签名数据删除
+        PsbtUtil.removePartialSignature(buyingPsbt);
+
         return {
             hex: buyingPsbt.toHex(),
             base64: buyingPsbt.toBase64(),
@@ -412,17 +494,8 @@ export default class MarketService {
     }
 
     static async putSignedBuying(signedPsbt, walletType) {
-        const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
-        if (error && (error.includes('bad-txns-inputs-missingorspent')
-            || error.includes('TX decode failed')
-            || error.includes('txn-mempool-conflict'))) {
-            await MarketService.checkListingSpent(signedPsbt, walletType);
-            throw new Error('Some items in your order are already purchased or delisted.');
-        }
-
+        //从买家已签名的psbt中获取资产，再从数据库中获取对应的listing，最后把这些listing的卖家签名填到psbt中
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
-
-        let buyerAddress = originalPsbt.txOutputs[0].address;
         const listingOutputList = [];
         for (let i = 0; i < originalPsbt.inputCount; i++) {
             const sellerInput = PsbtUtil.extractInputFromPsbt(originalPsbt, i);
@@ -430,6 +503,20 @@ export default class MarketService {
         }
 
         const listingList = await MarketListingMapper.getByOutputs(listingOutputList);
+        signedPsbt = PsbtUtil.fillListingSign({
+            assetPsbtList: listingList.map((l) => l.psbtData),
+            dstPsbt: signedPsbt,
+        });
+
+        const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
+        if (PsbtUtil.checkPushConflict(error)) {
+            await MarketService.checkListingSpent(signedPsbt, walletType);
+            throw new Error('Some items in your order are already purchased or delisted.');
+        } else if (error) {
+            throw new Error(error);
+        }
+
+        let buyerAddress = originalPsbt.txOutputs[0].address;
         const eventList = [];
         for (const listing of listingList) {
             const marketEvent = {
@@ -516,6 +603,70 @@ export default class MarketService {
 
     static getTakerFee(listingAmount) {
         return Math.max(Math.ceil(listingAmount * config.market.takerFee / 1000), config.market.minimumFee);
+    }
+
+    static async delistingByOutput(delistingTxid, {txid, vout}) {
+        const listing = await MarketListingMapper.findByOutput(`${txid}:${vout}`);
+        if (!listing) {
+            return;
+        }
+        const updatedListing = await MarketListingMapper.updateListing(listing.id, {
+            status: Constants.LISTING_STATUS.DELIST,
+        }, Constants.LISTING_STATUS.LIST);
+        if (+updatedListing <= 0) {
+            return;
+        }
+        await MarketEventMapper.upsertEvent({
+            id: BaseUtil.genId(),
+            type: Constants.MARKET_EVENT.DELIST,
+            alkanesId: listing.alkanesId,
+            tokenAmount: listing.tokenAmount,
+            listingPrice: listing.listingPrice,
+            listingAmount: listing.listingAmount,
+            listingOutput: listing.listingOutput,
+            sellerAddress: listing.sellerAddress,
+            txHash: delistingTxid
+        });
+    }
+
+    static async rollbackListingFromSold(txids) {
+        // txids是被rbf替换了的交易, 要检查listing中哪些挂单中使用txHash记录了是被这些交易购买的, 但是因为这些交易被替换了, 挂单的utxo可能回到了未花费状态, 需要对这些挂单进行状态回滚
+        // 还要删除对应的market_event
+        const listingList = await MarketListingMapper.getByTxids(txids);
+        if (listingList.length <= 0) {
+            return;
+        }
+        const errors = [];
+        let needRollbackList = await BaseUtil.concurrentExecute(listingList, async (listing) => {
+            // 检查listingOutput的花费状态
+            const [txid, vout] = listing.listingOutput.split(':');
+            const spendInfo = await MempoolUtil.getTxOutspend(txid, vout);
+            if (spendInfo.spent) { // 已花费, 不处理
+                return;
+            }
+            return listing;
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error('Failed to rollback listing');
+        }
+        needRollbackList = needRollbackList.filter(listing => listing !== null);
+        if (needRollbackList.length <= 0) {
+            return;
+        }
+        // 将needRollbackList按alkanesId分组
+        const needRollbackMap = new Map();
+        for (const listing of needRollbackList) {
+            if (!needRollbackMap.has(listing.alkanesId)) {
+                needRollbackMap.set(listing.alkanesId, []);
+            }
+            needRollbackMap.get(listing.alkanesId).push(listing);
+        }
+        // 遍历needRollbackMap, 对每个alkanesId的listing进行状态回滚
+        for (const [alkanesId, listingList] of needRollbackMap.entries()) {
+            await MarketListingMapper.bulkRollbackListingFromSold(listingList.map(listing => listing.listingOutput), Constants.LISTING_STATUS.LIST, '', '', '', alkanesId);
+        }
+        // 删除对应的market_event
+        await MarketEventMapper.bulkDeleteSoldEvent(needRollbackList.map(listing => listing.listingOutput));
     }
 
 }

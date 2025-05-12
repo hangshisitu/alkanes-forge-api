@@ -15,6 +15,7 @@ import IndexerService from '../service/IndexerService.js';
 import NftItemService from '../service/NftItemService.js';
 import NftCollectionService from '../service/NftCollectionService.js';
 import NftCollectionStatsService from '../service/NftCollectionStatsService.js';
+import LaunchService from '../service/LaunchService.js';
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
@@ -55,6 +56,29 @@ function refreshBlockHeight() {
     });
 }
 
+let isRefreshNewTokenInfo = false;
+function refreshNewTokenInfo() {
+    schedule.scheduleJob('*/30 * * * * *', async () => {
+        if (isRefreshNewTokenInfo) {
+            return;
+        }
+
+        try {
+            isRefreshNewTokenInfo = true;
+            const startTime = Date.now();
+            const indexHeight = await RedisHelper.get(Constants.REDIS_KEY.INDEX_BLOCK_HEIGHT);
+            logger.info(`refreshNewTokenInfo start, indexHeight: ${indexHeight}`);
+            await TokenInfoService.refreshNewTokenInfo(indexHeight);
+            logger.info(`refreshNewTokenInfo finish, cost ${Date.now() - startTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshNewTokenInfo error: ${err.message}`, err);
+        } finally {
+            isRefreshNewTokenInfo = false;
+        }
+    });
+}
+
+
 let isRefreshTokenInfo = false;
 function refreshTokenInfo() {
     schedule.scheduleJob('*/30 * * * * *', async () => {
@@ -84,6 +108,26 @@ function refreshTokenInfo() {
     });
 }
 
+let isRefreshNftCollectionInfo = false;
+function refreshNftCollectionInfo() {
+    schedule.scheduleJob('*/30 * * * * *', async () => {
+        if (isRefreshNftCollectionInfo) {
+            return;
+        }
+
+        try {
+            isRefreshNftCollectionInfo = true;
+            const startTime = Date.now();
+            logger.info(`refreshNftCollectionInfo start`);
+            await NftCollectionService.refreshNftCollectionInfo();
+            logger.info(`refreshNftCollectionInfo finish, cost ${Date.now() - startTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshNftCollectionInfo error: ${err.message}`, err);
+        } finally {
+            isRefreshNftCollectionInfo = false;
+        }
+    });
+}
 
 let isRefreshStatsForTimeRange = false;
 function refreshStatsForTimeRange() {
@@ -137,6 +181,26 @@ function refreshTokenStats() {
     });
 }
 
+let isRefreshUnpaidOrderPaymentHash = false;
+function refreshUnpaidOrderPaymentHash() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isRefreshUnpaidOrderPaymentHash) {
+            return;
+        }
+
+        try {
+            isRefreshUnpaidOrderPaymentHash = true;
+            const execStartTime = Date.now();
+            logger.info(`refreshUnpaidOrderPaymentHash start`);
+            await MintService.batchHandleUnpaidOrderPaymentHash();
+            logger.info(`refreshUnpaidOrderPaymentHash finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshUnpaidOrderPaymentHash error, error: ${err.message}`, err);
+        } finally {
+            isRefreshUnpaidOrderPaymentHash = false;
+        }
+    });
+}
 
 let isRefreshPartialMergeMintOrder = false;
 function refreshPartialMergeMintOrder() {
@@ -307,10 +371,32 @@ function refreshNftCollectionStatsForTimeRange() {
     });
 }
 
+let isRefreshLaunchOrder = false;
+function refreshLaunchOrder() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isRefreshLaunchOrder) {
+            return;
+        }
+
+        try {
+            isRefreshLaunchOrder = true;
+            const execStartTime = Date.now();
+            logger.info(`refreshLaunchOrder start`);
+            await LaunchService.refreshLaunchOrder();
+            logger.info(`refreshLaunchOrder finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshLaunchOrder error, error: ${err.message}`, err);
+        } finally {
+            isRefreshLaunchOrder = false;
+        }
+    });
+}
 
 export function jobs() {
     refreshBlockHeight();
     refreshTokenInfo();
+    refreshNftCollectionInfo();
+    refreshNewTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
     refreshNftCollectionStatsForTimeRange();
@@ -319,10 +405,15 @@ export function jobs() {
 }
 
 export function jobMintStatus() {
+    refreshUnpaidOrderPaymentHash();
     refreshPartialMergeMintOrder();
     refreshMintingMergeMintOrder();
     // 最后启动内存池监控
     MempoolIndex.start(true);
+}
+
+export function launchJobs() {
+    refreshLaunchOrder();
 }
 
 export function jobIndexer() {

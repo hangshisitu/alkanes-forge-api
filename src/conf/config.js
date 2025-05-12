@@ -24,6 +24,8 @@ config.methaneCommittee = JSON.parse(fs.readFileSync(methanePath, 'utf-8'));
 config.network = networks.testnet;
 if (config.networkName === 'mainnet') {
     config.network = networks.bitcoin;
+} else if (config.networkName === 'regtest') {
+    config.network = networks.regtest;
 }
 
 export default config;

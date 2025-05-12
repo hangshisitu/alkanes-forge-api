@@ -15,6 +15,8 @@ import MempoolUtil from "../utils/MempoolUtil.js";
 import * as logger from '../conf/logger.js';
 import R2Service from "./R2Service.js";
 import BaseUtil from "../utils/BaseUtil.js";
+import {NetworkError} from "../lib/error.js";
+import IndexerService from "./IndexerService.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -75,8 +77,8 @@ export default class AlkanesService {
             },
         ], alkanesUrl);
     }
-    
-    static async getAlkanesByUtxo(utxo, maxHeight = 0, alkanesUrl = config.alkanesUtxoUrl) {
+
+    static async getAlkanesByUtxo(utxo, maxHeight = 0, alkanesUrl = config.alkanesUtxoUrl, timeout = 0) {
         if (utxo.height < config.startHeight) {
             return [];
         }
@@ -90,13 +92,13 @@ export default class AlkanesService {
                     vout: utxo.vout,
                     protocolTag: '1',
                 },
-            ], config.alkanesUtxoUrl)
+            ], config.alkanesUtxoUrl, timeout)
 
             return alkaneList.map((alkane) => ({
                 id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
                 name: alkane.token.name,
                 symbol: alkane.token.symbol,
-                value: new BigNumber(alkane.value).toNumber(), // 固定8位精度
+                value: new BigNumber(alkane.value), // 固定8位精度
             }))
         } catch (err) {
             logger.error(`getAlkanesByUtxo error, utxo: ${JSON.stringify(utxo)}, error: ${err.message}`, err);
@@ -208,7 +210,7 @@ export default class AlkanesService {
             id: item.id,
             name: item.name,
             symbol: item.symbol,
-            balance: new BigNumber(item.balance).dividedBy(10**8).toFixed()
+            balance: new BigNumber(item.balance).dividedBy(10 ** 8).toFixed()
         }));
     }
 
@@ -229,7 +231,7 @@ export default class AlkanesService {
                     }
                     alkane.utxo = utxo;
                     alkaneList.push(alkane);
-                    totalBalance = totalBalance.plus(new BigNumber(alkane.value).toNumber());
+                    totalBalance = totalBalance.plus(new BigNumber(alkane.value));
                 }
 
                 if (totalBalance.gte(amount)) {
@@ -303,13 +305,14 @@ export default class AlkanesService {
     static async getAlkanesById(id, opcodesToQuery = opcodes) {
         const opcodeToHRV = {};
         opcodes.forEach((opcode, idx) => opcodeToHRV[opcode] = opcodesHRV[idx]);
-        const tokenInfo = { id };
+        const tokenInfo = {id};
 
         try {
+            const errors = [];
             const opcodeResults = await BaseUtil.concurrentExecute(opcodesToQuery, async (opcode) => {
                 try {
                     const result = await AlkanesService.simulate({
-                        target: { block: id.split(':')[0], tx: id.split(':')[1] },
+                        target: {block: id.split(':')[0], tx: id.split(':')[1]},
                         inputs: [opcode],
                     });
                     if (result) {
@@ -321,9 +324,16 @@ export default class AlkanesService {
                     }
                 } catch (error) {
                     // 可选：log
+                    if (error instanceof NetworkError) {
+                        logger.error(`Get alkanes ${id} network error occurred.`);
+                        throw error;
+                    }
                 }
                 return null;
-            }, 4);
+            }, 4, errors);
+            if (errors.length > 0) {
+                throw new Error(`Get alkanes info error, errors: ${errors.length}`);
+            }
 
             // 收集返回结果
             const contentType = opcodeResults.find(x => x?.opcodeHRV === 'contentType')?.result?.string;
@@ -331,23 +341,64 @@ export default class AlkanesService {
                 if (!item || !item.opcodeHRV) {
                     continue;
                 }
-                const { result, opcodeHRV } = item;
+                const {result, opcodeHRV} = item;
                 if (!['totalSupply', 'cap', 'minted', 'mintAmount'].includes(opcodeHRV)) {
-                    const text = result.string || '';
+                    const text = (result.string || '').trim();
                     if (opcodeHRV === 'data' && text) {
                         if (text.startsWith('data:image/')) {
-                            tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadBuffer({ buffer: Buffer.from(text.split(',')[1], 'base64'), filename: `${id}.png`, prefix: config.r2.prefix, type: 'image/png' });
-                        } else if (contentType  === 'image/svg+xml' || (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>'))) {
-                            tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.svg`, prefix: config.r2.prefix, type: 'image/svg+xml' });
+                            tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadBuffer({
+                                buffer: Buffer.from(text.split(',')[1], 'base64'),
+                                filename: `${id}.png`,
+                                prefix: config.r2.prefix,
+                                type: 'image/png'
+                            });
+                        } else if (
+                            contentType?.toLowerCase() === 'image/svg+xml' || 
+                            (text.toLowerCase().startsWith('<?xml version="1.0" encoding="UTF-8"?>'.toLowerCase()) && text.toLowerCase().endsWith('</svg>')) ||
+                            (text.toLowerCase().startsWith('<svg ') && text.toLowerCase().endsWith('</svg>'))
+                        ) {
+                            tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadText({
+                                text,
+                                filename: `${id}.svg`,
+                                prefix: config.r2.prefix,
+                                type: 'image/svg+xml'
+                            });
+                        } else if (contentType?.toLowerCase() === 'text/html') {
+                            tokenInfo.data = await R2Service.uploadText({
+                                text,
+                                filename: `${id}.html`,
+                                prefix: config.r2.prefix,
+                                type: 'text/html'
+                            });
                         } else {
-                            tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.txt`, prefix: config.r2.prefix, type: 'text/plain' });
+                            if (text.startsWith('0x')) {
+                                const {type, mimeType, image} = BaseUtil.detectFileType(text) ?? {};
+                                if (type) {
+                                    tokenInfo.data = await R2Service.uploadBuffer({
+                                        buffer: Buffer.from(text.slice(2), 'hex'),
+                                        filename: `${id}.${type}`,
+                                        prefix: config.r2.prefix,
+                                        type: mimeType
+                                    });
+                                    if (image){
+                                        tokenInfo.image = tokenInfo.originalImage = tokenInfo.data;
+                                    }
+                                    continue;
+                                }
+                            }
+                            tokenInfo.data = await R2Service.uploadText({
+                                text,
+                                filename: `${id}.txt`,
+                                prefix: config.r2.prefix,
+                                type: 'text/plain'
+                            });
                         }
                         continue;
                     }
                     tokenInfo[opcodeHRV] = text;
                     continue;
                 }
-                tokenInfo[opcodeHRV] = Number(result.le || 0);
+                tokenInfo[opcodeHRV] = new BigNumber(result.le || 0);
             }
             return tokenInfo;
 
@@ -373,7 +424,7 @@ export default class AlkanesService {
     }
 
     static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
-        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
+        const protostone = AlkanesService.getMintProtostone(id, 77, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({
@@ -407,7 +458,7 @@ export default class AlkanesService {
 
         const totalFee = mints * mintFee + transferFee + serviceFee;
         const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalFee, feerate, true);
-        utxoList.map(utxo =>  utxo.pubkey = fundPublicKey);
+        utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate);
     }
@@ -418,7 +469,7 @@ export default class AlkanesService {
             throw new Error(error);
         }
 
-        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
+        const protostone = AlkanesService.getMintProtostone(id, 77, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({
@@ -442,7 +493,10 @@ export default class AlkanesService {
                 value: mintFee,
                 address: mintAddress
             }];
-            const {txid: mintTxid, error} = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, false, false);
+            const {
+                txid: mintTxid,
+                error
+            } = await UnisatAPI.transfer(privateKey, inputList, outputList, mintAddress, feerate, false, false);
             if (error) {
                 throw new Error(error);
             }
@@ -478,7 +532,121 @@ export default class AlkanesService {
         return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate);
     }
 
-    static async transferToken(fundAddress, fundPublicKey, assetAddress, id, feerate, transferAmountList) {
+    static async combineAlkanesUtxo(fundAddress, fundPublicKey, assetAddress, assetPublicKey, utxos, toAddress, feerate) {
+        const outpoints = [];
+        for (const {txid, vout} of utxos) {
+            const records = await IndexerService.getOutpointsByOutput(txid, vout);
+            outpoints.push(...records);
+        }
+        if (outpoints.length === 0) {
+            throw new Error('Assets not found');
+        }
+        const outputList = [{
+            address: toAddress,
+            value: 546
+        }];
+        const alkanesIdList = [...new Set(outpoints.map(outpoint => outpoint.alkanesId))];
+
+        const transferList = [];
+        for (const alkanesId of alkanesIdList) {
+            transferList.push({
+                id: alkanesId,
+                amount: 0,
+                output: 0
+            });
+        }
+        const protostone = AlkanesService.getBatchTransferProtostone(transferList);
+        outputList.push({
+            script: protostone,
+            value: 0
+        });
+        const outputDistinctOutpoints = outpoints.reduce((acc, curr) => {
+            const output = `${curr.txid}:${curr.vout}`;
+            if (!acc[output]) {
+                acc[output] = curr;
+            }
+            return acc;
+        }, {});
+        const assetUtxos = Object.values(outputDistinctOutpoints).map(outpoint => ({
+            txid: outpoint.txid,
+            vout: outpoint.vout,
+            value: parseInt(outpoint.value),
+            address: assetAddress,
+            pubkey: assetPublicKey
+        }))
+        const assetValues = assetUtxos.reduce((acc, curr) => acc + curr.value, 0);
+        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
+        const txFee = Math.floor(txSize * feerate);
+        const needValue = txFee + 3000;
+        const diff = needValue - assetValues;
+        let utxoList = [];
+        if (diff > 0) { // 资产utxo的聪不够付款
+            utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, diff, feerate);
+            utxoList.map(utxo => utxo.pubkey = fundPublicKey);
+        }
+        
+        const inputList = [...assetUtxos, ...utxoList];
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
+    }
+
+    static async splitAlkanesUtxo(fundAddress, fundPublicKey, assetAddress, assetPublicKey, txid, vout, toAddresses, feerate) {
+        const outpoints = await IndexerService.getOutpointsByOutput(txid, vout);
+        if (outpoints.length === 0) {
+            throw new Error('Assets not found');
+        }
+        await IndexerService.checkOutpointRecordsSpent(outpoints);
+        if (outpoints.spent) {
+            throw new Error('Assets already spent');
+        }
+        if (outpoints.length <= 1) {
+            throw new Error('Assets no need to split');
+        }
+        if (outpoints[0].address !== assetAddress) {
+            throw new Error('Asset address mismatch');
+        }
+        if (outpoints[0].alkanesIdCount !== toAddresses.length) {
+            throw new Error('Address count not match assets count');
+        }
+        const assetUtxo = {
+            txid: outpoints[0].txid,
+            vout: outpoints[0].vout,
+            value: parseInt(outpoints[0].value),
+            address: assetAddress,
+            pubkey: assetPublicKey,
+        };
+        const outputList = [];
+        const transferList = [];
+        for (const [index, toAddress] of toAddresses.entries()) {
+            outputList.push({
+                address: toAddress,
+                value: 546
+            });
+            transferList.push({
+                id: outpoints[index].alkanesId,
+                amount: 0,
+                output: index
+            });
+        }
+        const protostone = AlkanesService.getBatchTransferProtostone(transferList);
+        outputList.push({
+            script: protostone,
+            value: 0
+        });
+        const transferFee = 1000;
+        outputList.push({
+            address: config.revenueAddress.transfer,
+            value: transferFee
+        });
+        const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
+        const txFee = Math.floor(txSize * feerate);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + transferFee + 3000, feerate);
+        utxoList.map(utxo => utxo.pubkey = fundPublicKey);
+
+        const inputList = [assetUtxo, ...utxoList];
+        return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
+    }
+
+    static async transferToken(fundAddress, fundPublicKey, assetAddress, assetPublicKey, id, feerate, transferAmountList, outpoints = null) {
         const outputList = [];
         const transferList = [];
         let needAmount = new BigNumber(0);
@@ -495,10 +663,15 @@ export default class AlkanesService {
             });
             needAmount = needAmount.plus(amount);
         }
-
-        const alkanesList = await AlkanesService.getAlkanesByTarget(assetAddress, id, needAmount.toNumber());
-        const totalInputAmount = alkanesList.reduce((accumulator, currentValue) => accumulator + currentValue.value, 0);
-        const changeAmount = new BigNumber(totalInputAmount).minus(needAmount).toNumber();
+        let outpointList = await IndexerService.getOutpointListByTarget(assetAddress, id, outpoints ? new BigNumber(0) : needAmount);
+        if (outpoints) {
+            outpointList = outpointList.filter(outpoint => outpoints.some(utxo => utxo.txid === outpoint.txid && utxo.vout === outpoint.vout));
+            if (outpointList.length !== outpoints.length) {
+                throw new Error('Asset mismatch, please refresh and try again');
+            }
+        }
+        const totalInputAmount = outpointList.reduce((accumulator, currentValue) => accumulator.plus(new BigNumber(currentValue.balance)), new BigNumber(0));
+        const changeAmount = totalInputAmount.minus(needAmount);
         // 如果有找零，所有转账的输出后移，找零默认到第一个输出
         if (changeAmount > 0) {
             outputList.unshift({
@@ -514,7 +687,7 @@ export default class AlkanesService {
             value: 0
         });
 
-        const transferFee = 3000 + 500 * (transferAmountList.length - 1);
+        const transferFee = 1000;
         outputList.push({
             address: config.revenueAddress.transfer,
             value: transferFee
@@ -522,24 +695,31 @@ export default class AlkanesService {
 
         const txSize = FeeUtil.estTxSize([{address: fundAddress}], [...outputList, {address: fundAddress}]);
         const txFee = Math.floor(txSize * feerate);
-        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + 3000, feerate);
+        const utxoList = await UnisatAPI.getUtxoByTarget(fundAddress, txFee + transferFee + 3000, feerate);
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         const inputList = [];
-        for (const alkanes of alkanesList) {
-            inputList.push(alkanes.utxo);
+        for (const outpoint of outpointList) {
+            const utxo = {
+                txid: outpoint.txid,
+                vout: outpoint.vout,
+                value: parseInt(outpoint.value),
+                address: assetAddress,
+                pubkey: assetPublicKey
+            };
+            inputList.push(utxo);
         }
         inputList.push(...utxoList);
 
         return PsbtUtil.createUnSignPsbt(inputList, outputList, fundAddress, feerate);
     }
 
-    static async simulate(request, decoder) {
+    static async simulate(request, decoder, height = '20000') {
         const params = {
             alkanes: [],
             transaction: '0x',
             block: '0x',
-            height: '20000',
+            height: height,
             txindex: 0,
             inputs: [],
             pointer: 0,
@@ -573,7 +753,7 @@ export default class AlkanesService {
         throw new Error('check metashrew_height error');
     }
 
-    static async _call(method, params = [], rpcUrl) {
+    static async _call(method, params = [], rpcUrl, timeout = 0) {
         const payload = {
             jsonrpc: "2.0",
             method: method,
@@ -585,20 +765,28 @@ export default class AlkanesService {
             const response = await axios.post(rpcUrl, payload, {
                 headers: {
                     'content-type': 'application/json',
-                }
+                },
+                timeout: timeout
             });
 
             if (response.error) {
                 throw new Error(response.error.message)
             }
-            return response.data.result
+            const result = response.data.result;
+            if (result?.execution?.error) {
+                // console.log(`rpc call error, payload: ${JSON.stringify(payload)}, message: ${result.execution.error}`)
+            }
+            return result;
         } catch (error) {
             if (error.name === 'AbortError') {
-                logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error)
-                throw new Error('Request timed out')
+                logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error);
+                throw new NetworkError(502, error);
+            } else if (error.response?.status && error.response?.status !== 200) {
+                // logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error);
+                throw new NetworkError(error.response?.status, error);
             } else {
-                logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error)
-                throw error
+                // logger.error(`RPC call error, method: ${method} params: ${JSON.stringify(params)}`, error);
+                throw error;
             }
         }
     }
@@ -652,9 +840,9 @@ export default class AlkanesService {
     }
 
 
-    static getMintProtostone(id, model = Constants.MINT_MODEL.NORMAL) {
+    static getMintProtostone(id, opcode = 77, model = Constants.MINT_MODEL.NORMAL) {
         const protostones = [];
-        const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(77)];
+        const calldata = [BigInt(id.split(':')[0]), BigInt(id.split(':')[1]), BigInt(opcode)];
 
         if (model === Constants.MINT_MODEL.MERGE) {
             protostones.push(ProtoStone.message({
@@ -671,6 +859,34 @@ export default class AlkanesService {
             calldata: encipher(calldata),
         }));
 
+        return encodeRunestoneProtostone({
+            protostones: protostones,
+        }).encodedRunestone;
+    }
+
+    static getPayMintProtostone(mintId, paymentId, changeAmount) {
+        const protostones = [];
+        const calldata = [BigInt(mintId.split(':')[0]), BigInt(mintId.split(':')[1]), BigInt(77)];
+
+        const edicts = [];
+        if (changeAmount > 0) {
+            edicts.push({
+                id: new ProtoruneRuneId(
+                    u128(BigInt(paymentId.split(':')[0])),
+                    u128(BigInt(paymentId.split(':')[1]))
+                ),
+                amount: u128(BigInt(changeAmount)),
+                output: u32(BigInt(1)),
+            });
+        }
+
+        protostones.push(ProtoStone.message({
+            protocolTag: 1n,
+            edicts: edicts,
+            pointer: 0,
+            refundPointer: 0,
+            calldata: encipher(calldata),
+        }));
         return encodeRunestoneProtostone({
             protostones: protostones,
         }).encodedRunestone;
@@ -766,13 +982,13 @@ export default class AlkanesService {
     }
 
     static calculateProgress(id, minted, cap) {
-        if (!cap || cap === 0) return 0;
-        const progress = Math.min((minted / cap) * 100, 100);
+        if (!cap || cap.isZero()) return 0;
+        const progress = parseFloat((minted.div(cap).multipliedBy(100)).toFixed(2));
         if (progress > 100) {
             logger.error(`calculate ${id} progress invalid, cap: ${cap} minted: ${minted} error`);
             throw new Error(`Progress calculate error`);
         }
-        return Number(progress.toFixed(2));
+        return progress;
     }
 
     static async getMaxHeight() {

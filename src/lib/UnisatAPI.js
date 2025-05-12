@@ -44,6 +44,10 @@ export default class UnisatAPI {
             if (psbtUtils.isP2TR(script)) {
                 vin.witnessUtxo = {script: script, value: input.value};
                 vin.tapInternalKey = myXOnlyPubkey;
+
+                if (input.tapLeafScript) {
+                    vin.tapLeafScript = input.tapLeafScript;
+                }
             } else if (psbtUtils.isP2WPKH(script)) {
                 vin.witnessUtxo = {script: script, value: input.value};
             } else if (psbtUtils.isP2WSHScript(script)) {
@@ -75,7 +79,10 @@ export default class UnisatAPI {
                     const tweakedChildNode = keyPair.tweak(
                         bitcoin.crypto.taggedHash('TapTweak', myXOnlyPubkey)
                     );
-                    if (input.address.startsWith('bc1p') || input.address.startsWith('tb1p')) {
+                    if (input.tapLeafScript) {
+                        psbt.signInput(i, keyPair);
+                    }
+                    else if (input.address.startsWith('bc1p') || input.address.startsWith('tb1p') || input.address.startsWith('bcrt1p')) {
                         psbt.signInput(i, tweakedChildNode);
                     } else {
                         psbt.signInput(i, keyPair);
@@ -120,7 +127,7 @@ export default class UnisatAPI {
     static async getAllUtxo(address, confirmed = false) {
         const allUtxoList = [];
         for (let i = 0; i < 10; i++) {
-            const utxoList = await this.getUtxoList(address, confirmed, i+1, 1000);
+            const utxoList = await this.getUtxoList(address, confirmed, i+1, 500);
             if (utxoList.length > 0) {
                 allUtxoList.push(...utxoList);
             }
@@ -184,10 +191,10 @@ export default class UnisatAPI {
         throw new Error(`get balance ${address} error`);
     }
 
-    static async getUtxoList(address, confirmed = false, page = 1, size = 1000) {
+    static async getUtxoList(address, confirmed = false, page = 1, size = 500) {
         for (let i = 0; i < 3; i++) {
             try {
-                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/address/${address}/utxo-data?cursor=${(page - 1) * size}&size=${size}`, {
+                const response = await axios.get(`${config.api.unisatHost}/v1/indexer/address/${address}/available-utxo-data?cursor=${(page - 1) * size}&size=${size}`, {
                     headers: {
                         'Authorization': `Bearer ${config.api.unisatApiKey}`,
                         'Content-Type': 'application/json'
@@ -197,20 +204,13 @@ export default class UnisatAPI {
                 const utxoArray = response.data.data.utxo;
                 const utxoList = [];
                 for (const utxo of utxoArray) {
-                    let status = true;
-                    if (confirmed && utxo.height > 1000000) {
-                        status = await MempoolUtil.getTxStatus(utxo.txid);
-                        if (!status) {
-                            logger.info(`${address} utxo ${utxo.txid}:${utxo.vout} is unconfirmed`)
-                        }
-                    }
                     utxoList.push({
                         txid: utxo.txid,
                         vout: utxo.vout,
                         value: utxo.satoshi,
                         address: utxo.address,
                         height: utxo.height,
-                        status: status
+                        status: utxo.confirmations < 800000
                     });
                 }
                 utxoList.sort((a, b) => b.value - a.value);

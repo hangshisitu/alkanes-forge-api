@@ -29,6 +29,17 @@ export default class TokenInfoMapper {
         });
     }
 
+    static async getLastTokenInfo() {
+        return await TokenInfo.findOne({
+            order: [
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'DESC'],
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'DESC']
+            ],
+            limit: 1,
+            raw: true
+        });
+    }
+
     static async findTokenPage(name, mintActive, noPremine, orderType, page, size) {
         const cacheKey = TokenInfoMapper.getTokenPageCacheKey(name, mintActive, noPremine, orderType, page, size);
         // 查缓存
@@ -314,7 +325,7 @@ export default class TokenInfoMapper {
         );
     }
 
-    static async bulkUpsertTokens(tokenInfos) {
+    static async bulkUpsertTokens(tokenInfos, options = {transaction: null}) {
         if (!tokenInfos || tokenInfos.length === 0) {
             return [];
         }
@@ -360,7 +371,8 @@ export default class TokenInfoMapper {
             `;
 
             await sequelize.query(upsertQuery, {
-                type: QueryTypes.INSERT
+                type: QueryTypes.INSERT,
+                transaction: options.transaction
             });
         } catch (err) {
             logger.error('Batch update tokenInfo error:', err);
@@ -368,10 +380,10 @@ export default class TokenInfoMapper {
         }
     }
 
-    static async bulkUpsertTokensInBatches(tokenInfos, batchSize = 100) {
+    static async bulkUpsertTokensInBatches(tokenInfos, batchSize = 100, options = {transaction: null}) {
         for (let i = 0; i < tokenInfos.length; i += batchSize) {
             const batch = tokenInfos.slice(i, i + batchSize);
-            await this.bulkUpsertTokens(batch);
+            await this.bulkUpsertTokens(batch, options);
         }
         return tokenInfos;
     }
@@ -457,6 +469,14 @@ export default class TokenInfoMapper {
             raw: true,
         });
     }
-    
+
+    static async getTradingCountGt0Ids(field) {
+        const result = await sequelize.query(`
+            SELECT id FROM token_info WHERE ${field} > 0
+        `, {
+            type: QueryTypes.SELECT
+        });
+        return result.map(item => item.id);
+    }
 
 }

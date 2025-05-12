@@ -87,7 +87,7 @@ export default class MempoolUtil {
         try {
             return await transactions.getTxHex({txid});
         } catch (err) {
-            if (err.response.status === 404) {
+            if (err.response?.status === 404) {
                 return null;
             }
             throw err;
@@ -102,7 +102,7 @@ export default class MempoolUtil {
         try {
             return await transactions.getTx({txid});
         } catch (err) {
-            if (err.response.status === 404) {
+            if (err.response?.status === 404) {
                 return null;
             }
             throw err;
@@ -117,7 +117,7 @@ export default class MempoolUtil {
             })
             return resp.data;
         } catch (err) {
-            if (err.response.status === 404) {
+            if (err.response?.status === 404) {
                 return null;
             }
             throw err;
@@ -207,7 +207,7 @@ export default class MempoolUtil {
         try {
             return await blocks.getBlockTxids({hash});
         } catch (err) {
-            if (err.response.status === 404) {
+            if (err.response?.status === 404) {
                 return [];
             }
             throw err;
@@ -232,5 +232,17 @@ export default class MempoolUtil {
 
     static async getCurrentHeight() {
         return await blocks.getBlocksTipHeight();
+    }
+
+    static async getRbfLatest() {
+        let host = `https://${mempoolHost}`;
+        if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
+            host = `https://${mempoolHost}/${config.networkName}`;
+        }
+        const url = `${host}/api/v1/replacements/`
+        const resp = await axios.get(url, {
+            timeout: 10000
+        })
+        return resp.data;
     }
 }

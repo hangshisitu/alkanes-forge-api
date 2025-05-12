@@ -67,5 +67,17 @@ export default class NftMarketEventMapper {
             returning: false
         });
     }
-}
 
+    static async upsertEvent(event) {
+        return await NftMarketEvent.upsert(event);
+    }
+
+    static async bulkDeleteSoldEvent(listingOutputList) {
+        return await NftMarketEvent.destroy({
+            where: {
+                listingOutput: listingOutputList,
+                type: Constants.MARKET_EVENT.SOLD
+            }
+        });
+    }
+}

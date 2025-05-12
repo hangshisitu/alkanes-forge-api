@@ -57,6 +57,22 @@ module.exports = {
             },
         },
         {
+            name: 'alkanes-launch-job',
+            script: 'src/app.js',
+            env: {
+                NODE_ENV: 'dev',
+                launchJobEnable: true
+            },
+            env_fat: {
+                NODE_ENV: 'fat',
+                launchJobEnable: true
+            },
+            env_pro: {
+                NODE_ENV: 'pro',
+                launchJobEnable: true
+            },
+        },
+        {
             name: 'alkanes-job-mintStatus',
             script: 'src/app.js',
             env: {

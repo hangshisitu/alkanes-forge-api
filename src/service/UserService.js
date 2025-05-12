@@ -51,15 +51,68 @@ export default class UserService {
         );
     }
 
-    static async getAlkanesBalance(address, byIndexer = false) {
+    static async getAssetsByUtxo(address, {txid, vout}) {
+        let outpoints = await IndexerService.getOutpointsByOutput(txid, vout);
+        outpoints = outpoints.filter(outpoint => outpoint.address === address && outpoint.spent === 0);
+        if (outpoints.length === 0) {
+            return [];
+        }
+        const alkanesIds = outpoints.map(outpoint => outpoint.alkanesId);
+        const tokenList = await TokenInfoService.getTokenList(alkanesIds);
+        let nftItems = [];
+        let collections = {};
+        if (tokenList.length !== alkanesIds.length) {
+            nftItems = await NftItemService.getItemsByIds(alkanesIds);
+            if (nftItems.length > 0) {
+                collections = (await NftCollectionService.getCollectionByIds(nftItems.map(item => item.collectionId))).reduce((acc, collection) => {
+                    acc[collection.id] = collection;
+                    return acc;
+                }, {});
+            }
+        }
+        return outpoints.map(outpoint => {
+            const token = tokenList.find(token => token.id === outpoint.alkanesId);
+            const item = nftItems.find(item => item.id === outpoint.alkanesId);
+            const isNft = !!item;
+            const collectionId = item?.collectionId;
+            return {
+                nft: isNft,
+                collection: isNft ? collections[collectionId] : null,
+                id: token?.id ?? item?.id,
+                symbol: token?.symbol ?? item?.symbol,
+                name: token?.name ?? item?.name,
+                image: token?.image ?? item?.image,
+                balance: BigInt(outpoint.balance).toString(),
+                txid: outpoint.txid,
+                vout: outpoint.vout,
+                value: BigInt(outpoint.value).toString(),
+            }
+        });
+    }
+
+    static async getAlkanesBalance(address, filterAlkanesIds, byIndexer = false) {
         if (byIndexer) {
-            const addressBalances = await IndexerService.getAddressBalances(address);
+            let addressBalances = await IndexerService.getAddressBalances(address);
+            addressBalances = addressBalances.filter(addressBalance => addressBalance.balance > 0);
+            if (addressBalances.length === 0) {
+                return [];
+            }
             const alkanesIds = addressBalances.map(addressBalance => addressBalance.alkanesId);
             const tokenList = await TokenInfoService.getTokenList(alkanesIds);
             let nftItems = [];
             let collections = {};
             if (tokenList.length !== alkanesIds.length) {
                 nftItems = await NftItemService.getItemsByIds(alkanesIds);
+                if (nftItems.length > 0) { // 从outpoint_record表中获取itemId的真实holder, 如果holder和address不相等, 从addressBalances
+                    const outpointRecords = await IndexerService.getOutpointsByAlkanesIds(nftItems.map(item => item.id));
+                    nftItems = nftItems.filter(item => {
+                        const match = outpointRecords.find(record => record.alkanesId === item.id)?.address === address;
+                        if (!match) { // 如果holder和address不相等, 从addressBalances删除
+                            addressBalances = addressBalances.filter(addressBalance => addressBalance.alkanesId !== item.id);
+                        }
+                        return match;
+                    });
+                }
                 if (nftItems.length > 0) {
                     collections = (await NftCollectionService.getCollectionByIds(nftItems.map(item => item.collectionId))).reduce((acc, collection) => {
                         acc[collection.id] = collection;
@@ -87,7 +140,7 @@ export default class UserService {
                     priceChange24h: priceChange24h.toString(),
                     totalValue
                 }
-            });
+            }).filter(item => !filterAlkanesIds || filterAlkanesIds.includes(item.id) || filterAlkanesIds.includes(item.collection?.id));
         }
         try {
             bitcoin.address.toOutputScript(address, config.network)
