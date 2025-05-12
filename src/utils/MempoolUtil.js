@@ -196,6 +196,9 @@ export default class MempoolUtil {
     }
 
     static async getBtcPrice(){
+        if (process.env.NODE_ENV !== 'pro') {
+            return 103179;
+        }
         const response = await axios.get(`https://${mempoolHost}/api/v1/prices`);
         return response.data['USD'];
     }
@@ -212,7 +215,11 @@ export default class MempoolUtil {
     }
 
     static async getBlockHash(height) {
-        const url = `https://${mempoolHost}/api/block-height/${height}`
+        let host = `https://${mempoolHost}`;
+        if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
+            host = `https://${mempoolHost}/${config.networkName}`;
+        }
+        const url = `${host}/api/block-height/${height}`
         const resp = await axios.get(url, {
             timeout: 10000
         })

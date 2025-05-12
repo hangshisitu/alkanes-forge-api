@@ -63,9 +63,13 @@ export default class BaseUtil {
     }
 
     static async concurrentExecute(collection, handler, concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4, errors = null) {
+        if (collection.length === 0) {
+            return [];
+        }
         if (!concurrency || concurrency <= 0) {
             concurrency = process.env.NODE_ENV === 'pro' ? 16 : 4;
         }
+        concurrency = Math.min(concurrency, collection.length);
         const executeCollection = [...collection];
 
         async function execute() {
@@ -121,6 +125,31 @@ export default class BaseUtil {
 
     static verifySignature(address, message, signature) {
         return Verifier.verifySignature(address, message, signature);
+    }
+
+    static decodeLEB128Array(bytes) {
+        const result = [];
+        let i = 0;
+    
+        while (i < bytes.length) {
+            // 如果当前字节的最高位是 0，直接保留
+            if ((bytes[i] & 0x80) === 0) {
+                result.push(bytes[i]);
+                i++;
+            } else {
+                // 否则进行 LEB128 解码
+                let value = 0;
+                let shift = 0;
+                do {
+                    value |= (bytes[i] & 0x7F) << shift;
+                    shift += 7;
+                    i++;
+                } while (i < bytes.length && (bytes[i - 1] & 0x80) !== 0);
+                result.push(value);
+            }
+        }
+    
+        return result;
     }
 
 }

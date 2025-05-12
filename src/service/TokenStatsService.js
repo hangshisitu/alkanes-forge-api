@@ -37,9 +37,9 @@ export default class TokenStatsService {
                 continue;
             }
 
-            const averagePrice = trades.reduce((sum, trade) => sum + trade.listingPrice, 0) / trades.length;
-            const totalAmount = trades.reduce((sum, trade) => sum + trade.tokenAmount, 0);
-            const totalVolume = trades.reduce((sum, trade) => sum + trade.listingAmount, 0);
+            const averagePrice = trades.reduce((sum, trade) => + trade.listingPrice + sum, 0) / trades.length;
+            const totalAmount = trades.reduce((sum, trade) => + trade.tokenAmount + sum, 0);
+            const totalVolume = trades.reduce((sum, trade) => + trade.listingAmount + sum, 0);
             const tradeCount = trades.length;
 
             const stats = {

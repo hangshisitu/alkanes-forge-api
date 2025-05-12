@@ -81,9 +81,73 @@ export const Constants = Object.freeze({
 
         // 内存池交易数量排序
         MEMPOOL_TX_COUNT_DESC: 'mempoolTxCountDesc',
+
+        // 持有人数量排序
+        HOLDERS_COUNT_DESC: 'holdersCountDesc',
+    },
+
+    NFT_COLLECTION_ORDER_TYPE: {
+        PROGRESS_DESC: 'progressDesc',  // 根据进度倒序
+        PROGRESS_ASC: 'progressAsc',    // 根据进度升序
+        ID_ASC: 'idAsc',                // 根据ID升序
+        ID_DESC: 'idDesc',              // 根据ID倒序
+
+        // 交易量排序字段 - 升序
+        VOLUME_24H_ASC: 'volume24hAsc',
+        VOLUME_7D_ASC: 'volume7dAsc',
+        VOLUME_30D_ASC: 'volume30dAsc',
+        VOLUME_TOTAL_ASC: 'volumeTotalAsc',
+
+        // 交易量排序字段 - 降序
+        VOLUME_24H_DESC: 'volume24hDesc',
+        VOLUME_7D_DESC: 'volume7dDesc',
+        VOLUME_30D_DESC: 'volume30dDesc',
+        VOLUME_TOTAL_DESC: 'volumeTotalDesc',
+
+        // 涨跌幅排序字段 - 升序
+        PRICE_CHANGE_24H_ASC: 'priceChange24hAsc',
+        PRICE_CHANGE_7D_ASC: 'priceChange7dAsc',
+        PRICE_CHANGE_30D_ASC: 'priceChange30dAsc',
+
+        // 涨跌幅排序字段 - 降序
+        PRICE_CHANGE_24H_DESC: 'priceChange24hDesc',
+        PRICE_CHANGE_7D_DESC: 'priceChange7dDesc',
+        PRICE_CHANGE_30D_DESC: 'priceChange30dDesc',
+
+        // 交易笔数排序字段 - 升序
+        TRADES_COUNT_24H_ASC: 'tradesCount24hAsc',
+        TRADES_COUNT_7D_ASC: 'tradesCount7dAsc',
+        TRADES_COUNT_30D_ASC: 'tradesCount30dAsc',
+        TRADES_COUNT_TOTAL_ASC: 'tradesCountTotalAsc',
+
+        // 交易笔数排序字段 - 降序
+        TRADES_COUNT_24H_DESC: 'tradesCount24hDesc',
+        TRADES_COUNT_7D_DESC: 'tradesCount7dDesc',
+        TRADES_COUNT_30D_DESC: 'tradesCount30dDesc',
+        TRADES_COUNT_TOTAL_DESC: 'tradesCountTotalDesc',
+
+        // 市值排序
+        MARKET_CAP_DESC: 'marketCapDesc',
+        MARKET_CAP_ASC: 'marketCapAsc',
+
+        // 价格排序
+        FLOOR_PRICE_DESC: 'floorPriceDesc',
+        FLOOR_PRICE_ASC: 'floorPriceAsc',
+
+        // 内存池交易数量排序
+        MEMPOOL_TX_COUNT_DESC: 'mempoolTxCountDesc',
+
+        // 持有人数量排序
+        HOLDERS_COUNT_DESC: 'holdersCountDesc',
     },
 
     TOKEN_STATS_TIME_FRAME: {
+        HOUR: 1,    // 24小时
+        DAY7: 2,    // 7天
+        DAY30: 3,   // 30天
+    },
+
+    NFT_COLLECTION_STATS_TIME_FRAME: {
         HOUR: 1,    // 24小时
         DAY7: 2,    // 7天
         DAY30: 3,   // 30天
@@ -149,6 +213,28 @@ export const Constants = Object.freeze({
             TOKEN_STATS: '/market/tokenStats',
         },
 
+        NFT: {
+            PAGE: '/nft/page',
+            INFO: '/nft/info',
+            ITEM_PAGE: '/nft/item/page',
+            ITEM_INFO: '/nft/item/info',
+        },
+
+        NFT_MARKET: {
+            ASSETS: '/nft/market/assets',
+            LISTING: '/nft/market/listing',
+            CREATE_UNSIGNED_LISTING: '/nft/market/createUnsignedListing',
+            PUT_SIGNED_LISTING: '/nft/market/putSignedListing',
+            CREATE_UNSIGNED_UPDATE: '/nft/market/createUnsignedUpdate',
+            PUT_SIGNED_UPDATE: '/nft/market/putSignedUpdate',
+            CREATE_UNSIGNED_DELISTING: '/nft/market/createUnsignedDelisting',
+            PUT_SIGNED_DELISTING: '/nft/market/putSignedDelisting',
+            CREATE_UNSIGNED_BUYING: '/nft/market/createUnsignedBuying',
+            PUT_SIGNED_BUYING: '/nft/market/putSignedBuying',
+            EVENTS: '/nft/market/events',
+            COLLECTION_STATS: '/nft/market/collectionStats',
+        },
+
         INSCRIBE: {
             EST_CREATE_MERGE_ORDER: '/inscribe/estCreateMergeOrder',
             PRE_CREATE_MERGE_ORDER: '/inscribe/preCreateMergeOrder',
@@ -177,6 +263,12 @@ export const Constants = Object.freeze({
             PUSH: '/indexer/push',
             HOLDER_PAGE: '/indexer/holderPage',
             ADDRESS_ALKANES_OUTPOINTS: '/indexer/outpoints'
+        },
+
+        LAUNCH: {
+            DETAIL: '/launch/detail',
+            CREATE_ORDER: '/launch/createOrder',
+            START_ORDER: '/launch/startOrder'
         }
     },
 

@@ -12,6 +12,9 @@ import * as MempoolIndex from "../mempool/index.js";
 import MintService from "../service/MintService.js";
 import * as logger from '../conf/logger.js';
 import IndexerService from '../service/IndexerService.js';
+import NftItemService from '../service/NftItemService.js';
+import NftCollectionService from '../service/NftCollectionService.js';
+import NftCollectionStatsService from '../service/NftCollectionStatsService.js';
 
 let isRefreshBlockConfig = false;
 function refreshBlockHeight() {
@@ -74,7 +77,7 @@ function refreshTokenInfo() {
             const allTokens = await TokenInfoService.refreshTokenInfo(indexHeight);
             logger.info(`refreshTokenInfo finish. total tokens: ${allTokens}, cost ${Date.now() - startTime}ms.`);
         } catch (err) {
-            logger.error(`refreshTokenInfo error: ${err.message}`);
+            logger.error(`refreshTokenInfo error: ${err.message}`, err);
         } finally {
             isRefreshTokenInfo = false;
         }
@@ -230,11 +233,89 @@ function indexTx() {
     });
 }
 
+let isIndexNftItemHolder = false;
+function indexNftItemHolder() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isIndexNftItemHolder) {
+            return;
+        }
+
+        try {
+            isIndexNftItemHolder = true;
+            const execStartTime = Date.now();
+            logger.info(`indexNftItemHolder start`);
+            const effectCollectionIds = await NftItemService.indexNftItemHolder();
+            if (effectCollectionIds?.length > 0) {
+                await NftCollectionService.refreshCollectionHolderAndItemCountByCollectionIds(effectCollectionIds);
+            }
+            logger.info(`indexNftItemHolder finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`indexNftItemHolder error, error: ${err.message}`, err);
+        } finally {
+            isIndexNftItemHolder = false;
+        }
+    });
+}
+
+let isRefreshNftCollectionStats = false;
+function refreshNftCollectionStats() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isRefreshNftCollectionStats) {
+            return;
+        }
+
+        try {
+            isRefreshNftCollectionStats = true;
+            const execStartTime = Date.now();
+            logger.info(`refreshNftCollectionStats start`);
+            await NftCollectionService.refreshNftCollectionStats();
+            logger.info(`refreshNftCollectionStats finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshNftCollectionStats error, error: ${err.message}`, err);
+        } finally {
+            isRefreshNftCollectionStats = false;
+        }
+    });
+}
+
+let isRefreshNftCollectionStatsForTimeRange = false;
+function refreshNftCollectionStatsForTimeRange() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isRefreshNftCollectionStatsForTimeRange) {
+            return;
+        }
+
+        try {
+            isRefreshNftCollectionStatsForTimeRange = true;
+            const execStartTime = Date.now();
+
+            const now = new Date();
+            const lastHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() - 1);
+            const startTime = new Date(lastHour);
+            startTime.setMinutes(0, 0, 0); // 上一个小时的开始
+            const endTime = new Date(lastHour);
+            endTime.setMinutes(59, 59, 999); // 上一个小时的结束
+
+            logger.info(`refreshNftCollectionStatsForTimeRange start, startTime: ${DateUtil.formatDate(startTime)}, endTime: ${DateUtil.formatDate(endTime)}`);
+            await NftCollectionStatsService.refreshNftCollectionStatsForTimeRange(startTime, endTime);
+            logger.info(`refreshNftCollectionStatsForTimeRange finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshNftCollectionStatsForTimeRange error, error: ${err.message}`, err);
+        } finally {
+            isRefreshNftCollectionStatsForTimeRange = false;
+        }
+    });
+}
+
+
 export function jobs() {
     refreshBlockHeight();
     refreshTokenInfo();
     refreshStatsForTimeRange();
     refreshTokenStats();
+    refreshNftCollectionStatsForTimeRange();
+    refreshNftCollectionStats();
+    indexNftItemHolder();
 }
 
 export function jobMintStatus() {

@@ -4,8 +4,8 @@
   "alkanesUrl": "https://alkanes-rpc-signet.idclub.io",
   "alkanesAddressUrl": "https://alkanes-rpc-signet.idclub.io",
   "alkanesUtxoUrl": "https://alkanes-rpc-signet.idclub.io",
-  "reserveNumber": 777,
-  "startHeight": 80000,
+  "reserveNumber": 77,
+  "startHeight": 200000,
   "concurrencyLimit": 100,
   "networkName": "signet",
   "maxHeightGap": 2,
@@ -41,7 +41,7 @@
     "urlDomain": "https://cdn.idclub.io"
   },
   "btc": {
-    "host": "http://10.6.96.3:2088",
+    "host": "http://127.0.0.1:1088",
     "username": "idclub",
     "password": "Bitcoin2088"
   }

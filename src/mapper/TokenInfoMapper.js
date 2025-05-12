@@ -323,7 +323,7 @@ export default class TokenInfoMapper {
             const upsertQuery = `
             INSERT INTO token_info 
             (id, name, image, original_image, symbol, data, cap, premine, minted, mint_amount, 
-             total_supply, progress, mint_active, update_height) 
+             total_supply, progress, mint_active, update_height, reserve_number) 
             VALUES 
             ${tokenInfos.map(token => `(
                 '${token.id}', 
@@ -339,7 +339,8 @@ export default class TokenInfoMapper {
                 ${token.totalSupply || 0}, 
                 ${token.progress || 0}, 
                 ${token.mintActive || 0}, 
-                ${token.updateHeight || 0}
+                ${token.updateHeight || 0},
+                ${token.reserveNumber || 0}
             )`).join(',')}
             ON DUPLICATE KEY UPDATE 
                 name = VALUES(name),
@@ -354,7 +355,8 @@ export default class TokenInfoMapper {
                 total_supply = VALUES(total_supply),
                 progress = VALUES(progress),
                 mint_active = VALUES(mint_active),
-                update_height = VALUES(update_height)
+                update_height = VALUES(update_height),
+                reserve_number = VALUES(reserve_number)
             `;
 
             await sequelize.query(upsertQuery, {
@@ -444,6 +446,15 @@ export default class TokenInfoMapper {
             where: {
                 id: id
             }
+        });
+    }
+
+    static async getTokenList(ids) {
+        return TokenInfo.findAll({
+            where: {
+                id: { [Op.in]: ids }
+            },
+            raw: true,
         });
     }
     

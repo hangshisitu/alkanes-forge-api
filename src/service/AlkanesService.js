@@ -53,6 +53,29 @@ const opcodesHRV = [
 
 export default class AlkanesService {
 
+    static async trace(txid, vout, alkanesUrl = config.alkanesUtxoUrl) {
+        try {
+            return await AlkanesService._call('alkanes_trace', [
+                {
+                    txid: Buffer.from(txid, 'hex').reverse().toString('hex'),
+                    vout: vout,
+                },
+            ], alkanesUrl);
+        } catch (err) {
+            logger.error(`trace error, txid: ${txid}, vout: ${vout}, error: ${err.message}`, err);
+            throw new Error('Trace Error');
+        }
+    }
+
+    static async alkanesidtooutpoint(block, tx, alkanesUrl = config.alkanesUtxoUrl) {
+        return await AlkanesService._call('alkanes_alkanesidtooutpoint', [
+            {
+                block: block,
+                tx: tx,
+            },
+        ], alkanesUrl);
+    }
+    
     static async getAlkanesByUtxo(utxo, maxHeight = 0, alkanesUrl = config.alkanesUtxoUrl) {
         if (utxo.height < config.startHeight) {
             return [];
@@ -81,7 +104,7 @@ export default class AlkanesService {
         }
     }
 
-    static async getAlkanesUtxoByAddress(address, alkanesId, maxHeight = 0) {
+    static async getAlkanesUtxoByAddress(address, alkanesId, maxHeight = 0, allowMultiple = false) {
         const result = await AlkanesService._call('alkanes_protorunesbyaddress', [
             {
                 address: address,
@@ -92,8 +115,20 @@ export default class AlkanesService {
 
         const utxoList = [];
         for (const outpoint of result.outpoints) {
-            if (outpoint.runes.length > 1) {
+            if (outpoint.runes.length > 1 && !allowMultiple) {
                 continue;
+            }
+
+            if (outpoint.runes.length > 1) {
+                outpoint.runes = outpoint.runes.filter(rune => {
+                    const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
+                    if (Array.isArray(alkanesId) && !alkanesId.includes(id)) {
+                        return true;
+                    } else if (alkanesId === id) {
+                        return true;
+                    }
+                    return false;
+                });
             }
 
             const rune = outpoint.runes[0];
@@ -103,7 +138,11 @@ export default class AlkanesService {
             }
 
             const id = `${new BigNumber(rune.rune.id.block).toNumber()}:${new BigNumber(rune.rune.id.tx).toNumber()}`;
-            if (alkanesId && alkanesId !== id) {
+            if (Array.isArray(alkanesId)) {
+                if (!alkanesId.includes(id)) {
+                    continue;
+                }
+            } else if (alkanesId && alkanesId !== id) {
                 continue;
             }
 
@@ -121,6 +160,7 @@ export default class AlkanesService {
                 alkanesId: id,
                 name: rune.rune.name,
                 symbol: rune.rune.symbol,
+                balance,
                 tokenAmount: balance.dividedBy(10 ** 8).toFixed()
             })
         }
@@ -286,6 +326,7 @@ export default class AlkanesService {
             }, 4);
 
             // 收集返回结果
+            const contentType = opcodeResults.find(x => x?.opcodeHRV === 'contentType')?.result?.string;
             for (const item of opcodeResults) {
                 if (!item || !item.opcodeHRV) {
                     continue;
@@ -296,7 +337,7 @@ export default class AlkanesService {
                     if (opcodeHRV === 'data' && text) {
                         if (text.startsWith('data:image/')) {
                             tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadBuffer({ buffer: Buffer.from(text.split(',')[1], 'base64'), filename: `${id}.png`, prefix: config.r2.prefix, type: 'image/png' });
-                        } else if (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>')) {
+                        } else if (contentType  === 'image/svg+xml' || (text.startsWith('<?xml version="1.0" encoding="UTF-8"?>') && text.endsWith('</svg>'))) {
                             tokenInfo.image = tokenInfo.originalImage = tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.svg`, prefix: config.r2.prefix, type: 'image/svg+xml' });
                         } else {
                             tokenInfo.data = await R2Service.uploadText({ text, filename: `${id}.txt`, prefix: config.r2.prefix, type: 'text/plain' });
@@ -331,8 +372,8 @@ export default class AlkanesService {
         throw new Error('Get alkanes error');
     }
 
-    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, model) {
-        const protostone = AlkanesService.getMintProtostone(id, model);
+    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
+        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({
@@ -371,13 +412,13 @@ export default class AlkanesService {
         return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate);
     }
 
-    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, model, psbt) {
+    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
         const {txid, error} = await UnisatAPI.unisatPush(psbt);
         if (error) {
             throw new Error(error);
         }
 
-        const protostone = AlkanesService.getMintProtostone(id, model);
+        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({
@@ -632,6 +673,33 @@ export default class AlkanesService {
 
         return encodeRunestoneProtostone({
             protostones: protostones,
+        }).encodedRunestone;
+    }
+
+    static getBatchTransferProtostone(transferList) {
+        const edicts = [];
+        for (const transfer of transferList) {
+            const id = transfer.id;
+            edicts.push({
+                id: new ProtoruneRuneId(
+                    u128(BigInt(id.split(':')[0])),
+                    u128(BigInt(id.split(':')[1]))
+                ),
+                amount: u128(BigInt(transfer.amount)), // 如果是0或者大于输入数量，则得到输入的全部数量；如果小于则发送全部可用数量
+                output: u32(BigInt(transfer.output)), // 指向接收的output index
+            });
+        }
+
+        return encodeRunestoneProtostone({
+            protostones: [
+                ProtoStone.message({
+                    protocolTag: 1n,
+                    edicts: edicts,
+                    pointer: 0, // 如果存在剩余的代币数量，会转到这里指定的output index
+                    refundPointer: 0,
+                    calldata: Buffer.from([]),
+                }),
+            ],
         }).encodedRunestone;
     }
 

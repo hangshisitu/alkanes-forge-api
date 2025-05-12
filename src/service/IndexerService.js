@@ -11,11 +11,13 @@ import sequelize from '../lib/SequelizeHelper.js';
 import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import AddressBalance from '../models/AddressBalance.js';
 import TokenInfoService from '../service/TokenInfoService.js';
+import NftItemService from '../service/NftItemService.js';
 import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
 import config from '../conf/config.js';
 import AlkanesService from './AlkanesService.js';
 import decodeProtorune from '../lib/ProtoruneDecoder.js';
-import * as bitcoin from "bitcoinjs-lib";
+import NftCollectionService from './NftCollectionService.js';
+import Sequelize from 'sequelize';
 
 export default class IndexerService {
 
@@ -119,7 +121,7 @@ export default class IndexerService {
                         logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
                         throw e;
                     }
-                }, null, errors);
+                }, 64, errors);
                 if (errors.length > 0) {
                     throw new Error(`index block ${block} failed, ${errors.length} errors`);
                 }
@@ -182,7 +184,32 @@ export default class IndexerService {
                     });
                 }).flat();
                 const errors = [];
-                const effectCounts = await BaseUtil.concurrentExecute(vins, async (vin) => {
+                let effectTxids = await BaseUtil.concurrentExecute(BaseUtil.splitArray([...new Set(vins.map(vin => vin.inputTxid))], 100), async (inputTxids) => {
+                    try {
+                        const outpointRecords = await OutpointRecord.findAll({
+                            where: {
+                                txid: {
+                                    [Op.in]: inputTxids,
+                                },
+                            },
+                            attributes: ['txid'],
+                            raw: true,
+                        });
+                        return outpointRecords.map(record => {
+                            return record.txid;
+                        });
+                    } catch (e) {
+                        logger.error(`get outpoint records failed, ${e.message}`, e);
+                        throw e;
+                    }
+                }, null, errors);
+                if (errors.length > 0) {
+                    throw new Error(`get input txids outpoint records failed, ${errors.length} errors`);
+                }
+                effectTxids = new Set(effectTxids.flat());
+                const effectVins = vins.filter(vin => effectTxids.has(vin.inputTxid));
+
+                const effectCounts = await BaseUtil.concurrentExecute(effectVins, async (vin) => {
                     const { txIdx, txid, inputTxid, inputVout, inputIndex } = vin;
                     try {
                         const stxIdx = `${txIdx}`.padStart(5, '0');
@@ -272,6 +299,7 @@ export default class IndexerService {
             return;
         }
         const effectAlkanesIds = [...new Set(Object.values(effectAddressAlkanes).map(set => [...set]).flat())];
+        const nftItems = await NftItemService.getItemsByIds(effectAlkanesIds);
         const addressAlkanesBalances = await OutpointRecord.findAll({
             where: {
                 address: {
@@ -343,6 +371,26 @@ export default class IndexerService {
         if (errors.length > 0) {
             throw new Error(`block ${block} update alkanesId holders failed, ${errors.length} errors`);
         }
+        
+        const nftItemBalances = addressAlkanesBalances.filter(item => {
+            return nftItems.find(nftItem => nftItem.id === item.alkanesId) && item.balance > 0;
+        });
+        if (nftItemBalances.length > 0) {
+            const errors = [];
+            await BaseUtil.concurrentExecute(nftItemBalances, async (nftItemBalance) => {
+                const { address, alkanesId } = nftItemBalance;
+                try {
+                    await NftItemService.updateHolder(address, alkanesId, block);
+                } catch (e) {
+                    logger.error(`block ${block} update address ${address} alkanesId ${alkanesId} failed, ${e.message}`, e);
+                    throw e;
+                }
+            }, null, errors);
+            if (errors.length > 0) {
+                throw new Error(`block ${block} update nft item holder failed, ${errors.length} errors`);
+            }
+            await NftCollectionService.refreshCollectionHolderAndItemCountByItemIds([...new Set(nftItemBalances.map(item => item.alkanesId))]);
+        }
     }
 
     static async getHolderPage(alkanesId, page, size) {
@@ -402,8 +450,101 @@ export default class IndexerService {
         };
     }
 
+    static async getOutpointsByAlkanesIds(alkanesIds, spent = false) {
+        const where = {
+            alkanesId: { [Op.in]: alkanesIds },
+        };
+        if (spent != null) {
+            where.spent = spent;
+        }
+        return await OutpointRecord.findAll({
+            where,
+            raw: true,
+        });
+    }
+
+    static async getAddressBalances(address) {
+        return await AddressBalance.findAll({
+            where: {
+                address,
+            },
+            order: [
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(alkanes_id, ":", 1) AS UNSIGNED)'), 'ASC'],
+                [Sequelize.literal('CAST(SUBSTRING_INDEX(alkanes_id, ":", -1) AS UNSIGNED)'), 'ASC']
+            ],
+            raw: true,
+        });
+    }
+
 }
 
 
+async function amendBalance() {
+    let minId = 0;
+    const addressBalances = [];
+    while (true) {
+        console.log(`minId: ${minId}`);
+        const batchAddressBalances = await AddressBalance.findAll({
+            where: {
+                id: {
+                    [Op.gt]: minId
+                }
+            },
+            raw: true,
+            limit: 1000,
+            order: [['id', 'ASC']],
+        });
+        minId = batchAddressBalances[batchAddressBalances.length - 1].id;
+        addressBalances.push(...batchAddressBalances);
+        if (batchAddressBalances.length < 1000) {
+            break;
+        }
+    }
+    const total = addressBalances.length;
+    let count = 0;
+    const block = 895621;
+    const errors = [];
+    await BaseUtil.concurrentExecute(addressBalances, async addressBalance => {
+        try {
+            let newAddressBalance = await OutpointRecord.findOne({
+                where: {
+                    address: addressBalance.address,
+                    alkanesId: addressBalance.alkanesId,
+                    spent: false,
+                },
+                attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.literal('CAST(balance AS UNSIGNED)')), 'balance']],
+                raw: true,
+            });
+            if (!newAddressBalance?.address) {
+                newAddressBalance = {
+                    address: addressBalance.address,
+                    alkanesId: addressBalance.alkanesId,
+                    balance: 0,
+                }
+            }
+            newAddressBalance.balance = BigInt(newAddressBalance.balance).toString();
+            if (addressBalance.balance !== newAddressBalance.balance) {
+                newAddressBalance.updateBlock = block;
+                const effectCount = await AddressBalance.update(newAddressBalance, {
+                    where: {
+                        address: addressBalance.address,
+                        alkanesId: addressBalance.alkanesId,
+                    },
+                });
+                if (+effectCount !== 1) {
+                    throw new Error(`amend balance failed, ${JSON.stringify(addressBalance)}`);
+                }
+            }
+            console.log(`progress: ${++count}/${total}`);
+        } catch(e) {
+            logger.error(`amend balance failed, ${JSON.stringify(addressBalance)}`, e);
+            throw e;
+        }
+    }, 16, errors);
+    if (errors.length > 0) {
+        throw new Error(`amend balance failed, ${errors.length} errors`);
+    }
+}
 
+// await amendBalance();
 

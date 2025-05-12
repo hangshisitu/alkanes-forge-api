@@ -75,7 +75,7 @@ export default class UnisatAPI {
                     const tweakedChildNode = keyPair.tweak(
                         bitcoin.crypto.taggedHash('TapTweak', myXOnlyPubkey)
                     );
-                    if (input.address.startsWith('bc1p')) {
+                    if (input.address.startsWith('bc1p') || input.address.startsWith('tb1p')) {
                         psbt.signInput(i, tweakedChildNode);
                     } else {
                         psbt.signInput(i, keyPair);
