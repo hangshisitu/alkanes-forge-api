@@ -22,32 +22,6 @@ for (let i = 0; i < blocks; i++) {
     block_message_queues[i] = new Queue();
 }
 
-
-function decodeLEB128Array(bytes) {
-    const result = [];
-    let i = 0;
-
-    while (i < bytes.length) {
-        // 如果当前字节的最高位是 0，直接保留
-        if ((bytes[i] & 0x80) === 0) {
-            result.push(bytes[i]);
-            i++;
-        } else {
-            // 否则进行 LEB128 解码
-            let value = 0;
-            let shift = 0;
-            do {
-                value |= (bytes[i] & 0x7F) << shift;
-                shift += 7;
-                i++;
-            } while (i < bytes.length && (bytes[i - 1] & 0x80) !== 0);
-            result.push(value);
-        }
-    }
-
-    return result;
-}
-
 async function delete_mempool_txs(txids) {
     if (!txids?.length) {
         return;
@@ -183,7 +157,7 @@ async function handle_mempool_tx(txid) {
         if (!message) {
             continue;
         }
-        const mintData = decodeLEB128Array(JSON.parse(message));
+        const mintData = BaseUtil.decodeLEB128Array(JSON.parse(message));
         if (mintData.length < 3) {
             continue;
         }

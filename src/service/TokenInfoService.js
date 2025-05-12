@@ -17,6 +17,8 @@ import TokenInfo from "../models/TokenInfo.js";
 import NftCollectionService from "./NftCollectionService.js";
 import NftItemService from "./NftItemService.js";
 import NftAttributeService from "./NftAttributeService.js";
+import MempoolUtil from "../utils/MempoolUtil.js";
+import decodeProtorune from "../utils/ProtoruneDecoder.js";
 
 let tokenListCache = null;
 
@@ -177,7 +179,16 @@ export default class TokenInfoService {
                         alkanes.mintActive = alkanes.progress >= 100 ? 0 : 1;
                     }
                 }
-
+                const idOutpoint = await AlkanesService.alkanesidtooutpoint(2, i);
+                const txHex = await MempoolUtil.getTxHex(idOutpoint.outpoint.txid);
+                const result = await decodeProtorune(txHex);
+                const message = BaseUtil.decodeLEB128Array(JSON.parse(result.protostones[0].message));
+                if (message[0] === 6) {
+                    alkanes.reserveNumber = message[1];
+                } else {
+                    alkanes.reserveNumber = 0;
+                }
+                logger.info(`new token ${tokenId} reserve number: ${alkanes.reserveNumber}`);
                 newAlkaneList.push(alkanes);
                 existingIds.add(tokenId);
             } catch (error) {

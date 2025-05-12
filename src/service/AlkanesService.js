@@ -53,6 +53,29 @@ const opcodesHRV = [
 
 export default class AlkanesService {
 
+    static async trace(txid, vout, alkanesUrl = config.alkanesUtxoUrl) {
+        try {
+            return await AlkanesService._call('alkanes_trace', [
+                {
+                    txid: Buffer.from(txid, 'hex').reverse().toString('hex'),
+                    vout: vout,
+                },
+            ], alkanesUrl);
+        } catch (err) {
+            logger.error(`trace error, txid: ${txid}, vout: ${vout}, error: ${err.message}`, err);
+            throw new Error('Trace Error');
+        }
+    }
+
+    static async alkanesidtooutpoint(block, tx, alkanesUrl = config.alkanesUtxoUrl) {
+        return await AlkanesService._call('alkanes_alkanesidtooutpoint', [
+            {
+                block: block,
+                tx: tx,
+            },
+        ], alkanesUrl);
+    }
+    
     static async getAlkanesByUtxo(utxo, maxHeight = 0, alkanesUrl = config.alkanesUtxoUrl) {
         if (utxo.height < config.startHeight) {
             return [];
