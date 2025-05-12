@@ -263,6 +263,12 @@ export const Constants = Object.freeze({
             PUSH: '/indexer/push',
             HOLDER_PAGE: '/indexer/holderPage',
             ADDRESS_ALKANES_OUTPOINTS: '/indexer/outpoints'
+        },
+
+        LAUNCH: {
+            DETAIL: '/launch/detail',
+            CREATE_ORDER: '/launch/createOrder',
+            START_ORDER: '/launch/startOrder'
         }
     },
 

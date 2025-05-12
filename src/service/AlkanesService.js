@@ -372,8 +372,8 @@ export default class AlkanesService {
         throw new Error('Get alkanes error');
     }
 
-    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate, model) {
-        const protostone = AlkanesService.getMintProtostone(id, model);
+    static async transferMintFee(fundAddress, fundPublicKey, toAddress, id, mints, postage, feerate) {
+        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({
@@ -412,13 +412,13 @@ export default class AlkanesService {
         return PsbtUtil.createUnSignPsbt(utxoList, fundOutputList, fundAddress, feerate);
     }
 
-    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, model, psbt) {
+    static async startMint(fundAddress, toAddress, id, mints, postage, feerate, psbt) {
         const {txid, error} = await UnisatAPI.unisatPush(psbt);
         if (error) {
             throw new Error(error);
         }
 
-        const protostone = AlkanesService.getMintProtostone(id, model);
+        const protostone = AlkanesService.getMintProtostone(id, Constants.MINT_MODEL.NORMAL);
 
         const outputList = [];
         outputList.push({

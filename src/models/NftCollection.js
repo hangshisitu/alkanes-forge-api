@@ -27,10 +27,6 @@ const NftCollection = sequelize.define('NftCollection', {
         type: DataTypes.STRING,
         comment: '符号',
     },
-    data: {
-        type: DataTypes.TEXT,
-        comment: '部署元数据'
-    },
     contentType: {
         type: DataTypes.STRING,
         comment: '内容类型'
@@ -156,6 +152,26 @@ const NftCollection = sequelize.define('NftCollection', {
     telegram: {
         type: DataTypes.STRING,
         comment: '电报链接'
+    },
+    startBlock: {
+        field: 'start_block',
+        type: DataTypes.INTEGER,
+        comment: '开始区块'
+    },
+    launchImage: {
+        field: 'launch_image',
+        type: DataTypes.STRING,
+        comment: 'Launch图片'
+    },
+    launchBanner: {
+        field: 'launch_banner',
+        type: DataTypes.STRING,
+        comment: 'Launch海报'
+    },
+    launchStages: {
+        field: 'launch_stages',
+        type: DataTypes.STRING,
+        comment: 'Launch阶段(JSON格式)'
     },
     createdAt: {
         type: DataTypes.DATE,

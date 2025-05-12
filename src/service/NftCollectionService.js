@@ -36,6 +36,15 @@ export default class NftCollectionService {
         return collection;
     }
 
+    static async findById(id) {
+        return await NftCollection.findByPk(id, {
+            attributes: {
+                exclude: ['updateHeight', 'createdAt', 'updatedAt']
+            },
+            raw: true
+        });
+    }
+
     static async getAllNftCollection() {
         const nftCollectionList = await NftCollection.findAll({
             raw: true

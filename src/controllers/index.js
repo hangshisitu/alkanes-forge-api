@@ -7,6 +7,7 @@ import NftMarketPaths from './NftMarket.js';
 import InscribePaths from './Inscribe.js';
 import MethanePaths from './Methane.js';
 import IndexerPaths from './Indexer.js';
+import LaunchPaths from './Launch.js';
 
 export default [
     ...BasePaths,
@@ -18,4 +19,5 @@ export default [
     ...InscribePaths,
     ...MethanePaths,
     ...IndexerPaths,
+    ...LaunchPaths,
 ]
