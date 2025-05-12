@@ -74,7 +74,7 @@ export default class UserService {
                 const collectionId = item?.collectionId;
                 const floorPrice = isNft ? collections[collectionId]?.floorPrice ?? 0 : token?.floorPrice ?? 0;
                 const priceChange24h = isNft ? collections[collectionId]?.priceChange24h ?? 0 : token?.priceChange24h ?? 0;
-                const totalValue = isNft ? floorPrice.toString() : new BigNumber(addressBalance.balance).multipliedBy(floorPrice).toString()
+                const totalValue = isNft ? floorPrice.toString() : new BigNumber(addressBalance.balance).dividedBy(10**8).multipliedBy(floorPrice).toString()
                 return {
                     nft: isNft,
                     collection: isNft ? collections[collectionId] : null,
