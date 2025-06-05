@@ -16,6 +16,7 @@ import NftItemService from './NftItemService.js';
 import NftAttributeService from './NftAttributeService.js';
 import AlkanesService from './AlkanesService.js';
 import LaunchService from './LaunchService.js';
+import MarketAssetStatsService from './MarketAssetStatsService.js';
 import BigNumber from 'bignumber.js';
 
 let nftCollectionListCache = null;
@@ -67,8 +68,15 @@ export default class NftCollectionService {
         });
     }
 
-    static async getAllNftCollection() {
+    static async getAllNftCollection(prefix = null) {
+        const whereClause = {};
+        if (prefix) {
+            whereClause.id = {
+                [Op.like]: `${prefix}:%`
+            }
+        }
         const nftCollectionList = await NftCollection.findAll({
+            where: whereClause,
             raw: true
         });
         return nftCollectionList;
@@ -109,76 +117,88 @@ export default class NftCollectionService {
             const collectionIds = [...new Set([...Object.keys(statsMap24h), ...await NftCollectionMapper.getTradingCountGt0Ids('total_trading_count')])];
 
             // Step 2: 查询每个合集的最新成交价格（使用最近3小时的平均价格）
-            const latestPrices = await sequelize.query(`
-                SELECT 
-                    me1.collection_id AS collectionId,
-                    CAST(AVG(listing_price) as DECIMAL(65, 18)) AS latestPrice,
-                    COUNT(*) as tradeCount
-                FROM nft_market_event me1
-                WHERE me1.type = 2 
-                AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 3 HOUR), '%Y-%m-%d %H:00:00')
-                AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
-                GROUP BY me1.collection_id
-                HAVING COUNT(*) >= 3;  -- 确保至少有3笔交易
-            `, { type: QueryTypes.SELECT });
+            // const latestPrices = await sequelize.query(`
+            //     SELECT 
+            //         me1.collection_id AS collectionId,
+            //         CAST(AVG(listing_price) as DECIMAL(65, 18)) AS latestPrice,
+            //         COUNT(*) as tradeCount
+            //     FROM nft_market_event me1
+            //     WHERE me1.type = 2 
+            //     AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 3 HOUR), '%Y-%m-%d %H:00:00')
+            //     AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+            //     GROUP BY me1.collection_id
+            //     HAVING COUNT(*) >= 3;  -- 确保至少有3笔交易
+            // `, { type: QueryTypes.SELECT });
 
-            const latestPriceMap = {};
-            latestPrices.forEach(row => {
-                if (row.tradeCount >= 3) {  // 只使用有足够交易量的数据
-                    latestPriceMap[row.collectionId] = parseFloat(row.latestPrice);
-                }
-            });
+            // const latestPriceMap = {};
+            // latestPrices.forEach(row => {
+            //     if (row.tradeCount >= 3) {  // 只使用有足够交易量的数据
+            //         latestPriceMap[row.collectionId] = parseFloat(row.latestPrice);
+            //     }
+            // });
 
-            // 使用 Map 保存更新数据
+            // // 使用 Map 保存更新数据
+            // const updateMap = new Map();
+
+            // // Step 3: 遍历其他时间段（7 天、30 天）
+            // for (const timeframe of timeframes) {
+            //     // 查询历史价格（使用时间段内前3小时的平均价格）
+            //     const historicalPrices = await sequelize.query(`
+            //         SELECT 
+            //             ts1.collection_id AS collectionId, 
+            //             CAST(AVG(ts1.average_price) as DECIMAL(65, 18)) AS historicalPrice,
+            //             COUNT(*) as dataPoints
+            //         FROM nft_collection_stats ts1
+            //         INNER JOIN (
+            //             SELECT collection_id, MIN(stats_date) AS minStatsTime
+            //             FROM nft_collection_stats
+            //             WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit})
+            //             GROUP BY collection_id
+            //         ) ts2 ON ts1.collection_id = ts2.collection_id 
+            //         WHERE ts1.stats_date >= ts2.minStatsTime
+            //         AND ts1.stats_date <= DATE_ADD(ts2.minStatsTime, INTERVAL 3 HOUR)
+            //         GROUP BY ts1.collection_id
+            //         HAVING COUNT(*) >= 3;  -- 确保至少有3个数据点
+            //     `, { type: QueryTypes.SELECT });
+
+            //     // 计算每个代币的涨跌幅
+            //     historicalPrices.forEach(row => {
+            //         const collectionId = row.collectionId;
+            //         const historicalPrice = parseFloat(row.historicalPrice);
+            //         const recentPrice = parseFloat(latestPriceMap[collectionId] || 0);
+
+            //         // 获取或创建更新对象
+            //         const existingUpdate = updateMap.get(collectionId) || { id: collectionId };
+
+            //         // 涨跌幅计算逻辑 - 添加合理性检查
+            //         if (historicalPrice > 0 && recentPrice > 0) {
+            //             const priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
+                        
+            //             // 添加合理性检查：如果价格变化超过500%，则使用更保守的计算方式
+            //             if (Math.abs(priceChange) > 500) {
+            //                 // 使用中位数价格计算
+            //                 const medianPrice = (historicalPrice + recentPrice) / 2;
+            //                 existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - medianPrice) / medianPrice) * 100;
+            //             } else {
+            //                 existingUpdate[`priceChange${timeframe.label}`] = priceChange;
+            //             }
+            //         }
+
+            //         // 存入更新 Map
+            //         updateMap.set(collectionId, existingUpdate);
+            //     });
+            // }
             const updateMap = new Map();
 
-            // Step 3: 遍历其他时间段（7 天、30 天）
             for (const timeframe of timeframes) {
-                // 查询历史价格（使用时间段内前3小时的平均价格）
-                const historicalPrices = await sequelize.query(`
-                    SELECT 
-                        ts1.collection_id AS collectionId, 
-                        CAST(AVG(ts1.average_price) as DECIMAL(65, 18)) AS historicalPrice,
-                        COUNT(*) as dataPoints
-                    FROM nft_collection_stats ts1
-                    INNER JOIN (
-                        SELECT collection_id, MIN(stats_date) AS minStatsTime
-                        FROM nft_collection_stats
-                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit})
-                        GROUP BY collection_id
-                    ) ts2 ON ts1.collection_id = ts2.collection_id 
-                    WHERE ts1.stats_date >= ts2.minStatsTime
-                    AND ts1.stats_date <= DATE_ADD(ts2.minStatsTime, INTERVAL 3 HOUR)
-                    GROUP BY ts1.collection_id
-                    HAVING COUNT(*) >= 3;  -- 确保至少有3个数据点
-                `, { type: QueryTypes.SELECT });
-
-                // 计算每个代币的涨跌幅
-                historicalPrices.forEach(row => {
-                    const collectionId = row.collectionId;
-                    const historicalPrice = parseFloat(row.historicalPrice);
-                    const recentPrice = parseFloat(latestPriceMap[collectionId] || 0);
-
-                    // 获取或创建更新对象
-                    const existingUpdate = updateMap.get(collectionId) || { id: collectionId };
-
-                    // 涨跌幅计算逻辑 - 添加合理性检查
-                    if (historicalPrice > 0 && recentPrice > 0) {
-                        const priceChange = ((recentPrice - historicalPrice) / historicalPrice) * 100;
-                        
-                        // 添加合理性检查：如果价格变化超过500%，则使用更保守的计算方式
-                        if (Math.abs(priceChange) > 500) {
-                            // 使用中位数价格计算
-                            const medianPrice = (historicalPrice + recentPrice) / 2;
-                            existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - medianPrice) / medianPrice) * 100;
-                        } else {
-                            existingUpdate[`priceChange${timeframe.label}`] = priceChange;
-                        }
-                    }
-
-                    // 存入更新 Map
-                    updateMap.set(collectionId, existingUpdate);
-                });
+                const days = timeframe.unit === 'HOUR' ? timeframe.interval / 24 : timeframe.interval;
+                const floorPriceChanges = await MarketAssetStatsService.getFloorPriceChangeByDayDuration(days);
+                for (const floorPriceChange of floorPriceChanges) {
+                    const alkanesId = floorPriceChange.alkanesId;
+                    const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
+                    existingUpdate[`priceChange${timeframe.label}`] = floorPriceChange.change;
+                    updateMap.set(alkanesId, existingUpdate);
+                }
             }
 
             // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
@@ -207,13 +227,11 @@ export default class NftCollectionService {
                 item.totalTradingCount = Math.max(item.totalTradingCount, item.tradingCount24h);
 
                 // 添加涨跌幅信息
-                let existingUpdate = updateMap.get(collectionId);
-                if (!existingUpdate) {
-                    existingUpdate = { id: collectionId };
-                    timeframes.forEach(timeframe => {
-                        existingUpdate[`priceChange${timeframe.label}`] = 0;
-                    });
-                }
+                const existingUpdate = updateMap.get(collectionId) ?? { id: collectionId };
+                timeframes.forEach(timeframe => {
+                    const key = `priceChange${timeframe.label}`;
+                    existingUpdate[key] = existingUpdate[key] ?? 0;
+                });
                 Object.assign(item, existingUpdate); // 合并涨跌幅信息
 
                 return item;

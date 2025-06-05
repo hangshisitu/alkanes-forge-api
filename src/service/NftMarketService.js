@@ -20,6 +20,8 @@ import NftCollectionService from "./NftCollectionService.js";
 import NftItemService from "./NftItemService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import NftAttributeService from "./NftAttributeService.js";
+import * as logger from "../conf/logger.js";
+import sequelize from "../lib/SequelizeHelper.js";
 
 export default class NftMarketService {
 
@@ -98,7 +100,7 @@ export default class NftMarketService {
         const { rows, count } = await NftMarketEvent.findAndCountAll({
             where: whereClause,
             order: [
-                ["updatedAt", "DESC"],
+                ["createdAt", "DESC"],
                 ["id", "ASC"]
             ],
             offset: (page - 1) * size,
@@ -109,7 +111,14 @@ export default class NftMarketService {
             size,
             total: count,
             pages: Math.ceil(count / size),
-            records: rows,
+            records: rows.map(row => {
+                row = row.toJSON();
+                return {
+                    ...row,
+                    createdAt: null,
+                    updatedAt: row.createdAt
+                }
+            })
         };
         // 写缓存，10秒有效期
         await RedisHelper.setEx(cacheKey, 10, JSON.stringify(result));
@@ -475,7 +484,6 @@ export default class NftMarketService {
         };
     }
 
-
     static async createUnsignedDelisting(collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, assetPublicKey, feerate, walletType) {
         const listingList = await NftMarketListingMapper.getByIds(collectionId, listingIds);
         if (listingList === null || listingList.length === 0) {
@@ -588,11 +596,35 @@ export default class NftMarketService {
         await NftCollectionService.refreshCollectionFloorPrice(listingList[0].collectionId);
     }
 
+    static async checkListingSpendable(listingOutputList, collectionId) {
+        const errors = [];
+        let failedList = await BaseUtil.concurrentExecute(listingOutputList, async (listingOutput) => {
+            const [txid, vout] = listingOutput.split(':');
+            const spendable = await this.checkSpendable({txid, vout});
+            if (!spendable) {
+                return listingOutput;
+            }
+            return null;
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error('Listing spendable check failed, please refresh and try again.');
+        }
+        failedList = failedList.filter(listingOutput => listingOutput !== null);
+        if (failedList.length > 0) {
+            await NftMarketListingMapper.bulkUpdateListing(failedList, Constants.LISTING_STATUS.DELIST, '', '', '');
+            await this.deleteListingCache(collectionId);
+            throw new Error('The assets have been transferred, please refresh and try again.');
+        }
+    }
 
-    static async createUnsignedBuying(collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate) {
-        const listingList = await NftMarketListingMapper.getByIds(collectionId, listingIds);
+    static async createUnsignedBuying(collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate, accelerate = false) {
+        const listingList = await NftMarketListingMapper.getByIds(collectionId, listingIds, accelerate ? Constants.LISTING_STATUS.SOLD : Constants.LISTING_STATUS.LIST);
         if (listingList === null || listingList.length !== listingIds.length) {
             throw new Error('Some items in your order are already purchased or delisted.');
+        }
+
+        if (!accelerate) {
+            await this.checkListingSpendable(listingList.map(listing => listing.listingOutput), collectionId);
         }
 
         const sellerAddressList = listingList.map(listing => {
@@ -633,7 +665,36 @@ export default class NftMarketService {
         let txFee = Math.ceil(FeeUtil.estTxSize(inputAddresses, outputAddresses) * feerate);
 
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
-        const paymentUtxoList = await UnisatAPI.getUtxoByTarget(fundAddress, totalAmount, feerate);
+        let cachedPaymentUtxoList = [];
+        if (accelerate) { // 加速时, 先查出原来的txid用的哪些utxo付款, 然后从这些utxo中扣减, 如果value不足, 再从UnisatAPI补充
+            const event = await NftMarketEventMapper.getSoldEventByListingOutput(listingList[0].listingOutput);
+            let cachedTx = await MempoolUtil.getTxEx(event.txHash);
+            if (!cachedTx) { // 不存在, 则是被替换了
+                cachedTx = await MempoolUtil.getCachedTx(event.txHash);
+            }
+            const listingOutputList = listingList.map(listing => listing.listingOutput);
+            cachedPaymentUtxoList = cachedTx.vin.filter(vin => {
+                return !listingOutputList.includes(`${vin.txid}:${vin.vout}`);
+            }).map(vin => {
+                return {
+                    txid: vin.txid,
+                    vout: vin.vout,
+                    value: vin.prevout.value,
+                    address: fundAddress,
+                    pubkey: fundPublicKey
+                };
+            });
+        }
+        const needAmount = totalAmount - cachedPaymentUtxoList.reduce((acc, curr) => {
+            return +curr.value + acc;
+        }, 0) + Math.ceil(FeeUtil.getInputSize(fundAddress) * feerate) * cachedPaymentUtxoList.length;
+        const paymentUtxoList = [...cachedPaymentUtxoList];
+        if (needAmount > 0) {
+            const patchPaymentUtxoList = await UnisatAPI.getUtxoByTarget(fundAddress, needAmount, feerate, false, cachedPaymentUtxoList.map(utxo => {
+                return `${utxo.txid}:${utxo.txid}`;
+            }));
+            paymentUtxoList.push(...patchPaymentUtxoList);
+        }
         paymentUtxoList.forEach(utxo => utxo.pubkey = fundPublicKey);
 
         // 如果付款的utxo大于1个，需要重新计算Gas
@@ -744,7 +805,15 @@ export default class NftMarketService {
         };
     }
 
-    static async putSignedBuying(signedPsbt, walletType) {
+    static async preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress) {
+        if (assetAddress !== userAddress) {
+            throw new Error('Can not accelerate trade for other address');
+        }
+        const listingList = await NftMarketListingMapper.getByTxids([txid]);
+        return await this.createUnsignedBuying(listingList[0].collectionId, listingList.map(listing => listing.id), fundAddress, fundPublicKey, assetAddress, feerate, true);
+    }
+
+    static async putSignedBuying(signedPsbt, walletType, accelerate = false) {
         //从买家已签名的psbt中获取资产，再从数据库中获取对应的listing，最后把这些listing的卖家签名填到psbt中
         const originalPsbt = PsbtUtil.fromPsbt(signedPsbt);
         const listingOutputList = [];
@@ -753,47 +822,66 @@ export default class NftMarketService {
             listingOutputList.push(`${sellerInput.txid}:${sellerInput.vout}`);
         }
 
-        const listingList = await NftMarketListingMapper.getByOutputs(listingOutputList);
-        signedPsbt = PsbtUtil.fillListingSign({
-            assetPsbtList: listingList.map(listing => listing.psbtData),
-            dstPsbt: signedPsbt,
+        let collectionId = null;
+        let txid = null;
+        const buyerAddress = originalPsbt.txOutputs[0].address;
+        await sequelize.transaction(async (transaction) => {
+            const listingList = await NftMarketListingMapper.getByOutputs(listingOutputList, transaction);
+            // 检查所有挂单状态是否为LIST
+            if (!accelerate) {
+                for (const listing of listingList) {
+                    if (listing.status !== Constants.LISTING_STATUS.LIST) {
+                        throw new Error('Some items in your order are already purchased or delisted.');
+                    }
+                }
+            }
+            signedPsbt = PsbtUtil.fillListingSign({
+                assetPsbtList: listingList.map(listing => listing.psbtData),
+                dstPsbt: signedPsbt,
+            });
+            const txInfo = PsbtUtil.convertPsbtHex(signedPsbt);
+            txid = txInfo.txid;
+            collectionId = listingList[0].collectionId;
+
+            const itemList = await NftItemService.getItemsByIds(listingList.map(listing => listing.itemId));
+            const eventList = [];
+            for (const listing of listingList) {
+                const marketEvent = {
+                    id: BaseUtil.genId(),
+                    type: Constants.MARKET_EVENT.SOLD,
+                    collectionId: listing.collectionId,
+                    listingId: listing.id,
+                    itemId: listing.itemId,
+                    itemName: listing.itemName,
+                    itemImage: itemList.find(item => item.id === listing.itemId)?.image,
+                    listingPrice: listing.listingPrice,
+                    listingAmount: listing.listingAmount,
+                    listingOutput: listing.listingOutput,
+                    sellerAddress: listing.sellerAddress,
+                    buyerAddress: buyerAddress,
+                    txHash: txid
+                };
+                eventList.push(marketEvent);
+            }
+
+            await NftMarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, walletType, transaction);
+            if (!accelerate) {
+                await NftMarketEventMapper.bulkUpsertEvent(eventList, transaction);
+            } else {
+                const existingEvent = await NftMarketEventMapper.getSoldEventByListingOutput(eventList[0].listingOutput);
+                await NftMarketEventMapper.updateEventTxHash(existingEvent.txHash, txid, transaction);
+            }
+
+            const {error} = await UnisatAPI.unisatPush(signedPsbt);
+            if (PsbtUtil.checkPushConflict(error)) {
+                // await this.checkListingSpent(signedPsbt, walletType);
+                throw new Error('Some items in your order are already purchased or delisted.');
+            } else if (error) {
+                throw new Error(error);
+            }
         });
-
-        const {txid, error} = await UnisatAPI.unisatPush(signedPsbt);
-        if (PsbtUtil.checkPushConflict(error)) {
-            await this.checkListingSpent(signedPsbt, walletType);
-            throw new Error('Some items in your order are already purchased or delisted.');
-        } else if (error) {
-            throw new Error(error);
-        }
-
-        let buyerAddress = originalPsbt.txOutputs[0].address;
-        const itemList = await NftItemService.getItemsByIds(listingList.map(listing => listing.itemId));
-        const eventList = [];
-        for (const listing of listingList) {
-            const marketEvent = {
-                id: BaseUtil.genId(),
-                type: Constants.MARKET_EVENT.SOLD,
-                collectionId: listing.collectionId,
-                listingId: listing.id,
-                itemId: listing.itemId,
-                itemName: listing.itemName,
-                itemImage: itemList.find(item => item.id === listing.itemId)?.image,
-                listingPrice: listing.listingPrice,
-                listingAmount: listing.listingAmount,
-                listingOutput: listing.listingOutput,
-                sellerAddress: listing.sellerAddress,
-                buyerAddress: buyerAddress,
-                txHash: txid
-            };
-            eventList.push(marketEvent);
-        }
-
-        await NftMarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, walletType);
-        await this.deleteListingCache(listingList[0].collectionId);
-        await NftMarketEventMapper.bulkUpsertEvent(eventList);
-
-        await NftCollectionService.refreshCollectionFloorPrice(listingList[0].collectionId);
+        await this.deleteListingCache(collectionId);
+        await NftCollectionService.refreshCollectionFloorPrice(collectionId);
         return txid;
     }
 
@@ -892,7 +980,7 @@ export default class NftMarketService {
         if (errors.length > 0) {
             throw new Error('Failed to rollback listing');
         }
-        needRollbackList = needRollbackList.filter(listing => listing !== null);
+        needRollbackList = needRollbackList.filter(listing => listing != null);
         if (needRollbackList.length <= 0) {
             return;
         }
@@ -904,12 +992,88 @@ export default class NftMarketService {
             }
             needRollbackMap.get(listing.collectionId).push(listing);
         }
+        const markTime = new Date('2025-06-06 07:00:00');
         for (const [collectionId, listingList] of needRollbackMap.entries()) {
-            await NftMarketListingMapper.bulkRollbackListingFromSold(listingList.map(listing => listing.listingOutput), Constants.LISTING_STATUS.LIST, '', '', '');
+            await NftMarketListingMapper.bulkRollbackListingFromSold(listingList.filter(listing => {
+                return listing.updatedAt > markTime;
+            }).map(listing => listing.listingOutput), Constants.LISTING_STATUS.LIST, '', '', '');
             await this.deleteListingCache(collectionId);
         }
         // 删除对应的market_event
         await NftMarketEventMapper.bulkDeleteSoldEvent(needRollbackList.map(listing => listing.listingOutput));
+    }
+
+    static async confirmPendingSoldEvents() {
+        let page = 1;
+        const size = 100;
+        while (true) {
+            logger.info(`nft confirmPendingSoldEvents start page: ${page}`);
+            const pendingSoldEvents = await NftMarketEventMapper.getPendingSoldEvents(page, size);
+            const needRollbackBuyingTxids = new Set();
+            await BaseUtil.concurrentExecute(pendingSoldEvents, async (event) => {
+                const [listingTxid, listingVout] = event.listingOutput.split(':');
+                const buyingTxid = event.txHash;
+                const spendInfo = await MempoolUtil.getTxOutspend(listingTxid, listingVout);
+                if (spendInfo.spent) { // 未被花费的不处理, 因为不确定是不是被替换了
+                    if (spendInfo.txid === buyingTxid) {
+                        // 更新listing的交易id和买家地址
+                        await NftMarketListingMapper.updateListingByListingOutput(event.listingOutput, {
+                            txHash: buyingTxid,
+                            buyerAddress: event.buyerAddress,
+                            status: Constants.LISTING_STATUS.SOLD
+                        });
+                        if (spendInfo.status?.confirmed) {
+                            await NftMarketEventMapper.updateEventById(event.id, {
+                                txConfirmedHeight: spendInfo.status.block_height
+                            });
+                        }
+                    } else {
+                        // 如果花费utxo的交易被确认了, 通过buyingTxid回滚挂单
+                        if (spendInfo.status?.confirmed) {
+                            needRollbackBuyingTxids.add(buyingTxid);
+                            await NftMarketEventMapper.deleteEventById(event.id);
+                        }
+                    }
+                }
+            });
+            if (needRollbackBuyingTxids.size > 0) {
+                await this.rollbackListingFromSold([...needRollbackBuyingTxids]);
+            }
+            if (pendingSoldEvents.length < size) {
+                break;
+            }
+            page++;
+        }
+    }
+
+    static async rollbackConfirmedEvents(blockHeight) {
+        await NftMarketEventMapper.rollbackConfirmed(blockHeight);
+    }
+
+    static async getUserTrades(collectionId, userAddress, page, size) {
+        const result = await NftMarketEventMapper.getUserTrades(collectionId, userAddress, page, size);
+        const buyEventList = result.records.filter(event => event.txConfirmedHeight === 0).filter(event => event.buyerAddress === userAddress);
+        if (buyEventList.length > 0) {
+            const replacedInfos = await BaseUtil.concurrentExecute([...new Set(buyEventList.map(o => o.txHash))], async (txid) => {
+                const rbf = await MempoolUtil.getTxRbf(txid);
+                const replacements = rbf.replacements;
+                if (!replacements?.tx || replacements.tx.txid === txid || replacements.tx.mined) {
+                    return null;
+                }
+                return {
+                    txid: txid,
+                    feerate: replacements.tx.rate
+                }
+            });
+            const replacedTxids = replacedInfos.map(o => o?.txid).filter(o => o != null);
+            result.records.forEach(event => {
+                if (replacedTxids.includes(event.txHash)) {
+                    event.replaced = true;
+                    event.replacedFeerate = replacedInfos.find(o => o?.txid === event.txHash).feerate;
+                }
+            });
+        }
+        return result;
     }
 
 }

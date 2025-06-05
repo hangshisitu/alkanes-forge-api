@@ -19,23 +19,31 @@ import NftAttributeService from "./NftAttributeService.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import decodeProtorune from "../lib/ProtoruneDecoder.js";
 import BigNumber from "bignumber.js";
+import MarketAssetStatsService from "./MarketAssetStatsService.js";
 
 let tokenListCache = null;
 
 export default class TokenInfoService {
 
     static async refreshNewTokenInfo(blockHeight) {
-        const lastTokenInfo = await TokenInfoMapper.getLastTokenInfo();
+        const prefixes = ['2', '4'];
+        for (const prefix of prefixes) {
+            await this.refreshNewTokenInfoByPrefix(blockHeight, prefix);
+        }
+    }
+
+    static async refreshNewTokenInfoByPrefix(blockHeight, prefix) {
+        const lastTokenInfo = await TokenInfoMapper.getLastTokenInfo(prefix);
         let lastIndex = 0;
         if (lastTokenInfo) {
             lastIndex = parseInt(lastTokenInfo.id.split(':')[1]);
-            const lastNftItemId = await NftItemService.findMaxItemId();
+            const lastNftItemId = await NftItemService.findMaxItemId(prefix);
             if (lastNftItemId) {
                 lastIndex = Math.max(lastIndex, parseInt(lastNftItemId.split(':')[1]));
             }
             lastIndex += 1;
         }
-        logger.info(`find new token start at index: ${lastIndex}`);
+        logger.info(`find new token by prefix ${prefix} start at index: ${lastIndex}`);
 
         // 5. 查找新token
         const errors = [];
@@ -49,7 +57,7 @@ export default class TokenInfoService {
             const newNftCollectionList = [];
             const newNftItemList = [];
             const results = await BaseUtil.concurrentExecute(idxs, async (idx) => {
-                const tokenId = `2:${idx}`;
+                const tokenId = `${prefix}:${idx}`;
                 try {
                     // logger.info(`sync new token: ${tokenId}`);
                     const alkanes = await BaseUtil.retryRequest(
@@ -80,6 +88,9 @@ export default class TokenInfoService {
                         alkanes.mintAmount !== undefined
                     ) {
                         alkanes.premine = alkanes.totalSupply.minus(alkanes.minted.multipliedBy(alkanes.mintAmount));
+                        if (alkanes.premine.lt(0)) {
+                            alkanes.premine = new BigNumber(0);
+                        }
                     }
     
                     if (alkanes.minted !== undefined && alkanes.cap !== undefined) {
@@ -93,7 +104,7 @@ export default class TokenInfoService {
                         }
                     }
     
-                    const idOutpoint = await AlkanesService.alkanesidtooutpoint(2, idx);
+                    const idOutpoint = await AlkanesService.alkanesidtooutpoint(prefix, idx);
                     const txHex = await MempoolUtil.getTxHex(idOutpoint.outpoint.txid);
                     const result = await decodeProtorune(txHex);
                     const message = BaseUtil.decodeLEB128Array(JSON.parse(result.protostones[0].message));
@@ -118,7 +129,7 @@ export default class TokenInfoService {
                 return;
             }
 
-            logger.info(`found new tokens: ${newAlkaneList.length}, new nft item: ${newNftItemList.length}, index: ${lastIndex}`);
+            logger.info(`by prefix ${prefix} found new tokens: ${newAlkaneList.length}, new nft item: ${newNftItemList.length}, index: ${lastIndex}`);
             if (newAlkaneList.length <= 0 && newNftItemList.length <= 0) {
                 break;
             }
@@ -167,32 +178,37 @@ export default class TokenInfoService {
                 }
             });
             const nftItemAttributes = newNftItemList.map(item => {
-                let attributes = item.attributes;
-                if (!attributes) {
-                    return;
-                }
-                attributes = JSON.parse(attributes);
-                if (Array.isArray(attributes)) {
-                    attributes = attributes.reduce((acc, curr) => {
-                        acc[curr.trait_type] = curr.value;
-                        return acc;
-                    }, {});
-                }
-                
-                return Object.keys(attributes).map(traitType => {
-                    let value = attributes[traitType];
-                    if (Array.isArray(value)) {
-                        value = value.join(',');
-                    } else if (typeof value === 'object') {
-                        value = JSON.stringify(value);
+                try {
+                    let attributes = item.attributes;
+                    if (!attributes) {
+                        return;
                     }
-                    return {
-                        collectionId: item.collectionIdentifier,
-                        itemId: item.id,
-                        traitType: traitType,
-                        value,
+                    attributes = JSON.parse(attributes);
+                    if (Array.isArray(attributes)) {
+                        attributes = attributes.reduce((acc, curr) => {
+                            acc[curr.trait_type] = curr.value;
+                            return acc;
+                        }, {});
                     }
-                });
+                    
+                    return Object.keys(attributes).map(traitType => {
+                        let value = attributes[traitType];
+                        if (Array.isArray(value)) {
+                            value = value.join(',');
+                        } else if (typeof value === 'object') {
+                            value = JSON.stringify(value);
+                        }
+                        return {
+                            collectionId: item.collectionIdentifier,
+                            itemId: item.id,
+                            traitType: traitType,
+                            value,
+                        }
+                    });
+                } catch (error) {
+                    logger.error(`Error parsing attributes for ${item.id}, ${item.attributes}:`, error);
+                    return null;
+                }
             }).flat().filter(item => item != null);
 
             await sequelize.transaction(async (transaction) => {
@@ -224,16 +240,23 @@ export default class TokenInfoService {
     }
 
     static async refreshTokenInfo(blockHeight) {
+        const prefixes = ['2', '4'];
+        for (const prefix of prefixes) {
+            await this.refreshTokenInfoByPrefix(blockHeight, prefix);
+        }
+    }
+
+    static async refreshTokenInfoByPrefix(blockHeight, prefix) {
         // 1. 获取所有现有token
-        const tokenList = await TokenInfoMapper.getAllTokens();
-        logger.info(`found existing tokens: ${tokenList.length}`);
+        const tokenList = await TokenInfoMapper.getAllTokens(null, prefix);
+        logger.info(`by prefix ${prefix} found existing tokens: ${tokenList.length}`);
 
         // 2. 获取需要更新的活跃token
-        const nftCollectionList = await NftCollectionService.getAllNftCollection();
+        const nftCollectionList = await NftCollectionService.getAllNftCollection(prefix);
         const activeTokens = tokenList.filter(token => {
             return (token.isSync) || nftCollectionList.find(nftCollection => nftCollection.id === token.id && nftCollection.mintActive === 1);
         });
-        logger.info(`found active tokens: ${activeTokens.length}`);
+        logger.info(`by prefix ${prefix} found active tokens: ${activeTokens.length}`);
 
         // 3. 并行获取活跃token的最新数据
         const alkaneList = [];
@@ -267,6 +290,9 @@ export default class TokenInfoService {
                     data.cap !== undefined
                 ) {
                     data.premine = data.totalSupply.minus(data.minted.multipliedBy(token.mintAmount));
+                    if (data.premine.lt(0)) {
+                        data.premine = new BigNumber(0);
+                    }
                     data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
                     data.mintActive = data.progress >= 100 ? 0 : 1;
                 }
@@ -292,7 +318,7 @@ export default class TokenInfoService {
         if (failedTokens.length > 0) {
             logger.warn(`Failed to update ${failedTokens.length} tokens:`, failedTokens.join(', '));
         }
-        logger.info(`updated active tokens: ${alkaneList.length}`);
+        logger.info(`by prefix ${prefix} updated active tokens: ${alkaneList.length}`);
 
         // 6. 合并所有token数据
         const tokenMap = new Map();
@@ -359,58 +385,71 @@ export default class TokenInfoService {
             const alkanesIds = [...new Set([...Object.keys(statsMap24h), ...await TokenInfoMapper.getTradingCountGt0Ids('total_trading_count')])];
 
             // Step 2: 查询每个代币的最新成交价格（listing_price）
-            const latestPrices = await sequelize.query(`
-                SELECT 
-                    me1.alkanes_id AS alkanesId,
-                    CAST(SUM(me1.listing_amount) AS DECIMAL(65,18)) / CAST(SUM(me1.token_amount) AS DECIMAL(65,18)) AS latestPrice
-                FROM market_event me1
-                WHERE me1.type = 2 
-                AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 HOUR), '%Y-%m-%d %H:00:00')
-                AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
-                GROUP BY me1.alkanes_id
-                HAVING SUM(me1.token_amount) > 0;
-            `, { type: QueryTypes.SELECT });
+            // const latestPrices = await sequelize.query(`
+            //     SELECT 
+            //         me1.alkanes_id AS alkanesId,
+            //         CAST(SUM(me1.listing_amount) AS DECIMAL(65,18)) / CAST(SUM(me1.token_amount) AS DECIMAL(65,18)) AS latestPrice
+            //     FROM market_event me1
+            //     WHERE me1.type = 2 
+            //     AND me1.created_at >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 HOUR), '%Y-%m-%d %H:00:00')
+            //     AND me1.created_at < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+            //     GROUP BY me1.alkanes_id
+            //     HAVING SUM(me1.token_amount) > 0;
+            // `, { type: QueryTypes.SELECT });
 
-            const latestPriceMap = {};
-            latestPrices.forEach(row => {
-                latestPriceMap[row.alkanesId] = parseFloat(row.latestPrice); // 转换价格为浮点数
-            });
+            // const latestPriceMap = {};
+            // latestPrices.forEach(row => {
+            //     latestPriceMap[row.alkanesId] = parseFloat(row.latestPrice); // 转换价格为浮点数
+            // });
 
-            // 使用 Map 保存更新数据
+            // // 使用 Map 保存更新数据
+            // const updateMap = new Map();
+
+            // // Step 3: 遍历其他时间段（7 天、30 天）
+            // for (const timeframe of timeframes) {
+            //     // 查询历史价格
+            //     const historicalPrices = await sequelize.query(`
+            //         SELECT ts1.alkanes_id AS alkanesId, 
+            //                ts1.average_price AS historicalPrice
+            //         FROM token_stats ts1
+            //         INNER JOIN (
+            //             SELECT alkanes_id, MIN(stats_date) AS minStatsTime
+            //             FROM token_stats
+            //             WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit}) 
+            //             GROUP BY alkanes_id
+            //         ) ts2 ON ts1.alkanes_id = ts2.alkanes_id AND ts1.stats_date = ts2.minStatsTime;
+            //     `, { type: QueryTypes.SELECT });
+
+            //     // 计算每个代币的涨跌幅
+            //     historicalPrices.forEach(row => {
+            //         const alkanesId = row.alkanesId;
+            //         const historicalPrice = parseFloat(row.historicalPrice);
+            //         const recentPrice = parseFloat(latestPriceMap[alkanesId] || 0);
+
+            //         // 获取或创建更新对象
+            //         const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
+
+            //         // 涨跌幅计算逻辑
+            //         if (historicalPrice > 0 && recentPrice > 0) {
+            //             existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - historicalPrice) / historicalPrice) * 100; // 添加涨跌幅
+            //         }
+
+            //         // 存入更新 Map
+            //         updateMap.set(alkanesId, existingUpdate);
+            //     });
+            // }
+
             const updateMap = new Map();
 
-            // Step 3: 遍历其他时间段（7 天、30 天）
             for (const timeframe of timeframes) {
-                // 查询历史价格
-                const historicalPrices = await sequelize.query(`
-                    SELECT ts1.alkanes_id AS alkanesId, 
-                           ts1.average_price AS historicalPrice
-                    FROM token_stats ts1
-                    INNER JOIN (
-                        SELECT alkanes_id, MIN(stats_date) AS minStatsTime
-                        FROM token_stats
-                        WHERE stats_date >= DATE_SUB(NOW(), INTERVAL ${timeframe.interval} ${timeframe.unit}) 
-                        GROUP BY alkanes_id
-                    ) ts2 ON ts1.alkanes_id = ts2.alkanes_id AND ts1.stats_date = ts2.minStatsTime;
-                `, { type: QueryTypes.SELECT });
-
-                // 计算每个代币的涨跌幅
-                historicalPrices.forEach(row => {
-                    const alkanesId = row.alkanesId;
-                    const historicalPrice = parseFloat(row.historicalPrice);
-                    const recentPrice = parseFloat(latestPriceMap[alkanesId] || 0);
-
-                    // 获取或创建更新对象
+                const days = timeframe.unit === 'HOUR' ? timeframe.interval / 24 : timeframe.interval;
+                const floorPriceChanges = await MarketAssetStatsService.getFloorPriceChangeByDayDuration(days);
+                for (const floorPriceChange of floorPriceChanges) {
+                    const alkanesId = floorPriceChange.alkanesId;
                     const existingUpdate = updateMap.get(alkanesId) || { id: alkanesId };
-
-                    // 涨跌幅计算逻辑
-                    if (historicalPrice > 0 && recentPrice > 0) {
-                        existingUpdate[`priceChange${timeframe.label}`] = ((recentPrice - historicalPrice) / historicalPrice) * 100; // 添加涨跌幅
-                    }
-
-                    // 存入更新 Map
+                    existingUpdate[`priceChange${timeframe.label}`] = floorPriceChange.change;
                     updateMap.set(alkanesId, existingUpdate);
-                });
+                }
             }
 
             // Step 4: 合并其他统计结果，更新 7d 和 30d 的交易额和交易次数
@@ -439,13 +478,11 @@ export default class TokenInfoService {
                 item.totalTradingCount = Math.max(item.totalTradingCount, item.tradingCount24h);
 
                 // 添加涨跌幅信息
-                let existingUpdate = updateMap.get(alkanesId);
-                if (!existingUpdate) {
-                    existingUpdate = { id: alkanesId };
-                    timeframes.forEach(timeframe => {
-                        existingUpdate[`priceChange${timeframe.label}`] = 0;
-                    });
-                }
+                const existingUpdate = updateMap.get(alkanesId) ?? { id: alkanesId };
+                timeframes.forEach(timeframe => {
+                    const key = `priceChange${timeframe.label}`;
+                    existingUpdate[key] = existingUpdate[key] ?? 0;
+                });
                 Object.assign(item, existingUpdate); // 合并涨跌幅信息
 
                 return item;

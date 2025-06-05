@@ -12,6 +12,8 @@ import AddressBalanceMapper from '../mapper/AddressBalanceMapper.js';
 import AddressBalance from '../models/AddressBalance.js';
 import TokenInfoService from '../service/TokenInfoService.js';
 import NftItemService from '../service/NftItemService.js';
+import MarketService from './MarketService.js';
+import NftMarketService from './NftMarketService.js';
 import TokenInfoMapper from '../mapper/TokenInfoMapper.js';
 import config from '../conf/config.js';
 import AlkanesService from './AlkanesService.js';
@@ -26,6 +28,13 @@ export default class IndexerService {
         // 废弃        
     }
 
+    static async cleanByBlock(block) {
+        await MarketService.rollbackConfirmedEvents(block);
+        await NftMarketService.rollbackConfirmedEvents(block);
+        await OutpointRecordMapper.deleteAfter(block);
+        await IndexBlockMapper.deleteAfter(block);
+    }
+
     static async indexBlock() {
         while (true) {
             logger.putContext({traceId: BaseUtil.genId()});
@@ -38,8 +47,7 @@ export default class IndexerService {
                     const blockHash = await MempoolUtil.getBlockHash(indexBlock.block);
                     block = indexBlock.block;
                     if (blockHash !== indexBlock.blockHash) {
-                        await OutpointRecordMapper.deleteAfter(block);
-                        await IndexBlockMapper.deleteAfter(block);
+                        await this.cleanByBlock(block);
                         logger.warn(`index block ${block} hash mismatch, new ${blockHash}, old ${indexBlock.blockHash}, reorg detected`);
                         continue;
                     }
@@ -51,8 +59,7 @@ export default class IndexerService {
                 }
                 logger.putContext({block});
                 logger.info(`index block ${block}`);
-                await OutpointRecordMapper.deleteAfter(block);
-                await IndexBlockMapper.deleteAfter(block);
+                await this.cleanByBlock(block);
                 const blockHash = await MempoolUtil.getBlockHash(block);
                 const blockDetails = await BtcRPC.getBlockDetails(blockHash);
                 const txs = blockDetails.tx;
@@ -105,7 +112,7 @@ export default class IndexerService {
                                         value: mempoolTx.vout[vout].value,
                                         address: mempoolTx.vout[vout].scriptpubkey_address,
                                         alkanesId: outpoint_balance.id,
-                                        balance: balance.toString(),
+                                        balance: balance.toFixed(),
                                         alkanesIdCount,
                                         spent: false,
                                         blockTime,
@@ -411,7 +418,7 @@ export default class IndexerService {
             throw new Error(`token ${alkanesId} not found`);
         }
         const holders = await sequelize.query(`
-            select address, balance, CAST(balance as DECIMAL(64,0)) / CAST(:permint as DECIMAL(64,0)) as cnt 
+            select address, balance, CAST(balance as DECIMAL(64,0)) / CAST(:mintAmount as DECIMAL(64,0)) as cnt 
             from address_balance 
             where alkanes_id = :alkanesId and CAST(balance as DECIMAL(64,0)) > 0
             order by CAST(balance as DECIMAL(64,0)) desc
@@ -419,7 +426,7 @@ export default class IndexerService {
         `, {
             replacements: {
                 alkanesId,
-                permint: tokenInfo.mintAmount.toString(),
+                mintAmount: tokenInfo.mintAmount,
                 size,
                 offset: (page - 1) * size,
             },
@@ -463,6 +470,7 @@ export default class IndexerService {
             limit: pageSize,
             offset: (page - 1) * pageSize,
             order: [
+                [sequelize.literal('CAST(balance AS DECIMAL(64,0))'), 'DESC'],
                 ['block', 'ASC'],
                 ['txIdx', 'ASC'],
                 ['vout', 'ASC'],

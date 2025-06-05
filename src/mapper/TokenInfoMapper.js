@@ -13,11 +13,17 @@ export default class TokenInfoMapper {
         return `tokenPage:${encodeURIComponent(name||'')}:${String(mintActive)}:${String(noPremine)}:${orderType}:${page}:${size}`;
     }
 
-    static async getAllTokens(mintActive = null) {
+    static async getAllTokens(mintActive = null, prefix = null) {
         const whereClause = {};
 
         if (mintActive) {
             whereClause.mintActive = { [Op.eq]: mintActive };
+        }
+
+        if (prefix) {
+            whereClause.id = {
+                [Op.like]: `${prefix}:%`
+            }
         }
 
         const tokens = await TokenInfo.findAll({
@@ -29,8 +35,13 @@ export default class TokenInfoMapper {
         });
     }
 
-    static async getLastTokenInfo() {
+    static async getLastTokenInfo(prefix = '2') {
         return await TokenInfo.findOne({
+            where: {
+                id: {
+                    [Op.like]: `${prefix}:%`
+                }
+            },
             order: [
                 [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'DESC'],
                 [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'DESC']
@@ -349,7 +360,7 @@ export default class TokenInfoMapper {
                 ${token.mintAmount || 0}, 
                 ${token.totalSupply || 0}, 
                 ${token.progress || 0}, 
-                ${token.mintActive || 0}, 
+                ${token.mintActive ?? 1}, 
                 ${token.updateHeight || 0},
                 ${token.reserveNumber || 0}
             )`).join(',')}

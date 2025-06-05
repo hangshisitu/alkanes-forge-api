@@ -19,9 +19,9 @@ export default class NftCollectionStatsService {
             }
 
             const averagePrice = trades.reduce((sum, trade) => new BigNumber(trade.listingPrice).plus(sum), new BigNumber(0)).dividedBy(new BigNumber(trades.length));
-            const totalAmount = trades.reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0));
-            const totalVolume = trades.reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0));
-            const tradeCount = trades.length;
+            const totalAmount = trades.filter(trade => trade.createdAt >= startTime).reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0));
+            const totalVolume = trades.filter(trade => trade.createdAt >= startTime).reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0));
+            const tradeCount = trades.filter(trade => trade.createdAt >= startTime).length;
 
             const stats = {
                 id: BaseUtil.genId(),
@@ -83,7 +83,7 @@ export default class NftCollectionStatsService {
             startDate.setDate(now.getDate() - 30);
         } else {
             startDate = new Date();
-            startDate.setHours(now.getHours() - 24);
+            startDate.setHours(now.getHours() - 26);
         }
 
         if (timeFrame === Constants.NFT_COLLECTION_STATS_TIME_FRAME.HOUR) {

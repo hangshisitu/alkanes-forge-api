@@ -462,7 +462,9 @@ export default class MintService {
                 value: tx.vout[i].value,
                 address: mintOrder.mintAddress
             });
-            refundValue += tx.vout[i].value;
+            if (i > 0) {
+                refundValue += tx.vout[i].value;
+            }
         }
 
         const transferProtostone = AlkanesService.getMintProtostone(mintOrder.alkanesId, 77, Constants.MINT_MODEL.MERGE);

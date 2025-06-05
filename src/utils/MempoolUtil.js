@@ -110,7 +110,30 @@ export default class MempoolUtil {
     }
 
     static async getTxRbf(txid) {
-        const url = `https://${mempoolHost}/api/v1/tx/${txid}/rbf`
+        let host = `https://${mempoolHost}`;
+        if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
+            host = `https://mempool.space/${config.networkName}`;
+        }
+        const url = `${host}/api/v1/tx/${txid}/rbf`
+        try {
+            const resp = await axios.get(url, {
+                timeout: 10000
+            })
+            return resp.data;
+        } catch (err) {
+            if (err.response?.status === 404) {
+                return null;
+            }
+            throw err;
+        }
+    }
+
+    static async getCachedTx(txid) {
+        let host = `https://${mempoolHost}`;
+        if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
+            host = `https://mempool.space/${config.networkName}`;
+        }
+        const url = `${host}/api/v1/tx/${txid}/cached`
         try {
             const resp = await axios.get(url, {
                 timeout: 10000

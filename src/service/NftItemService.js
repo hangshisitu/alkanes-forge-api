@@ -11,6 +11,7 @@ import UnisatAPI from "../lib/UnisatAPI.js";
 import FeeUtil from "../utils/FeeUtil.js";
 import config from "../conf/config.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
+import MempoolUtil from '../utils/MempoolUtil.js';
 
 export default class NftItemService {
 
@@ -184,6 +185,7 @@ export default class NftItemService {
             rows.forEach(item => {
                 const outpointRecord = outpointRecords.find(record => record.alkanesId === item.id);
                 if (!outpointRecord) {
+                    item.spent = true;
                     removeItemIds.add(item.id);
                     return;
                 }
@@ -191,6 +193,14 @@ export default class NftItemService {
                 item.vout = outpointRecord?.vout;
                 item.value = outpointRecord?.value;
                 item.assetCount = outpointRecord?.alkanesIdCount;
+                item.spent = false;
+            });
+            await BaseUtil.concurrentExecute(rows, async (item) => {
+                if (removeItemIds.has(item.id)) {
+                    return;
+                }
+                const outspend = await MempoolUtil.getOutspend(item.txid, item.vout);
+                item.spent = outspend.spent;
             });
         }
         const result = {
@@ -246,9 +256,14 @@ export default class NftItemService {
         return [...collectionIds];
     }
 
-    static async findMaxItemId() {
+    static async findMaxItemId(prefix = '2') {
         const maxIdItem = await NftItem.findOne({
             attributes: ['id'],
+            where: {
+                id: {
+                    [Op.like]: `${prefix}:%`
+                }
+            },
             order: [
                 [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", 1) AS UNSIGNED)'), 'DESC'],
                 [Sequelize.literal('CAST(SUBSTRING_INDEX(id, ":", -1) AS UNSIGNED)'), 'DESC'],

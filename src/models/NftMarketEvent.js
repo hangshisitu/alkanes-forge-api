@@ -66,6 +66,11 @@ const NftMarketEvent = sequelize.define('NftMarketEvent', {
         defaultValue: '',
         comment: '链上交易哈希'
     },
+    txConfirmedHeight: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: '交易确认高度'
+    },
     createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

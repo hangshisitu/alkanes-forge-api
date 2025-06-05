@@ -12,7 +12,7 @@ export default class NftMarketEventMapper {
             where: {
                 collectionId: collectionId,
                 type: Constants.MARKET_EVENT.SOLD,
-                updatedAt: {
+                createdAt: {
                     [Op.between]: [startTime, endTime],
                 },
             },
@@ -22,21 +22,26 @@ export default class NftMarketEventMapper {
     
 
     static async getStatsMapForHours(hoursRange= 24) {
-        try {
-            const date = new Date();
-            date.setHours(date.getHours() - hoursRange); // 计算 24 小时前的时间
+        const date = new Date();
+        date.setHours(date.getHours() - hoursRange); // 计算 24 小时前的时间
+        return await this.getStatsMapForTimeRange(date, new Date());
+    }
 
+    static async getStatsMapForTimeRange(startTime, endTime) {
+        try {
             const stats = await sequelize.query(`
                 SELECT 
                     collection_id AS collectionId,
-                    SUM(listing_amount) AS totalVolume,
+                    SUM(listing_price) AS totalVolume,
+                    CAST(SUM(listing_price) AS DECIMAL(65,18)) / CAST(COUNT(*) AS DECIMAL(65,18)) AS avgPrice,
                     COUNT(*) AS tradeCount
                 FROM nft_market_event
                 WHERE created_at >= :startDate
+                    AND created_at < :endDate
                     AND type = 2
                 GROUP BY collection_id;
             `, {
-                replacements: { startDate: date },
+                replacements: { startDate: startTime, endDate: endTime },
                 type: QueryTypes.SELECT,
                 raw: true
             });
@@ -45,6 +50,7 @@ export default class NftMarketEventMapper {
             return stats.reduce((acc, item) => {
                 acc[item.collectionId] = {
                     totalVolume: item.totalVolume || 0,
+                    avgPrice: item.avgPrice || 0,
                     tradeCount: item.tradeCount || 0
                 };
                 return acc;
@@ -55,7 +61,36 @@ export default class NftMarketEventMapper {
         }
     }
 
-    static async bulkUpsertEvent(eventList) {
+    static async getNftStatsForTimeRange(collectionId, startTime, endTime) {
+        try {
+            const stats = await sequelize.query(`
+                SELECT 
+                    SUM(listing_price) AS totalVolume,
+                    CAST(SUM(listing_price) AS DECIMAL(65,18)) / CAST(COUNT(*) AS DECIMAL(65,18)) AS avgPrice,
+                    COUNT(*) AS tradeCount
+                FROM nft_market_event
+                WHERE created_at >= :startDate
+                    AND created_at < :endDate
+                    AND type = 2
+                    AND collection_id = :collectionId
+            `, {
+                replacements: { startDate: startTime, endDate: endTime, collectionId: collectionId },
+                type: QueryTypes.SELECT,
+                raw: true
+            });
+            const stat = stats[0];
+            return {
+                totalVolume: stat?.totalVolume || 0,
+                avgPrice: stat?.avgPrice || 0,
+                tradeCount: stat?.tradeCount || 0
+            }
+        } catch (error) {
+            logger.error('Error in getNftStatsForTimeRange:', error);
+            throw error;
+        }
+    }
+
+    static async bulkUpsertEvent(eventList, transaction = null) {
         if (!eventList || eventList.length === 0) {
             return [];
         }
@@ -64,7 +99,8 @@ export default class NftMarketEventMapper {
         const updatableFields = Object.keys(eventList[0]).filter(key => !uniqueKeyFields.includes(key));
         return await NftMarketEvent.bulkCreate(eventList, {
             updateOnDuplicate: updatableFields,
-            returning: false
+            returning: false,
+            transaction: transaction
         });
     }
 
@@ -80,4 +116,93 @@ export default class NftMarketEventMapper {
             }
         });
     }
+
+    static async getPendingSoldEvents(page, size) {
+        return await NftMarketEvent.findAll({
+            where: {
+                type: Constants.MARKET_EVENT.SOLD,
+                txConfirmedHeight: 0
+            },
+            order: [["createdAt", "DESC"], ["id", "ASC"]],
+            limit: size,
+            offset: (page - 1) * size
+        }, {
+            raw: true
+        });
+    }
+
+    static async updateEventById(id, data) {
+        return await NftMarketEvent.update(data, {
+            where: { id }
+        });
+    }
+
+    static async deleteEventById(id) {
+        return await NftMarketEvent.destroy({
+            where: { id }
+        });
+    }
+
+    static async rollbackConfirmed(blockHeight) {
+        return await NftMarketEvent.update({
+            txConfirmedHeight: 0
+        }, {
+            where: {
+                txConfirmedHeight: { [Op.gte]: blockHeight },
+                type: Constants.MARKET_EVENT.SOLD
+            }
+        });
+    }
+
+    static async getSoldEventByListingOutput(listingOutput) {
+        return await NftMarketEvent.findOne({
+            where: {
+                listingOutput: listingOutput,
+                type: Constants.MARKET_EVENT.SOLD
+            }
+        });
+    }
+
+    static async updateEventTxHash(oldTxid, newTxid, transaction = null) {
+        return await NftMarketEvent.update({
+            txHash: newTxid
+        }, {
+            where: {
+                txHash: oldTxid
+            }, transaction
+        });
+    }
+
+    static async getUserTrades(collectionId, userAddress, page, size) {
+        const { count, rows } = await NftMarketEvent.findAndCountAll({
+            where: {
+                collectionId: collectionId,
+                type: Constants.MARKET_EVENT.SOLD,
+                [Op.or]: [
+                    { buyerAddress: userAddress },
+                    { sellerAddress: userAddress }
+                ]
+            },
+            order: [["createdAt", "DESC"], ["id", "ASC"]],
+            limit: size,
+            offset: (page - 1) * size,
+        });
+        return {
+            page,
+            size,
+            total: count,
+            pages: Math.ceil(count / size),
+            records: rows.map(row => {
+                row = row.toJSON();
+                return {
+                    ...row,
+                    createdAt: null,
+                    updatedAt: row.createdAt
+                }
+            }),
+        };
+    }
+    
+    
+    
 }

@@ -138,13 +138,15 @@ export default class UnisatAPI {
         return allUtxoList;
     }
 
-    static async getUtxoByTarget(address, amount, feerate, filterConfirmed = false) {
+    static async getUtxoByTarget(address, amount, feerate, filterConfirmed = false, filterOutputs = []) {
         const utxoList = await UnisatAPI.getAllUtxo(address, filterConfirmed);
         if (utxoList === null || utxoList.length === 0) {
             throw new Error('Insufficient utxo balance');
         }
 
-        return UnisatAPI.pickUtxoByTarget(address, amount, feerate, utxoList);
+        return UnisatAPI.pickUtxoByTarget(address, amount, feerate, utxoList.filter(utxo => {
+            return !filterOutputs?.includes(`${utxo.txid}:${utxo.vout}`);
+        }));
     }
 
     static pickUtxoByTarget(address, amount, feerate, utxoList) {
@@ -297,6 +299,10 @@ export default class UnisatAPI {
                         hex,
                         txSize: txInfo.txSize
                     };
+                } else if (lastError.includes('rejecting replacement')) {
+                    logger.error(`${txid} tx push error, hex: ${hex_data}, error: ${lastError}`);
+                    lastError = 'Feerate too low to replace the transaction. Please increase and try again.';
+                    break;
                 }
                 if (i === retryCount - 1) {
                     logger.error(`${txid} tx push error, hex: ${hex_data}, error: ${lastError}`);

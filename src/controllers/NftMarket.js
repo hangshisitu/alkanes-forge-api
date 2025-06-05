@@ -504,6 +504,123 @@ async function collectionStats(ctx) {
     return await NftCollectionStatsService.queryCollectionStats(collectionId, type);
 }
 
+/**
+ * @swagger
+ * /nft/market/preAccelerateTrade:
+ *   post:
+ *     summary: Pre-accelerate trade
+ *     tags: [NFT Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fundAddress
+ *               - fundPublicKey
+ *               - assetAddress
+ *               - txid
+ *               - feerate
+ *             properties:
+ *               fundAddress:
+ *                 type: string
+ *                 description: Funding address
+ *               fundPublicKey:
+ *                 type: string
+ *                 description: Funding public key
+ *               assetAddress:
+ *                 type: string
+ *                 description: Asset address
+ *               txid:
+ *                 type: string
+ *                 description: Transaction ID
+ *               feerate:
+ *                 type: number
+ *                 description: Fee rate
+ *     responses:
+ *       200:
+ *         description: Unsigned transaction created successfully
+ */
+async function preAccelerateTrade(ctx) {
+    const { fundAddress, fundPublicKey, assetAddress, txid, feerate } = ctx.request.body;
+    const userAddress = ctx.state.address;
+    return await NftMarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress);
+}
+
+/**
+ * @swagger
+ * /nft/market/accelerateTrade:
+ *   post:
+ *     summary: Accelerate trade
+ *     tags: [NFT Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - signedPsbt
+ *             properties:
+ *               signedPsbt:
+ *                 type: string
+ *                 description: Signed PSBT transaction
+ *     responses:
+ *       200:
+ *         description: Accelerated trade submitted successfully
+ */
+async function accelerateTrade(ctx) {
+    const { signedPsbt } = ctx.request.body;
+    const walletType = ctx.get('wallet-type') || '';
+    return await NftMarketService.putSignedBuying(signedPsbt, walletType, true);
+}
+
+/**
+ * @swagger
+ * /nft/market/userTrades:
+ *   post:
+ *     summary: Get user trades
+ *     tags: [NFT Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               collectionId:
+ *                 type: string
+ *                 description: Collection ID
+ *               page:
+ *                 type: integer
+ *                 description: Page number
+ *               size:
+ *                 type: integer
+ *                 description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of user trades
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                 pages:
+ *                   type: integer
+ */
+async function userTrades(ctx) {
+    const { collectionId, page, size } = ctx.request.body;
+    const userAddress = ctx.state.address;
+    return await NftMarketService.getUserTrades(collectionId, userAddress, page, size);
+}
+
 export default [
     {
         path: Constants.API.NFT_MARKET.ASSETS,
@@ -564,6 +681,21 @@ export default [
         path: Constants.API.NFT_MARKET.COLLECTION_STATS,
         method: 'post',
         handler: collectionStats
+    },
+    {
+        path: Constants.API.NFT_MARKET.PRE_ACCELERATE_TRADE,
+        method: 'post',
+        handler: preAccelerateTrade
+    },
+    {
+        path: Constants.API.NFT_MARKET.ACCELERATE_TRADE,
+        method: 'post',
+        handler: accelerateTrade
+    },
+    {
+        path: Constants.API.NFT_MARKET.USER_TRADES,
+        method: 'post',
+        handler: userTrades
     }
 ]
 

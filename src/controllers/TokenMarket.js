@@ -479,6 +479,123 @@ async function tokenStats(ctx) {
     return await TokenStatsService.queryTokenStats(alkanesId, type);
 }
 
+/**
+ * @swagger
+ * /market/preAccelerateTrade:
+ *   post:
+ *     summary: Pre-accelerate trade
+ *     tags: [Token Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fundAddress
+ *               - fundPublicKey
+ *               - assetAddress
+ *               - txid
+ *               - feerate
+ *             properties:
+ *               fundAddress:
+ *                 type: string
+ *                 description: Funding address
+ *               fundPublicKey:
+ *                 type: string
+ *                 description: Funding public key
+ *               assetAddress:
+ *                 type: string
+ *                 description: Asset address
+ *               txid:
+ *                 type: string
+ *                 description: Transaction ID
+ *               feerate:
+ *                 type: number
+ *                 description: Fee rate
+ *     responses:
+ *       200:
+ *         description: Unsigned transaction created successfully
+ */
+async function preAccelerateTrade(ctx) {
+    const { fundAddress, fundPublicKey, assetAddress, txid, feerate } = ctx.request.body;
+    const userAddress = ctx.state.address;
+    return await MarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress);
+}
+
+/**
+ * @swagger
+ * /market/accelerateTrade:
+ *   post:
+ *     summary: Accelerate trade
+ *     tags: [Token Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - signedPsbt
+ *             properties:
+ *               signedPsbt:
+ *                 type: string
+ *                 description: Signed PSBT transaction
+ *     responses:
+ *       200:
+ *         description: Accelerated trade submitted successfully
+ */
+async function accelerateTrade(ctx) {
+    const { signedPsbt } = ctx.request.body;
+    const walletType = ctx.get('wallet-type') || '';
+    return await MarketService.putSignedBuying(signedPsbt, walletType, true);
+}
+
+/**
+ * @swagger
+ * /market/userTrades:
+ *   post:
+ *     summary: Get user trades
+ *     tags: [Token Market]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               alkanesId:
+ *                 type: string
+ *                 description: Alkanes token ID
+ *               page:
+ *                 type: integer
+ *                 description: Page number
+ *               size:
+ *                 type: integer
+ *                 description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of user trades
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                 pages:
+ *                   type: integer
+ */
+async function userTrades(ctx) {
+    const { alkanesId, page, size } = ctx.request.body;
+    const userAddress = ctx.state.address;
+    return await MarketService.getUserTrades(alkanesId, userAddress, page, size);
+}
+
 export default [
     {
         path: Constants.API.MARKET.ASSETS,
@@ -539,5 +656,20 @@ export default [
         path: Constants.API.MARKET.TOKEN_STATS,
         method: 'post',
         handler: tokenStats
+    },
+    {
+        path: Constants.API.MARKET.PRE_ACCELERATE_TRADE,
+        method: 'post',
+        handler: preAccelerateTrade
+    },
+    {
+        path: Constants.API.MARKET.ACCELERATE_TRADE,
+        method: 'post',
+        handler: accelerateTrade
+    },
+    {
+        path: Constants.API.MARKET.USER_TRADES,
+        method: 'post',
+        handler: userTrades
     }
 ]

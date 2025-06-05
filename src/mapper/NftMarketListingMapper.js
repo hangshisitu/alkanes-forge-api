@@ -1,6 +1,8 @@
 import NftMarketListing from "../models/NftMarketListing.js";
 import {Constants} from "../conf/constants.js";
 import { Op } from 'sequelize';
+import sequelize from "../lib/SequelizeHelper.js";
+import Sequelize from "sequelize";
 
 export default class NftMarketListingMapper {
 
@@ -32,7 +34,7 @@ export default class NftMarketListingMapper {
 
     static async getByIds(collectionId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await NftMarketListing.findAll({
-            attributes: ["id", "itemId", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
+            attributes: ["id", "itemId", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData", "listingOutput"],
             where: {
                 id: ids,
                 collectionId: collectionId,
@@ -41,7 +43,7 @@ export default class NftMarketListingMapper {
         });
     }
 
-    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, walletType) {
+    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, walletType, transaction = null) {
         await NftMarketListing.update(
             {
                 status: status,
@@ -53,12 +55,16 @@ export default class NftMarketListingMapper {
                 where: {
                     listingOutput: listingOutputList,
                     status: Constants.LISTING_STATUS.LIST
-                }
+                },
+                transaction: transaction
             }
         );
     }
 
     static async bulkRollbackListingFromSold(listingOutputList, status, buyerAddress, txHash, walletType) {
+        if (!listingOutputList || listingOutputList.length === 0) {
+            return;
+        }
         await NftMarketListing.update(
             {
                 status: status,
@@ -75,12 +81,14 @@ export default class NftMarketListingMapper {
         );
     }
 
-    static async getByOutputs(listingOutputList) {
+    static async getByOutputs(listingOutputList, transaction = null) {
         return await NftMarketListing.findAll({
-            attributes: ["id", "collectionId", "itemId", "itemName", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData"],
+            attributes: ["id", "collectionId", "itemId", "itemName", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData", "status"],
             where: {
                 listingOutput: listingOutputList
-            }
+            },
+            lock: transaction ? Sequelize.Transaction.LOCK.UPDATE : null,
+            transaction: transaction
         });
     }
 
@@ -141,11 +149,28 @@ export default class NftMarketListingMapper {
         });
     }
 
+    static async updateListingByListingOutput(listingOutput, data) {
+        return await NftMarketListing.update(data, {
+            where: {
+                listingOutput: listingOutput,
+            }
+        });
+    }
+
     static async getByTxids(txids) {
         return await NftMarketListing.findAll({
             where: {
                 txHash: txids
             },
+            raw: true
+        });
+    }
+
+    static async getAllFloorPrice() {
+        return await NftMarketListing.findAll({
+            attributes: ['collectionId', [sequelize.fn('min', sequelize.col('listing_price')), 'listingPrice']],
+            where: {status: Constants.LISTING_STATUS.LIST},
+            group: ['collectionId'],
             raw: true
         });
     }

@@ -15,6 +15,9 @@ import IndexerService from '../service/IndexerService.js';
 import NftItemService from '../service/NftItemService.js';
 import NftCollectionService from '../service/NftCollectionService.js';
 import NftCollectionStatsService from '../service/NftCollectionStatsService.js';
+import MarketAssetStatsService from '../service/MarketAssetStatsService.js';
+import MarketService from '../service/MarketService.js';
+import NftMarketService from '../service/NftMarketService.js';
 import LaunchService from '../service/LaunchService.js';
 
 let isRefreshBlockConfig = false;
@@ -131,7 +134,7 @@ function refreshNftCollectionInfo() {
 
 let isRefreshStatsForTimeRange = false;
 function refreshStatsForTimeRange() {
-    schedule.scheduleJob('0 * * * *', async () => {
+    schedule.scheduleJob(' */3 * * * *', async () => {
         if (isRefreshStatsForTimeRange) {
             return;
         }
@@ -342,9 +345,30 @@ function refreshNftCollectionStats() {
     });
 }
 
+let isRefreshMarketAssetStats = false;
+function refreshMarketAssetStats() {
+    schedule.scheduleJob(' */10 * * * *', async () => {
+        if (isRefreshMarketAssetStats) {
+            return;
+        }
+
+        try {
+            isRefreshMarketAssetStats = true;
+            const execStartTime = Date.now();
+            logger.info(`refreshMarketAssetStats start`);
+            await MarketAssetStatsService.refreshMarketAssetStats();
+            logger.info(`refreshMarketAssetStats finish, cost ${Date.now() - execStartTime}ms.`);
+        } catch (err) {
+            logger.error(`refreshMarketAssetStats error, error: ${err.message}`, err);
+        } finally {
+            isRefreshMarketAssetStats = false;
+        }
+    });
+}
+
 let isRefreshNftCollectionStatsForTimeRange = false;
 function refreshNftCollectionStatsForTimeRange() {
-    schedule.scheduleJob('*/10 * * * * *', async () => {
+    schedule.scheduleJob(' */3 * * * *', async () => {
         if (isRefreshNftCollectionStatsForTimeRange) {
             return;
         }
@@ -380,14 +404,59 @@ function refreshLaunchOrder() {
 
         try {
             isRefreshLaunchOrder = true;
-            const execStartTime = Date.now();
+            logger.putContext({traceId: BaseUtil.genId()});
             logger.info(`refreshLaunchOrder start`);
             await LaunchService.refreshLaunchOrder();
-            logger.info(`refreshLaunchOrder finish, cost ${Date.now() - execStartTime}ms.`);
+            logger.info(`refreshLaunchOrder finish`);
         } catch (err) {
             logger.error(`refreshLaunchOrder error, error: ${err.message}`, err);
         } finally {
             isRefreshLaunchOrder = false;
+            logger.clearContext();
+        }
+    });
+}
+
+let isConfirmTokenMarketSoldEvent = false;
+function confirmTokenMarketSoldEvent() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isConfirmTokenMarketSoldEvent) {
+            return;
+        }
+
+        try {
+            isConfirmTokenMarketSoldEvent = true;
+            logger.putContext({traceId: BaseUtil.genId()});
+            logger.info(`confirmTokenMarketSoldEvent start`);
+            await MarketService.confirmPendingSoldEvents();
+            logger.info(`confirmTokenMarketSoldEvent finish`);
+        } catch (err) {
+            logger.error(`confirmTokenMarketSoldEvent error, error: ${err.message}`, err);
+        } finally {
+            isConfirmTokenMarketSoldEvent = false;
+            logger.clearContext();
+        }
+    });
+}
+
+let isConfirmNftMarketSoldEvent = false;
+function confirmNftMarketSoldEvent() {
+    schedule.scheduleJob('*/10 * * * * *', async () => {
+        if (isConfirmNftMarketSoldEvent) {
+            return;
+        }
+
+        try {
+            isConfirmNftMarketSoldEvent = true;
+            logger.putContext({traceId: BaseUtil.genId()});
+            logger.info(`confirmNftMarketSoldEvent start`);
+            await NftMarketService.confirmPendingSoldEvents();
+            logger.info(`confirmNftMarketSoldEvent finish`);
+        } catch (err) {
+            logger.error(`confirmNftMarketSoldEvent error, error: ${err.message}`, err);
+        } finally {
+            isConfirmNftMarketSoldEvent = false;
+            logger.clearContext();
         }
     });
 }
@@ -401,6 +470,11 @@ export function jobs() {
     refreshTokenStats();
     refreshNftCollectionStatsForTimeRange();
     refreshNftCollectionStats();
+    refreshMarketAssetStats();
+
+    confirmTokenMarketSoldEvent();
+    confirmNftMarketSoldEvent();
+    
     indexNftItemHolder();
 }
 

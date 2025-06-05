@@ -20,7 +20,7 @@ export default class TokenStatsService {
             startDate.setDate(now.getDate() - 30);
         } else {
             startDate = new Date();
-            startDate.setHours(now.getHours() - 24);
+            startDate.setHours(now.getHours() - 26); // 因为24小时统计数据不会有当前这个小时的数据，所以往前推26小时
         }
 
         if (timeFrame === Constants.TOKEN_STATS_TIME_FRAME.HOUR) {
@@ -38,10 +38,11 @@ export default class TokenStatsService {
                 continue;
             }
 
-            const totalAmount = trades.reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0));
-            const totalVolume = trades.reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0));
-            const averagePrice = totalVolume.dividedBy(totalAmount);
-            const tradeCount = trades.length;
+            const totalAmount = trades.filter(trade => trade.createdAt >= startTime).reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0));
+            const totalVolume = trades.filter(trade => trade.createdAt >= startTime).reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0));
+            const averagePrice = trades.reduce((sum, trade) => new BigNumber(trade.listingAmount).plus(sum), new BigNumber(0))
+                                    .dividedBy(trades.reduce((sum, trade) => new BigNumber(trade.tokenAmount).plus(sum), new BigNumber(0)));
+            const tradeCount = trades.filter(trade => trade.createdAt >= startTime).length;
 
             const stats = {
                 id: BaseUtil.genId(),

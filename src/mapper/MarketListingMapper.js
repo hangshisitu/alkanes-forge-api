@@ -2,6 +2,9 @@ import MarketListing from "../models/MarkeListing.js";
 import {Constants} from "../conf/constants.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import { Op } from "sequelize";
+import sequelize from "../lib/SequelizeHelper.js";
+import Sequelize from "sequelize";
+
 export default class MarketListingMapper {
 
     static getListingCacheKey(alkanesId, sellerAddress, page, size, orderType) {
@@ -79,17 +82,20 @@ export default class MarketListingMapper {
         });
     }
 
-    static async getByOutputs(listingOutputList) {
+    static async getByOutputs(listingOutputList, transaction = null) {
         return await MarketListing.findAll({
-            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData"],
+            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData", "status"],
             where: {
                 listingOutput: listingOutputList
-            }
+            },
+            lock: transaction ? Sequelize.Transaction.LOCK.UPDATE : null,
+            transaction
         });
     }
+
     static async getByIds(alkanesId, ids, status = Constants.LISTING_STATUS.LIST) {
         return await MarketListing.findAll({
-            attributes: ["id", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData"],
+            attributes: ["id", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "sellerRecipient", "psbtData", "listingOutput"],
             where: {
                 id: ids,
                 alkanesId: alkanesId,
@@ -110,7 +116,7 @@ export default class MarketListingMapper {
         })
     }
 
-    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, walletType, alkanesId = null) {
+    static async bulkUpdateListing(listingOutputList, status, buyerAddress, txHash, walletType, alkanesId = null, transaction = null) {
         await MarketListing.update(
             {
                 status: status,
@@ -122,7 +128,8 @@ export default class MarketListingMapper {
                 where: {
                     listingOutput: listingOutputList,
                     status: Constants.LISTING_STATUS.LIST
-                }
+                },
+                transaction
             }
         );
         if (alkanesId) {
@@ -131,6 +138,10 @@ export default class MarketListingMapper {
     }
 
     static async bulkRollbackListingFromSold(listingOutputList, status, buyerAddress, txHash, walletType, alkanesId = null) {
+        if (!listingOutputList || listingOutputList.length === 0) {
+            return;
+        }
+
         await MarketListing.update(
             {
                 status: status,
@@ -187,6 +198,14 @@ export default class MarketListingMapper {
         });
     }
 
+    static async updateListingByListingOutput(listingOutput, data) {
+        return await MarketListing.update(data, {
+            where: {
+                listingOutput: listingOutput,
+            }
+        });
+    }
+
     static async getByTxids(txids) {
         return await MarketListing.findAll({
             where: {
@@ -194,6 +213,16 @@ export default class MarketListingMapper {
             },
             raw: true
         });
+    }
+
+    static async getAllFloorPrice() {
+        const listings = await MarketListing.findAll({
+            attributes: ['alkanesId', [sequelize.fn('min', sequelize.col('listing_price')), 'listingPrice']],
+            where: {status: Constants.LISTING_STATUS.LIST},
+            group: ['alkanesId'],
+            raw: true
+        });
+        return listings;
     }
 
 }

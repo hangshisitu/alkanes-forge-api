@@ -216,6 +216,9 @@ export const Constants = Object.freeze({
             PUT_SIGNED_BUYING: '/market/putSignedBuying',
             EVENTS: '/market/events',
             TOKEN_STATS: '/market/tokenStats',
+            PRE_ACCELERATE_TRADE: '/market/preAccelerateTrade',
+            ACCELERATE_TRADE: '/market/accelerateTrade',
+            USER_TRADES: '/market/userTrades',
         },
 
         NFT: {
@@ -240,6 +243,9 @@ export const Constants = Object.freeze({
             PUT_SIGNED_BUYING: '/nft/market/putSignedBuying',
             EVENTS: '/nft/market/events',
             COLLECTION_STATS: '/nft/market/collectionStats',
+            PRE_ACCELERATE_TRADE: '/nft/market/preAccelerateTrade',
+            ACCELERATE_TRADE: '/nft/market/accelerateTrade',
+            USER_TRADES: '/nft/market/userTrades',
         },
 
         INSCRIBE: {

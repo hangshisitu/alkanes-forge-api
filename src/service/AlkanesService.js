@@ -728,10 +728,13 @@ export default class AlkanesService {
             ...request,
         };
         const ret = await this._call('alkanes_simulate', [params], config.alkanesUrl);
-        const data = ret?.status === 0 ? ret.execution.data : null;
         if (decoder) {
             const operationType = Number(request.inputs[0])
             return decoder(ret, operationType)
+        }
+        const data = ret?.status === 0 ? ret.execution.data : null;
+        if (data == null) { // 没有值
+            return undefined;
         }
         if (request.inputs[0] === '999') {
             return AlkanesService.decodeAlkaneId(data);
@@ -768,9 +771,8 @@ export default class AlkanesService {
                 },
                 timeout: timeout
             });
-
-            if (response.error) {
-                throw new Error(response.error.message)
+            if (response.data.error) { // alkanes rpc代理的底层rpc调用错误时响应是正常, 但会包含错误信息, 也归属网络错误
+                throw new NetworkError(500, `rpc call error, payload: ${JSON.stringify(payload)}, message: ${JSON.stringify(response.data.error)}`);
             }
             const result = response.data.result;
             if (result?.execution?.error) {
@@ -778,6 +780,9 @@ export default class AlkanesService {
             }
             return result;
         } catch (error) {
+            if (error instanceof NetworkError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 logger.error(`RPC call timeout, method: ${method} params: ${JSON.stringify(params)}`, error);
                 throw new NetworkError(502, error);
