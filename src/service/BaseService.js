@@ -2,6 +2,7 @@ import * as RedisHelper from "../lib/RedisHelper.js";
 import {Constants} from "../conf/constants.js";
 import MempoolUtil from "../utils/MempoolUtil.js";
 import UnisatAPI from "../lib/UnisatAPI.js";
+import config from "../conf/config.js";
 
 export default class BaseService {
 
@@ -21,6 +22,10 @@ export default class BaseService {
                 medianFee: block?.medianFee,
                 feeRange: block?.feeRange,
             },
+            market: {
+                takerFee: config.market.takerFee,
+                makerFee: config.market.makerFee,
+            }
         }
     }
 

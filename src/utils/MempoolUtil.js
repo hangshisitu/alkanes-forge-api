@@ -131,7 +131,7 @@ export default class MempoolUtil {
     static async getCachedTx(txid) {
         let host = `https://${mempoolHost}`;
         if (config.networkName !== 'testnet4' && config.networkName !== 'mainnet' ) {
-            host = `https://mempool.space/${config.networkName}`;
+            host = `https://${mempoolHost}/${config.networkName}`;
         }
         const url = `${host}/api/v1/tx/${txid}/cached`
         try {

@@ -269,6 +269,11 @@ export const Constants = Object.freeze({
             ASSETS_BY_UTXO: '/user/assetsByUtxo',
             SPLIT_ALKANES_UTXO: '/user/splitAlkanesUtxo',
             COMBINE_ALKANES_UTXO: '/user/combineAlkanesUtxo',
+            POINT_RECORDS: '/user/pointRecords',
+            POINT: '/user/point',
+            DISCOUNT: '/user/discount',
+            REBOUND_DISCOUNT_ADDRESS: '/user/reboundDiscountAddress',
+            POINT_RANK: '/user/pointRank',
         },
 
         METHANE: {
@@ -295,5 +300,10 @@ export const Constants = Object.freeze({
             COMPLETED_COLLECTIONS: '/launch/completed'
         }
     },
+    
+    POINT_SOURCE: {
+        MINT: 'mint',
+        BUY: 'buy',
+    }
 
 });

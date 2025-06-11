@@ -131,9 +131,10 @@ export default class NftMarketEventMapper {
         });
     }
 
-    static async updateEventById(id, data) {
+    static async updateEventById(id, data, transaction = null) {
         return await NftMarketEvent.update(data, {
-            where: { id }
+            where: { id },
+            transaction
         });
     }
 
@@ -159,10 +160,20 @@ export default class NftMarketEventMapper {
             where: {
                 listingOutput: listingOutput,
                 type: Constants.MARKET_EVENT.SOLD
-            }
+            },
+            raw: true
         });
     }
 
+    static async getSoldEventByListingOutputs(listingOutputs) {
+        return await NftMarketEvent.findAll({
+            where: {
+                listingOutput: { [Op.in]: listingOutputs },
+                type: Constants.MARKET_EVENT.SOLD
+            },
+            raw: true
+        });
+    }
     static async updateEventTxHash(oldTxid, newTxid, transaction = null) {
         return await NftMarketEvent.update({
             txHash: newTxid

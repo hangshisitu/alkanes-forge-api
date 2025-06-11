@@ -89,6 +89,9 @@ async function page(ctx) {
 async function info(ctx) {
     const { id } = ctx.request.body;
     const collection = await NftCollectionService.getCollectionById(id);
+    if (!collection.show) {
+        return null;
+    }
     if (collection) {
         collection.mempool = await MempoolService.getMempoolData(id);
     }
@@ -158,6 +161,10 @@ async function info(ctx) {
  */
 async function itemPage(ctx) {
     const { collectionId, address, listing, utxo, attributes, name, page, size } = ctx.request.body;
+    const collection = await NftCollectionService.getCollectionById(collectionId);
+    if (!collection.show) {
+        return null;
+    }
     return await NftItemService.getItemPage(collectionId, address, listing, utxo, attributes, name, page, size);
 }
 

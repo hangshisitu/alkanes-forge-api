@@ -17,6 +17,7 @@ import R2Service from "./R2Service.js";
 import BaseUtil from "../utils/BaseUtil.js";
 import {NetworkError} from "../lib/error.js";
 import IndexerService from "./IndexerService.js";
+import DiscountAddressMapper from "../mapper/DiscountAddressMapper.js";
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -632,7 +633,11 @@ export default class AlkanesService {
             script: protostone,
             value: 0
         });
-        const transferFee = 1000;
+        let transferFee = 1000;
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(assetAddress);
+        if (discountAddress) {
+            transferFee = parseInt(`${transferFee * (discountAddress.transferDiscount / 100)}`);
+        }
         outputList.push({
             address: config.revenueAddress.transfer,
             value: transferFee
@@ -687,7 +692,11 @@ export default class AlkanesService {
             value: 0
         });
 
-        const transferFee = 1000;
+        let transferFee = 1000;
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(assetAddress);
+        if (discountAddress) {
+            transferFee = parseInt(`${transferFee * (discountAddress.transferDiscount / 100)}`);
+        }
         outputList.push({
             address: config.revenueAddress.transfer,
             value: transferFee

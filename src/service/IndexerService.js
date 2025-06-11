@@ -1,6 +1,7 @@
 import IndexBlock from '../models/IndexBlock.js';
 import MempoolUtil from '../utils/MempoolUtil.js';
 import OutpointRecordMapper from '../mapper/OutpointRecordMapper.js';
+import PointRecordMapper from '../mapper/PointRecordMapper.js';
 import IndexBlockMapper from '../mapper/IndexBlockMapper.js';
 import BaseUtil from '../utils/BaseUtil.js';
 import * as logger from '../conf/logger.js';
@@ -28,9 +29,12 @@ export default class IndexerService {
         // 废弃        
     }
 
-    static async cleanByBlock(block) {
-        await MarketService.rollbackConfirmedEvents(block);
-        await NftMarketService.rollbackConfirmedEvents(block);
+    static async cleanByBlock(block, isReorg = false) {
+        if (isReorg) {
+            await MarketService.rollbackConfirmedEvents(block);
+            await NftMarketService.rollbackConfirmedEvents(block);
+            await PointRecordMapper.deleteAfter(block);
+        }
         await OutpointRecordMapper.deleteAfter(block);
         await IndexBlockMapper.deleteAfter(block);
     }
@@ -47,7 +51,7 @@ export default class IndexerService {
                     const blockHash = await MempoolUtil.getBlockHash(indexBlock.block);
                     block = indexBlock.block;
                     if (blockHash !== indexBlock.blockHash) {
-                        await this.cleanByBlock(block);
+                        await this.cleanByBlock(block, true);
                         logger.warn(`index block ${block} hash mismatch, new ${blockHash}, old ${indexBlock.blockHash}, reorg detected`);
                         continue;
                     }

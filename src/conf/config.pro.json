@@ -17,8 +17,8 @@
     "database": "alkanes"
   },
   "market": {
-    "makerFee": 10,
-    "takerFee": 20,
+    "makerFee": 0,
+    "takerFee": 12,
     "minimumFee": 333,
     "postage": 546
   },
@@ -46,5 +46,8 @@
     "host": "http://10.6.96.3:2088",
     "username": "idclub",
     "password": "Bitcoin2088"
+  },
+  "point": {
+    "startBlock": 900999
   }
 }

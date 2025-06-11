@@ -12,6 +12,7 @@ import IndexerService from "./IndexerService.js";
 import TokenInfoService from "./TokenInfoService.js";
 import NftItemService from "./NftItemService.js";
 import NftCollectionService from "./NftCollectionService.js";
+import DiscountAddressMapper from "../mapper/DiscountAddressMapper.js";
 
 const SIGN_MESSAGE = 'idclub.io wants you to sign in with your Bitcoin account:\n' +
     '{address}\n' +
@@ -167,6 +168,46 @@ export default class UserService {
                 priceChange24h: token?.priceChange24h || 0,
                 totalValue: new BigNumber(alkanes.balance).multipliedBy(token?.floorPrice || 0).toString()
             }
+        });
+    }
+
+    static async getDiscountAddress(address) {
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(address);
+        if (discountAddress) {
+            return {
+                address: discountAddress.address,
+                takerFee: discountAddress.takerFee,
+                mintDiscount: discountAddress.mintDiscount,
+                transferDiscount: discountAddress.transferDiscount,
+            };
+        }
+        return null;
+    }
+
+    static async reboundDiscountAddress(address, newAddress, signature) {
+        const nonce = await RedisHelper.get(`nonce:${address}`);
+        if (!nonce) {
+            throw new Error('Nonce has expired, please try again');
+        }
+        const message = SIGN_MESSAGE.replace('{address}', address).replace('{nonce}', nonce);
+        const result = BaseUtil.verifySignature(address, message, signature);
+        if (!result) {
+            throw new Error('Signature verification failed');
+        }
+        if (address === newAddress) {
+            throw new Error('New address cannot be the same as the old address');
+        }
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(address);
+        if (!discountAddress) {
+            throw new Error('Discount address not found');
+        }
+        // 24小时只允许绑定一次
+        if (discountAddress.boundAt && Date.now() - discountAddress.boundAt.getTime() < 24 * 60 * 60 * 1000) {
+            throw new Error('Discount address has been bound within 24 hours, please try again later');
+        }
+        await DiscountAddressMapper.updateDiscountAddress(address, {
+            address: newAddress,
+            boundAt: new Date()
         });
     }
 }

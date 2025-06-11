@@ -293,7 +293,7 @@ export default class NftCollectionService {
     }
 
     static async getCollectionPage(name, mintActive, orderType, page, size) {
-        let nftCollectionList = [...nftCollectionListCache];
+        let nftCollectionList = [...nftCollectionListCache.filter(nftCollection => nftCollection.show)];
 
         if (name) {
             nftCollectionList = nftCollectionList.filter(nftCollection => nftCollection.id.includes(name) || nftCollection.name.toLowerCase().includes(name.toLowerCase()));

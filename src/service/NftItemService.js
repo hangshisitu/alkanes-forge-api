@@ -12,6 +12,7 @@ import FeeUtil from "../utils/FeeUtil.js";
 import config from "../conf/config.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from '../utils/MempoolUtil.js';
+import DiscountAddressMapper from '../mapper/DiscountAddressMapper.js';
 
 export default class NftItemService {
 
@@ -69,7 +70,11 @@ export default class NftItemService {
             value: 0
         });
 
-        const transferFee = 1000;
+        let transferFee = 1000;
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(assetAddress);
+        if (discountAddress) {
+            transferFee = parseInt(`${transferFee * (discountAddress.transferDiscount / 100)}`);
+        }
         outputList.push({
             address: config.revenueAddress.transfer,
             value: transferFee

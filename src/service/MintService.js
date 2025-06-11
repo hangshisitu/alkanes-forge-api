@@ -15,6 +15,7 @@ import * as RedisLock from "../lib/RedisLock.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import {Queue} from "../utils/index.js";
 import * as logger from '../conf/logger.js';
+import DiscountAddressMapper from "../mapper/DiscountAddressMapper.js";
 
 const broadcastQueue = new Queue();
 
@@ -73,7 +74,7 @@ export default class MintService {
             value: 0
         });
         // 手续费
-        const serviceFee = MintService.calculateServiceFee(batchList);
+        const serviceFee = await MintService.calculateServiceFee(toAddress, batchList);
         fundOutputList.push({
             address: config.revenueAddress.inscribe,
             value: serviceFee,
@@ -786,7 +787,7 @@ export default class MintService {
         return itemList;
     }
 
-    static calculateServiceFee(batchList) {
+    static async calculateServiceFee(toAddress, batchList) {
         const totalCount = batchList.reduce((sum, cur) => sum + cur, 0);
         let perBatchFee;
 
@@ -811,6 +812,10 @@ export default class MintService {
         let serviceFee = 0;
         for (const batchNumbers of batchList) {
             serviceFee += perBatchFee(batchNumbers);
+        }
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(toAddress);
+        if (discountAddress) {
+            return Math.ceil(serviceFee * (discountAddress.mintDiscount / 100));
         }
         return serviceFee;
     }

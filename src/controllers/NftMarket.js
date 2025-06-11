@@ -1,6 +1,7 @@
 import NftMarketService from '../service/NftMarketService.js';
 import NftCollectionStatsService from '../service/NftCollectionStatsService.js';
 import { Constants } from '../conf/constants.js';
+import NftCollectionService from '../service/NftCollectionService.js';
 
 /**
  * @swagger
@@ -101,6 +102,10 @@ async function assets(ctx) {
  */
 async function listingPage(ctx) {
     const { collectionId, name, attributes, prices, orderType, page, size } = ctx.request.body;
+    const collection = await NftCollectionService.getCollectionById(collectionId);
+    if (!collection.show) {
+        return null;
+    }
     return await NftMarketService.getListingPage(collectionId, name, attributes, prices, orderType, page, size);
 }
 

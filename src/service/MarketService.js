@@ -14,6 +14,8 @@ import BaseUtil from "../utils/BaseUtil.js";
 import IndexerService from "./IndexerService.js";
 import * as logger from "../conf/logger.js";
 import sequelize from "../lib/SequelizeHelper.js";
+import PointRecordService from "./PointRecordService.js";
+import DiscountAddressMapper from "../mapper/DiscountAddressMapper.js";
 
 export default class MarketService {
 
@@ -385,7 +387,8 @@ export default class MarketService {
         });
         const totalListingAmount = listingList.reduce((accumulator, currentValue) => accumulator + currentValue.listingAmount, 0);
         const totalMakerFee = listingList.reduce((accumulator, currentValue) => accumulator + (currentValue.listingAmount - currentValue.sellerAmount), 0);
-        const totalTakerFee = listingList.reduce((accumulator, currentValue) => accumulator + MarketService.getTakerFee(currentValue.listingAmount), 0);
+        const discountAddress = await DiscountAddressMapper.getDiscountAddress(assetAddress);
+        const totalTakerFee = listingList.reduce((accumulator, currentValue) => accumulator + MarketService.getTakerFee(discountAddress, currentValue.listingAmount), 0);
 
         const protostone = AlkanesService.getTransferProtostone(alkanesId, [{amount: 0, output: 0}]);
 
@@ -650,6 +653,9 @@ export default class MarketService {
     }
 
     static reverseListingAmount(sellAmount) {
+        if (config.market.makerFee === 0) {
+            return sellAmount;
+        }
         const rate = config.market.makerFee / 1000;
         const listingAmount = sellAmount / (1 - rate);
         const makerFee = listingAmount * rate;
@@ -660,10 +666,16 @@ export default class MarketService {
     }
 
     static getMakerFee(listingAmount) {
+        if (config.market.makerFee === 0) {
+            return 0;
+        }
         return Math.max(Math.ceil(listingAmount * config.market.makerFee / 1000), config.market.minimumFee);
     }
 
-    static getTakerFee(listingAmount) {
+    static getTakerFee(discountAddress, listingAmount) {
+        if (discountAddress) {
+            return Math.max(Math.ceil(listingAmount * discountAddress.takerFee / 1000), config.market.minimumFee);
+        }
         return Math.max(Math.ceil(listingAmount * config.market.takerFee / 1000), config.market.minimumFee);
     }
 
@@ -742,29 +754,37 @@ export default class MarketService {
             const pendingSoldEvents = await MarketEventMapper.getPendingSoldEvents(page, size);
             const needRollbackBuyingTxids = new Set();
             await BaseUtil.concurrentExecute(pendingSoldEvents, async (event) => {
-                const [listingTxid, listingVout] = event.listingOutput.split(':');
-                const buyingTxid = event.txHash;
-                const spendInfo = await MempoolUtil.getTxOutspend(listingTxid, listingVout);
-                if (spendInfo.spent) { // 未被花费的不处理, 因为不确定是不是被替换了
-                    if (spendInfo.txid === buyingTxid) {
-                        // 更新listing的交易id和买家地址
-                        await MarketListingMapper.updateListingByListingOutput(event.listingOutput, {
-                            txHash: buyingTxid,
-                            buyerAddress: event.buyerAddress,
-                            status: Constants.LISTING_STATUS.SOLD
-                        });
-                        if (spendInfo.status?.confirmed) {
-                            await MarketEventMapper.updateEventById(event.id, {
-                                txConfirmedHeight: spendInfo.status.block_height
+                try {
+                    const [listingTxid, listingVout] = event.listingOutput.split(':');
+                    const buyingTxid = event.txHash;
+                    const spendInfo = await MempoolUtil.getTxOutspend(listingTxid, listingVout);
+                    if (spendInfo.spent) { // 未被花费的不处理, 因为不确定是不是被替换了
+                        if (spendInfo.txid === buyingTxid) {
+                            // 更新listing的交易id和买家地址
+                            await MarketListingMapper.updateListingByListingOutput(event.listingOutput, {
+                                txHash: buyingTxid,
+                                buyerAddress: event.buyerAddress,
+                                status: Constants.LISTING_STATUS.SOLD
                             });
-                        }
-                    } else {
-                        // 如果花费utxo的交易被确认了, 通过buyingTxid回滚挂单
-                        if (spendInfo.status?.confirmed) {
-                            needRollbackBuyingTxids.add(buyingTxid);
-                            await MarketEventMapper.deleteEventById(event.id);
+                            if (spendInfo.status?.confirmed) {
+                                await sequelize.transaction(async (transaction) => {
+                                    await MarketEventMapper.updateEventById(event.id, {
+                                        txConfirmedHeight: spendInfo.status.block_height
+                                    }, transaction);
+                                    await PointRecordService.addTokenTradePointRecord(event, spendInfo.status.block_height, transaction);
+                                });
+                            }
+                        } else {
+                            // 如果花费utxo的交易被确认了, 通过buyingTxid回滚挂单
+                            if (spendInfo.status?.confirmed) {
+                                needRollbackBuyingTxids.add(buyingTxid);
+                                await MarketEventMapper.deleteEventById(event.id);
+                            }
                         }
                     }
+                } catch (err) {
+                    logger.error(`token confirmPendingSoldEvents error: ${err}`);
+                    throw err;
                 }
             });
             if (needRollbackBuyingTxids.size > 0) {

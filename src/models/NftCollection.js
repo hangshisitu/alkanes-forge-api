@@ -63,6 +63,11 @@ const NftCollection = sequelize.define('NftCollection', {
         type: DataTypes.INTEGER,
         comment: '持有人'
     },
+    show: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否展示给用户',
+    },
     floorPrice: {
         type: DataTypes.DECIMAL(36, 18),
         comment: '地板价',

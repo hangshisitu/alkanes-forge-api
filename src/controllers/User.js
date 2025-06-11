@@ -2,6 +2,7 @@ import UserService from "../service/UserService.js";
 import BaseService from "../service/BaseService.js";
 import AlkanesService from "../service/AlkanesService.js";
 import {Constants} from "../conf/constants.js";
+import PointRecordService from "../service/PointRecordService.js";
 
 /**
  * @swagger
@@ -431,6 +432,198 @@ async function combineAlkanesUtxo(ctx) {
     return await AlkanesService.combineAlkanesUtxo(fundAddress, fundPublicKey, assetAddress, assetPublicKey, utxos, toAddress, feerate);
 }
 
+/**
+ * @swagger
+ * /user/point:
+ *   post:
+ *     summary: Get user point
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - address
+ *             properties:
+ *               address:
+ *                 type: string
+ *                 description: User's wallet address
+ *     responses:
+ *       200:
+ *         description: Point retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 point:
+ *                   type: number
+ *                 startBlock:
+ *                   type: number
+ *                 rank:
+ *                   type: number
+ */
+async function point(ctx) {
+    const { address } = ctx.request.body;
+    return await PointRecordService.getUserPoint(address);
+}
+
+/**
+ * @swagger
+ * /user/pointRecords:
+ *   post:
+ *     summary: Get user point records
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - address
+ *               - page
+ *               - size
+ *             properties:
+ *               address:
+ *                 type: string
+ *                 description: User's wallet address
+ *               page:
+ *                 type: number
+ *                 description: Page number
+ *               size:
+ *                 type: number
+ *                 description: Page size
+ *     responses:
+ *       200:
+ *         description: Point records retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 point:
+ *                   type: number
+ *                 startBlock:
+ *                   type: number
+ *                 records:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: number
+ *                       address:
+ *                         type: string
+ *                       point:
+ *                         type: number
+ *                       createdAt:
+ *                         type: string
+ *                       updatedAt:
+ *                         type: string
+ *                       isNft:
+ *                         type: boolean
+ *                       alkanesId:
+ *                         type: number
+ *                       itemId:
+ *                         type: number
+ *                       relatedId:
+ *                         type: string
+ */
+async function pointRecords(ctx) {
+    const { address, page, size } = ctx.request.body;
+    return await PointRecordService.getUserPointDetail(address, page, size);
+}
+
+/**
+ * @swagger
+ * /user/discount:
+ *   post:
+ *     summary: Get discount address
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - address
+ *             properties:
+ *               address:
+ *                 type: string
+ *                 description: User's wallet address
+ *     responses:
+ *       200:
+ *         description: Discount address retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 address:
+ *                   type: string
+ *                 takerFee:
+ *                   type: string
+ *                 mintDiscount:
+ *                   type: string
+ */
+async function discount(ctx) {
+    const { address } = ctx.request.body;
+    return await UserService.getDiscountAddress(address);
+}
+
+/**
+ * @swagger
+ * /user/reboundDiscountAddress:
+ *   post:
+ *     summary: Rebound discount address
+ *     tags: [User]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - address
+ *               - newAddress
+ *               - signature
+ *             properties:
+ *               address:
+ *                 type: string
+ *                 description: User's wallet address
+ *               newAddress:
+ *                 type: string
+ *                 description: New wallet address
+ *               signature:
+ *                 type: string
+ *                 description: Signature of the new address
+ *     responses:
+ *       200:
+ *         description: Discount address rebound successfully
+ */
+async function reboundDiscountAddress(ctx) {
+    const { address, newAddress, signature } = ctx.request.body;
+    return await UserService.reboundDiscountAddress(address, newAddress, signature);
+}
+
+/**
+ * @swagger
+ * /user/pointRank:
+ *   post:
+ *     summary: Get point rank
+ *     tags: [User]
+ *     responses:
+ *       200:
+ *         description: Point rank retrieved successfully
+ */
+async function pointRank(ctx) {
+    return await PointRecordService.getPointRank();
+}
+
 export default [
     {
         path: Constants.API.USER.NONCE,
@@ -471,5 +664,30 @@ export default [
         path: Constants.API.USER.COMBINE_ALKANES_UTXO,
         method: "post",
         handler: combineAlkanesUtxo,
+    },
+    {
+        path: Constants.API.USER.POINT_RECORDS,
+        method: "post",
+        handler: pointRecords,
+    },
+    {
+        path: Constants.API.USER.POINT,
+        method: "post",
+        handler: point,
+    },
+    {
+        path: Constants.API.USER.DISCOUNT,
+        method: "post",
+        handler: discount,
+    },
+    {
+        path: Constants.API.USER.REBOUND_DISCOUNT_ADDRESS,
+        method: "post",
+        handler: reboundDiscountAddress,
+    },
+    {
+        path: Constants.API.USER.POINT_RANK,
+        method: "post",
+        handler: pointRank,
     },
 ];

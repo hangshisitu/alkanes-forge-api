@@ -211,9 +211,10 @@ export default class MarketEventMapper {
         });
     }
 
-    static async updateEventById(id, data) {
+    static async updateEventById(id, data, transaction = null) {
         return await MarketEvent.update(data, {
-            where: { id }
+            where: { id },
+            transaction
         });
     }
 
@@ -239,7 +240,18 @@ export default class MarketEventMapper {
             where: {
                 listingOutput: listingOutput,
                 type: Constants.MARKET_EVENT.SOLD
-            }
+            },
+            raw: true
+        });
+    }
+
+    static async getSoldEventByListingOutputs(listingOutputs) {
+        return await MarketEvent.findAll({
+            where: {
+                listingOutput: { [Op.in]: listingOutputs },
+                type: Constants.MARKET_EVENT.SOLD
+            },
+            raw: true
         });
     }
 

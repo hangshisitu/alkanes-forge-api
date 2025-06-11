@@ -241,9 +241,14 @@ export default class TokenInfoService {
 
     static async refreshTokenInfo(blockHeight) {
         const prefixes = ['2', '4'];
+        const allTokens = [];
         for (const prefix of prefixes) {
-            await this.refreshTokenInfoByPrefix(blockHeight, prefix);
+            const tokens = await this.refreshTokenInfoByPrefix(blockHeight, prefix);
+            allTokens.push(...tokens);
         }
+        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
+        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_LIST, JSON.stringify(allTokens));
+        return allTokens.length;
     }
 
     static async refreshTokenInfoByPrefix(blockHeight, prefix) {
@@ -358,10 +363,7 @@ export default class TokenInfoService {
             await NftCollectionService.bulkUpsertNftCollection(needUpdateNftCollections);
         }
 
-        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_UPDATED_HEIGHT, blockHeight);
-        await RedisHelper.set(Constants.REDIS_KEY.TOKEN_INFO_LIST, JSON.stringify(allTokens));
-
-        return allTokens.length;
+        return allTokens;
     }
 
     static async refreshTokenStats() {
