@@ -192,6 +192,7 @@ export const Constants = Object.freeze({
         MEMPOOL_FEES_MEMPOOL_BLOCKS: 'mempool_fees_mempool_blocks',
 
         MEMPOOL_ALKANES_DATA_CACHE_PREFIX: 'mempool:alkanes:data:',
+        TOKEN_DEPLOY_REVEAL_CACHE: 'token_deploy_reveal_cache',
     },
 
     API: {
@@ -258,6 +259,7 @@ export const Constants = Object.freeze({
             ORDER_PAGE: '/inscribe/orderPage',
             ORDER_INFO: '/inscribe/orderInfo',
             DEPLOY_TOKEN: '/inscribe/deployToken',
+            PUT_DEPLOY_TOKEN: '/inscribe/putDeployToken',
         },
 
         USER: {

@@ -18,6 +18,23 @@ import BaseUtil from "../utils/BaseUtil.js";
 import {NetworkError} from "../lib/error.js";
 import IndexerService from "./IndexerService.js";
 import DiscountAddressMapper from "../mapper/DiscountAddressMapper.js";
+import * as fs from "fs";
+import * as zlib from "zlib";
+import * as bitcoin from "bitcoinjs-lib";
+import {ECPairFactory} from "ecpair";
+import * as ecc from "tiny-secp256k1";
+import {initEccLib} from "bitcoinjs-lib";
+import EstimateUtil from "../utils/EstimateUtil.js";
+import LayoutUtil from "../utils/LayoutUtil.js";
+import { toXOnly } from "bitcoinjs-lib/src/psbt/bip371.js";
+import {LEAF_VERSION_TAPSCRIPT} from "bitcoinjs-lib/src/payments/bip341.js";
+import { re } from "mathjs";
+import * as util from "util";
+const promisify = util.promisify;
+
+initEccLib(ecc);
+const ECPair = ECPairFactory(ecc);
+const gzip = promisify(zlib.gzip);
 
 // 0: Initialize(token_units, value_per_mint, cap, name, symbol)
 // token_units : Initial pre-mine tokens to be received on deployer's address
@@ -325,7 +342,7 @@ export default class AlkanesService {
                     }
                 } catch (error) {
                     // 可选：log
-                    logger.error(`Get alkanes ${id} error occurred.`);
+                    logger.error(`Get alkanes ${id} error occurred.`, error);
                     throw error;
                 }
                 return null;
@@ -529,6 +546,175 @@ export default class AlkanesService {
         utxoList.map(utxo => utxo.pubkey = fundPublicKey);
 
         return PsbtUtil.createUnSignPsbt(utxoList, outputList, fundAddress, feerate);
+    }
+
+    static async deployTokenEx(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate, imageBase64) {
+        const pureBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const image =  Buffer.from(pureBase64, "base64");
+        const compressedImage = await gzip(image, {level: 9});
+
+        const chunkSize = 520;
+        let contents = [];
+        for (let i = 0; i < compressedImage.length; i += chunkSize) {
+            let end = Math.min(i + chunkSize, compressedImage.length);
+            contents.push(compressedImage.slice(i, end).toString("hex"));
+        }
+
+        const keyPair = ECPair.makeRandom();
+        const internalPubkey = toXOnly(keyPair.publicKey);
+
+        let scriptASM = `${internalPubkey.toString("hex")} OP_CHECKSIG OP_0 OP_IF ${Buffer.from("BIN", "ascii").toString("hex")} OP_0`;
+        for (let i = 0; i < contents.length; i++) {
+            scriptASM += " " + contents[i];
+        }
+        scriptASM += ` OP_ENDIF`;
+
+        const script = bitcoin.script.fromASM(scriptASM);
+        const scriptTree = {output: script};
+        const redeem = {
+            output: script,
+            redeemVersion: LEAF_VERSION_TAPSCRIPT,
+        };
+
+        const commitPayment = bitcoin.payments.p2tr({
+            internalPubkey: internalPubkey,
+            scriptTree,
+            redeem,
+            network: config.network,
+        });
+
+        let commitTxId = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        let commitValue = 0;
+        
+        const protostone = AlkanesService.getDeployProtostone(name, symbol, cap, premine, perMint);
+        const revealLayout = {
+            inputs: [
+                {
+                    txid: commitTxId,
+                    vout: 0,
+                    value: commitValue,
+                    address: commitPayment.address,
+                    witnessSize: [32, commitPayment.witness[0].length],
+                    tapLeafScript: [{
+                        leafVersion: LEAF_VERSION_TAPSCRIPT,
+                        script: redeem.output,
+                        controlBlock: commitPayment.witness[commitPayment.witness.length - 1],
+                    }],
+                    pubkey: keyPair.publicKey.toString('hex')
+                },
+            ],
+            outs: [
+                {
+                    address: toAddress,
+                    value: 330,
+                },
+                {
+                    script: protostone,
+                    value: 0,
+                },
+                {
+                    address: config.revenueAddress.inscribe,
+                    value: 3000,
+                },
+            ],
+        };
+
+        const {fee} = EstimateUtil.estimateFeeEx(revealLayout, feerate);
+        commitValue = 330 + 3000 + fee;
+        
+        const commitLayout = {
+            inputs: [],
+            outs: [
+                {
+                    address: commitPayment.address,
+                    value: commitValue,
+                },
+            ],
+        };
+    
+        const utxos = await UnisatAPI.getAllUtxo(fundAddress);
+        utxos.forEach((u) => {
+            u.pubkey = fundPublicKey;
+        });
+        utxos.sort((a, b) => b.value - a.value);
+
+        console.info(`utxos ${util.inspect(utxos)}`);
+        await LayoutUtil.addGasAndChangeForLayout(
+            fundAddress,
+            utxos,
+            commitLayout,
+            feerate,
+            100,
+            true
+        );
+
+        const commitPsbt = await LayoutUtil.buildPsbtForLayout(commitLayout, feerate * 1.25);
+
+        revealLayout.inputs[0].value = commitValue;
+        
+        console.info(`revealLayout outs: ${util.inspect(revealLayout.outs)}`)
+        const revealPsbt = await LayoutUtil.buildPsbtForLayout(revealLayout,feerate * 1.25);
+
+        const revealCache = {revealPsbt:revealPsbt.toBase64(),privateKey:keyPair.privateKey.toString("hex"),feerate} 
+        
+        await RedisHelper.setEx(
+            `${Constants.REDIS_KEY.TOKEN_DEPLOY_REVEAL_CACHE}${commitPayment.address}`,
+            86400*5,
+            JSON.stringify(revealCache)
+          );
+
+        const signingIndexes = [...Array(commitPsbt.txInputs.length).keys()];
+        return {
+            fee: fee,
+            hex: commitPsbt.toHex(),
+            base64: commitPsbt.toBase64(),
+            signingIndexes: [{address:fundAddress,signingIndexes}],
+            inputToSign: signingIndexes
+        };
+    }
+
+    static async putDeployToken(signedPsbt){
+        const psbt = PsbtUtil.fromPsbt(signedPsbt);
+        const commitAddress = psbt.txOutputs[0].address
+        const revealCache = await RedisHelper.get(
+            `${Constants.REDIS_KEY.TOKEN_DEPLOY_REVEAL_CACHE}${commitAddress}`
+        );
+        const { txid, error } = await UnisatAPI.unisatPush(signedPsbt);
+        if (error) {
+            throw new Error(error);
+        }
+        if(!revealCache){
+            return txid;
+        }
+        const {revealPsbt,privateKey,feerate} = JSON.parse(revealCache);
+
+        const tempPsbt =  PsbtUtil.fromPsbt(revealPsbt);
+        
+        const revealLayout = await LayoutUtil.buildLayoutForPsbt(tempPsbt);
+        revealLayout.inputs[0].txid=txid;
+        const realPsbt = await LayoutUtil.buildPsbtForLayout(revealLayout);
+
+
+        const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, "hex"));
+        realPsbt.signAllInputs(keyPair);
+        
+        let reTry = 30;
+        while(reTry>0){
+            await BaseUtil.sleep(10000);
+            const { txid:revealTxid, error:revealError } = await UnisatAPI.unisatPush(realPsbt.toBase64());
+            if (revealError) {
+                if(reTry==0){
+                    throw new Error(revealError);
+                }else{
+                    reTry -=1;
+                }
+            }else{
+                await RedisHelper.del(
+                    `${Constants.REDIS_KEY.TOKEN_DEPLOY_REVEAL_CACHE}${commitAddress}`
+                );
+                return revealTxid;
+            }   
+        }
     }
 
     static async combineAlkanesUtxo(fundAddress, fundPublicKey, assetAddress, assetPublicKey, utxos, toAddress, feerate) {
@@ -841,6 +1027,10 @@ export default class AlkanesService {
         // Split into block and tx parts (each 16 bytes)
         const blockHex = cleanHex.slice(0, 32);
         const txHex = cleanHex.slice(32);
+        if (!blockHex || !txHex) {
+            logger.error(`Invalid alkane id: ${hexString}`);
+            return undefined;
+        }
 
         // Convert from little-endian hex to BigInt
         const block = BigInt('0x' + blockHex.match(/../g).reverse().join(''));

@@ -43,6 +43,9 @@ export default class TokenInfoService {
             }
             lastIndex += 1;
         }
+        if (lastIndex === 0) {
+            lastIndex = 1;
+        }
         logger.info(`find new token by prefix ${prefix} start at index: ${lastIndex}`);
 
         // 5. 查找新token
@@ -179,9 +182,9 @@ export default class TokenInfoService {
                     symbol: alkanes.symbol,
                     data: alkanes.data,
                     contentType: alkanes.contentType,
-                    minted: (BigInt(alkanes.totalSupply) / BigInt(alkanes.mintAmount)) || 0,
-                    premine: ((BigInt(alkanes.totalSupply) - BigInt(alkanes.minted) * BigInt(alkanes.mintAmount)) / BigInt(alkanes.mintAmount)) || 0,
-                    totalSupply: (BigInt(alkanes.cap) + ((BigInt(alkanes.totalSupply) - BigInt(alkanes.minted) * BigInt(alkanes.mintAmount)) / BigInt(alkanes.mintAmount))) || 0,
+                    minted: alkanes.minted,
+                    premine: alkanes.premine,
+                    totalSupply: alkanes.totalSupply,
                     updateHeight: blockHeight,
                 }
             });

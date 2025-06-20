@@ -2,6 +2,7 @@ import MintService from '../service/MintService.js';
 import MintOrderMapper from '../mapper/MintOrderMapper.js';
 import AlkanesService from '../service/AlkanesService.js';
 import {Constants} from '../conf/constants.js';
+import path from 'path';
 
 /**
  * @swagger
@@ -372,8 +373,17 @@ async function orderInfo(ctx) {
  *         description: Token deployed successfully
  */
 async function deployToken(ctx) {
-    const { fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate } = ctx.request.body;
-    return await AlkanesService.deployToken(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate);
+    const { fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate,imageBase64 } = ctx.request.body;
+    if(imageBase64){
+        return await AlkanesService.deployTokenEx(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate,imageBase64);
+    }else{
+        return await AlkanesService.deployToken(fundAddress, fundPublicKey, toAddress, name, symbol, cap, perMint, premine, feerate);
+    }
+}
+
+async function putDeployToken(ctx) {
+    const { signedPsbt } = ctx.request.body;
+    return await AlkanesService.putDeployToken(signedPsbt);
 }
 
 export default [
@@ -421,6 +431,11 @@ export default [
         path: Constants.API.INSCRIBE.DEPLOY_TOKEN,
         method: 'post',
         handler: deployToken
+    },
+    {
+        path: Constants.API.INSCRIBE.PUT_DEPLOY_TOKEN,
+        method: 'post',
+        handler: putDeployToken
     }
 ]
 

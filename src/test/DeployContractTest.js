@@ -607,4 +607,7 @@ const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alka
 const feerate = 1.4;
 // const calldata = [1, 0];
 const calldata = [3, 111114];
-await deploy(wasm_path, privateKey, utxos, assetAddress, feerate, calldata);
+// await deploy(wasm_path, privateKey, utxos, assetAddress, feerate, calldata);
+
+
+console.info(`private key ${ECPair.makeRandom().privateKey.toString('hex')}`);
