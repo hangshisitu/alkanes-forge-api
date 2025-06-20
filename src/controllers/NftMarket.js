@@ -183,8 +183,7 @@ async function createUnsignedListing(ctx) {
  */
 async function putSignedListing(ctx) {
     const { signedPsbt } = ctx.request.body;
-    const walletType = ctx.get('wallet-type') || '';
-    return await NftMarketService.putSignedListing(signedPsbt, walletType);
+    return await NftMarketService.putSignedListing(signedPsbt, false);
 }
 
 /**

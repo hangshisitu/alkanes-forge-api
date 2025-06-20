@@ -284,4 +284,23 @@ export default class MarketEventMapper {
             }),
         };
     }
+
+    static async getSoldEventsByTxId(txid) {
+        return await MarketEvent.findAll({
+            where: {
+                txHash: txid,
+                type: Constants.MARKET_EVENT.SOLD
+            },
+            raw: true,
+        });
+    }
+
+    static async getSoldEventsByBlock(block) {
+        return await MarketEvent.findAll({
+            where: {
+                txConfirmedHeight: block,
+            },
+            raw: true,
+        });
+    }
 }

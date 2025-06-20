@@ -22,6 +22,8 @@ import decodeProtorune from '../lib/ProtoruneDecoder.js';
 import NftCollectionService from './NftCollectionService.js';
 import Sequelize from 'sequelize';
 import BigNumber from 'bignumber.js';
+import MarketEventMapper from '../mapper/MarketEventMapper.js';
+import NftMarketEventMapper from '../mapper/NftMarketEventMapper.js';
 
 export default class IndexerService {
 
@@ -79,7 +81,7 @@ export default class IndexerService {
                             return;
                         }
                         const result = await decodeProtorune(tx.hex, 0, true);
-                        if (!result?.protostones?.length) { // 没有protostone
+                        if (!result.protostones?.length) { // 没有protostone
                             return;
                         }
                         handledTxs++;
@@ -669,75 +671,297 @@ export default class IndexerService {
         }
         return finalRetOutpointList;
     }
-}
 
+    static async getBlockMarketTxsByType(block, type) {
+        const errors = [];
+        if (type === 'token') {
+            const events = await MarketEventMapper.getSoldEventsByBlock(block);
+            const results = await BaseUtil.concurrentExecute([...new Set(events.map(event => event.txHash))], async (txid) => {
+                return await this.getMarketTxByType(txid, type);
+            }, null, errors);
+            if (errors.length > 0) {
+                throw new Error(`get block market txs failed, ${errors.length} errors`);
+            }
+            return results.flat().flat();
+        } else if (type === 'nft') {
+            const events = await NftMarketEventMapper.getSoldEventsByBlock(block);
+            const results = await BaseUtil.concurrentExecute([...new Set(events.map(event => event.txHash))], async (txid) => {
+                return await this.getMarketTxByType(txid, type);
+            }, null, errors);
+            if (errors.length > 0) {
+                throw new Error(`get block market txs failed, ${errors.length} errors`);
+            }
+            return results.flat().flat();
+        }
+        return [];
+    }
 
-async function amendBalance() {
-    let minId = 0;
-    const addressBalances = [];
-    while (true) {
-        console.log(`minId: ${minId}`);
-        const batchAddressBalances = await AddressBalance.findAll({
-            where: {
-                id: {
-                    [Op.gt]: minId
+    static async getMarketTxByType(txid, type) {
+        if (type === 'token') {
+            const events = await MarketEventMapper.getSoldEventsByTxId(txid);
+            if (!events.length) {
+                return [];
+            }
+            const alkanesId = events[0].alkanesId;
+            const tokenInfo = await TokenInfoService.getTokenInfo(alkanesId);
+            const marketTxs = [];
+            for (const event of events) {
+                const existingMarketTx = marketTxs.find(o => o.sellerAddress === event.sellerAddress);
+                if (existingMarketTx?.sellerAddress) {
+                    existingMarketTx.tokenAmount = existingMarketTx.tokenAmount.plus(new BigNumber(event.tokenAmount));
+                    existingMarketTx.satsAmount = existingMarketTx.satsAmount.plus(new BigNumber(event.listingAmount));
+                } else {
+                    marketTxs.push({
+                        txid,
+                        alkanesId,
+                        name: tokenInfo.name,
+                        symbol: tokenInfo.symbol,
+                        image: tokenInfo.image,
+                        isNft: false,
+                        tokenAmount: new BigNumber(event.tokenAmount),
+                        satsAmount: new BigNumber(event.listingAmount),
+                        sellerAddress: event.sellerAddress,
+                        buyerAddress: event.buyerAddress,
+                    });
                 }
+            }
+            marketTxs.forEach(tx => {
+                tx.satsPerToken = tx.satsAmount.dividedBy(tx.tokenAmount).toFixed();
+                tx.tokenAmount = tx.tokenAmount.toFixed();
+                tx.satsAmount = tx.satsAmount.toFixed();
+            });
+            return marketTxs;
+        } else {
+            const events = await NftMarketEventMapper.getSoldEventsByTxId(txid);
+            if (!events.length) {
+                return [];
+            }
+            const collectionId = events[0].collectionId;
+            const collectionInfo = await NftCollectionService.getCollectionById(collectionId);
+            const marketTxs = [];
+            for (const event of events) {
+                const item = await NftItemService.getItemById(event.itemId);
+                marketTxs.push({
+                    txid,
+                    alkanesId: collectionId,
+                    name: collectionInfo.name,
+                    symbol: collectionInfo.symbol,
+                    image: collectionInfo.image,
+                    isNft: true,
+                    tokenAmount: `1`,
+                    satsAmount: new BigNumber(event.listingPrice).toFixed(),
+                    sellerAddress: event.sellerAddress,
+                    buyerAddress: event.buyerAddress,
+                    satsPerToken: new BigNumber(event.listingPrice).toFixed(),
+                    item: {
+                        id: item.id,
+                        name: item.name,
+                        symbol: item.symbol,
+                        image: item.image,
+                        contentType: item.contentType,
+                        // attributes: item.attributes,
+                    }
+                });
+            }
+            return marketTxs;
+        }
+    }
+
+    static async getMarketTx(txid) {
+        const errors = [];
+        const results = await BaseUtil.concurrentExecute(['token', 'nft'], async (type) => {
+            try {
+                return await this.getMarketTxByType(txid, type);
+            } catch (e) {
+                logger.error(`get market tx failed, ${e.message}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`get market tx failed, ${errors.length} errors`);
+        }
+        return results.flat();
+    }
+
+    static async getMarketTxs(block) {
+        const errors = [];
+        const results = await BaseUtil.concurrentExecute(['token', 'nft'], async (type) => {
+            try {
+                return await this.getBlockMarketTxsByType(block, type);
+            } catch (e) {
+                logger.error(`get block market txs failed, ${e.message}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`get market tx failed, ${errors.length} errors`);
+        }
+        return results.flat().reduce((acc, tx) => {
+            acc[tx.txid] = acc[tx.txid] || [];
+            acc[tx.txid].push(tx);
+            return acc;
+        }, {});
+    }
+
+    static async getOutpoint(txid, vout) {
+        return await OutpointRecord.findOne({
+            where: {
+                txid,
+                vout,
             },
             raw: true,
-            limit: 1000,
-            order: [['id', 'ASC']],
         });
-        minId = batchAddressBalances[batchAddressBalances.length - 1].id;
-        addressBalances.push(...batchAddressBalances);
-        if (batchAddressBalances.length < 1000) {
-            break;
-        }
     }
-    const total = addressBalances.length;
-    let count = 0;
-    const block = 895621;
-    const errors = [];
-    await BaseUtil.concurrentExecute(addressBalances, async addressBalance => {
-        try {
-            let newAddressBalance = await OutpointRecord.findOne({
-                where: {
-                    address: addressBalance.address,
-                    alkanesId: addressBalance.alkanesId,
-                    spent: false,
-                },
-                attributes: ['address', 'alkanesId', [sequelize.fn('sum', sequelize.literal('CAST(balance AS UNSIGNED)')), 'balance']],
-                raw: true,
-            });
-            if (!newAddressBalance?.address) {
-                newAddressBalance = {
-                    address: addressBalance.address,
-                    alkanesId: addressBalance.alkanesId,
-                    balance: 0,
-                }
-            }
-            newAddressBalance.balance = BigInt(newAddressBalance.balance).toString();
-            if (addressBalance.balance !== newAddressBalance.balance) {
-                newAddressBalance.updateBlock = block;
-                const effectCount = await AddressBalance.update(newAddressBalance, {
-                    where: {
-                        address: addressBalance.address,
-                        alkanesId: addressBalance.alkanesId,
-                    },
-                });
-                if (+effectCount !== 1) {
-                    throw new Error(`amend balance failed, ${JSON.stringify(addressBalance)}`);
-                }
-            }
-            console.log(`progress: ${++count}/${total}`);
-        } catch(e) {
-            logger.error(`amend balance failed, ${JSON.stringify(addressBalance)}`, e);
-            throw e;
+
+    static async getOutpoints(block, txid, alkanesId) {
+        if (!block && !txid) {
+            throw new Error('block, txid at least one is required');
         }
-    }, 16, errors);
-    if (errors.length > 0) {
-        throw new Error(`amend balance failed, ${errors.length} errors`);
+        const where = {};
+        if (block) {
+            where.block = block;
+        }
+        if (txid) {
+            where.txid = txid;
+        }
+        if (alkanesId) {
+            where.alkanesId = alkanesId;
+        }
+        return await OutpointRecord.findAll({
+            where,
+            order: [
+                ['block', 'DESC'],
+                ['txIdx', 'DESC'],
+                ['vout', 'DESC'],
+            ],
+            raw: true,
+        });
+    }
+
+    static async amendBlock(block) {
+        const blockHash = await MempoolUtil.getBlockHash(block);
+        const blockDetails = await BtcRPC.getBlockDetails(blockHash);
+        const txs = blockDetails.tx;
+        const blockTime = blockDetails.time;
+        const txids = txs.map(tx => tx.txid);
+        const errors = [];
+        await BaseUtil.concurrentExecute(txs, async (tx) => {
+            const txid = tx.txid;
+            try {
+                if (!tx.vout.find(o => o.scriptPubKey.hex.startsWith('6a5d'))) {
+                    return;
+                }
+                const result = await decodeProtorune(tx.hex, 0, true);
+                if (!result.protostones?.length) { // 没有protostone
+                    return;
+                }
+                const txIdx = txids.indexOf(txid);
+                let mempoolTx = null;
+                const voutErrors = [];
+                await BaseUtil.concurrentExecute(tx.vout, async (outpoint) => {
+                    if (outpoint.scriptPubKey.hex.startsWith('6a5d')) {
+                        return;
+                    }
+                    const vout = outpoint.n;
+                    try {
+                        const outpoint_balances = await AlkanesService.getAlkanesByUtxo({
+                            txid,
+                            vout,
+                            height: block,
+                        }, block, null, 10000);
+                        const dbOutpoints = await OutpointRecord.findAll({
+                            where: {
+                                txid,
+                                vout,
+                            },
+                            raw: true,
+                        });
+                        const alkanesIdCount = outpoint_balances.length;
+                        if (alkanesIdCount === 0) {
+                            if (dbOutpoints.length > 0) {
+                                logger.info(`amend block ${block} tx ${txid} vout ${vout} outpoint count is 0, destroy ${dbOutpoints.length} outpoints`);
+                                await OutpointRecord.destroy({
+                                    where: {
+                                        txid,
+                                        vout,
+                                    },
+                                });
+                                for (const dbOutpoint of dbOutpoints) {
+                                    const balance = await OutpointRecordMapper.getBalance(dbOutpoint.address, dbOutpoint.alkanesId);
+                                    const existingBalance = await AddressBalanceMapper.getAddressBalance(dbOutpoint.address, dbOutpoint.alkanesId);
+                                    if (existingBalance?.balance !== balance) {
+                                        await AddressBalanceMapper.updateAddressBalance(dbOutpoint.address, dbOutpoint.alkanesId, balance, block);
+                                        await NftItemService.updateItemHolder(dbOutpoint.alkanesId);
+                                    }
+                                }
+                            }
+                            return;
+                        }
+                        if (dbOutpoints.length === alkanesIdCount) {
+                            return;
+                        }
+                        logger.info(`amend block ${block} tx ${txid} vout ${vout} outpoint count mismatch, ${dbOutpoints.length} ${alkanesIdCount}`);
+                        await OutpointRecord.destroy({
+                            where: {
+                                txid,
+                                vout,
+                            },
+                        });
+                        const spendInfo = await MempoolUtil.getTxOutspend(txid, vout);
+                        const spent = spendInfo.spent;
+                        let spendBy = null;
+                        let spendByInput = null;
+                        if (spent && spendInfo.status?.confirmed) {
+                            const stxIdx = `${txIdx}`.padStart(5, '0');
+                            spendBy = parseInt(`${block}${stxIdx}`);
+                            spendByInput = `${spendInfo.txid}:${spendInfo.vin}`;
+                        }
+                        const records = [];
+                        for (const outpoint_balance of outpoint_balances) {
+                            if (!mempoolTx) {
+                                mempoolTx = await MempoolUtil.getTx(txid);
+                            }
+                            const balance = outpoint_balance.value;
+                            const address = mempoolTx.vout[vout].scriptpubkey_address;
+                            const alkanesId = outpoint_balance.id;
+                            records.push({
+                                block,
+                                txIdx,
+                                txid,
+                                vout,
+                                value: mempoolTx.vout[vout].value,
+                                address,
+                                alkanesId,
+                                balance: balance.toFixed(),
+                                alkanesIdCount,
+                                spent: spendInfo.spent,
+                                spendBy,
+                                spendByInput,
+                                blockTime,
+                            });
+                            const balanceStr = await OutpointRecordMapper.getBalance(address, alkanesId);
+                            const existingBalance = await AddressBalanceMapper.getAddressBalance(address, alkanesId);
+                            if (existingBalance?.balance !== balanceStr) {
+                                await AddressBalanceMapper.updateAddressBalance(address, alkanesId, balanceStr, block);
+                                await NftItemService.updateItemHolder(alkanesId);
+                            }
+                        }
+                        await OutpointRecord.bulkCreate(records);
+                    } catch (e) {
+                        logger.error(`index block ${block} tx ${txid} vout ${vout} failed, ${e.message}`, e);
+                        throw e;
+                    }
+                }, null, voutErrors);
+                if (voutErrors.length > 0) {
+                    throw new Error(`index block ${block} tx ${txid} failed, ${voutErrors.length} vout errors`);
+                }
+            } catch (e) {
+                logger.error(`index block ${block} tx ${txid} failed, ${e.message}`, e);
+                throw e;
+            }
+        }, null, errors);
+        if (errors.length > 0) {
+            throw new Error(`amend block ${block} failed, ${errors.length} errors`);
+        }
     }
 }
-
-// await amendBalance();
-

@@ -13,6 +13,7 @@ import config from "../conf/config.js";
 import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from '../utils/MempoolUtil.js';
 import DiscountAddressMapper from '../mapper/DiscountAddressMapper.js';
+import sequelize from '../lib/SequelizeHelper.js';
 
 export default class NftItemService {
 
@@ -122,14 +123,11 @@ export default class NftItemService {
         const where = {
             collectionId,
         };
+        const idConditions = [];
         if (listing === true) {
-            where.id = {
-                [Op.in]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
-            }
+            idConditions.push([Op.in, Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')]);
         } else if (listing === false) {
-            where.id = {
-                [Op.notIn]: Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')
-            }
+            idConditions.push([Op.notIn, Sequelize.literal('(SELECT item_id FROM nft_market_listing WHERE status = 1 AND collection_id = :collectionId)')]);
         }
         if (holderAddress) {
             where.holder = holderAddress;
@@ -154,9 +152,16 @@ export default class NftItemService {
                     records: []
                 };
             }
-            where.id = {
-                [Op.in]: itemIds.map(item => item.item_id)
-            };
+            idConditions.push([Op.in, itemIds.map(item => item.item_id)]);
+        }
+        if (idConditions.length > 0) {
+            if (idConditions.length === 1) {
+                where.id = { [idConditions[0][0]]: idConditions[0][1] }
+            } else {
+                where[Op.and] = idConditions.map(condition => ({
+                    id: { [condition[0]]: condition[1] }
+                }))
+            }
         }
         const { rows, count } = await NftItem.findAndCountAll({
             where,
@@ -236,6 +241,18 @@ export default class NftItemService {
             holder: address,
             updateHeight: block
         }, { where: { id: alkanesId } });
+    }
+
+    static async updateItemHolder(itemId) {
+        // 使用sql更新holder
+        const sql = `update nft_item set holder = (select address from outpoint_record where alkanes_id = :alkanesId and spent = 0 limit 1) where id = :itemId`;
+        await sequelize.query(sql, {
+            replacements: {
+                alkanesId: itemId,
+                itemId: itemId
+            },
+            type: sequelize.QueryTypes.UPDATE,
+        });
     }
     
     static async indexNftItemHolder() {

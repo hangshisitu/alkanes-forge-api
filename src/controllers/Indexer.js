@@ -181,6 +181,127 @@ async function outpointRecords(ctx) {
     return result;
 }
 
+/**
+ * @swagger
+ * /indexer/marketTx:
+ *   post:
+ *     summary: Get market transactions for a given txid
+ *     tags: [Indexer]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - txid
+ *             properties:
+ *               txid:
+ *                 type: string
+ *                 description: Transaction ID
+ *     responses:
+ *       200:
+ *         description: List of market transactions
+ */
+async function marketTx(ctx) {
+    const { txid } = ctx.request.body;
+    return await IndexerService.getMarketTx(txid);
+}
+
+/**
+ * @swagger
+ * /indexer/marketTxs:
+ *   post:
+ *     summary: Get market transactions for a given block
+ *     tags: [Indexer]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - block
+ *             properties:
+ *               block:
+ *                 type: integer
+ *                 description: Block number
+ *     responses:
+ *       200:
+ *         description: List of market transactions
+ */
+async function marketTxs(ctx) {
+    const { block } = ctx.request.body;
+    return await IndexerService.getMarketTxs(block);
+}
+
+/**
+ * @swagger
+ * /indexer/outpoint:
+ *   post:
+ *     summary: Get outpoint for a given txid and vout
+ *     tags: [Indexer]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - txid
+ *               - vout
+ *             properties:
+ *               txid:
+ *                 type: string
+ *                 description: Transaction ID
+ *               vout:
+ *                 type: integer
+ *                 description: Output index
+ *     responses:
+ *       200:
+ *         description: Outpoint
+ */
+async function outpoint(ctx) {
+    const { txid, vout } = ctx.request.body;
+    return await IndexerService.getOutpoint(txid, vout);
+}
+
+/**
+ * @swagger
+ * /indexer/outpoints:
+ *   post:
+ *     summary: Get outpoints for a given txid, block and alkanesId, (block, txid at least one is required)
+ *     tags: [Indexer]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - block
+ *               - txid
+ *             optional:
+ *               - alkanesId
+ *             properties:
+ *               block:
+ *                 type: integer
+ *                 description: Block number
+ *               txid:
+ *                 type: string
+ *                 description: Transaction ID
+ *               alkanesId:
+ *                 type: string
+ *                 description: Alkanes token ID
+ *     responses:
+ *       200:
+ *         description: List of outpoints
+ */
+async function outpoints(ctx) {
+    const { block, txid, alkanesId } = ctx.request.body;
+    return await IndexerService.getOutpoints(block, txid, alkanesId);
+}
+
 export default [
     {
         path: Constants.API.INDEXER.PUSH,
@@ -201,9 +322,28 @@ export default [
         path: Constants.API.INDEXER.OUTPOINT_RECORDS,
         method: 'post',
         handler: outpointRecords
+    },
+    {
+        path: Constants.API.INDEXER.MARKET_TX,
+        method: 'post',
+        handler: marketTx
+    },
+    {
+        path: Constants.API.INDEXER.OUTPOINT,
+        method: 'post',
+        handler: outpoint
+    },
+    {
+        path: Constants.API.INDEXER.OUTPOINTS,
+        method: 'post',
+        handler: outpoints
+    },
+    {
+        path: Constants.API.INDEXER.MARKET_TXS,
+        method: 'post',
+        handler: marketTxs
     }
 ]
-
 
 
 

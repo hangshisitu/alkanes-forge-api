@@ -22,7 +22,6 @@ import LaunchOrder from '../models/LaunchOrder.js';
 import MempoolUtil from '../utils/MempoolUtil.js';
 import NftItemService from './NftItemService.js';
 import LaunchWhitelistMapper from '../mapper/LaunchWhitelistMapper.js';
-import mintOrder from "../models/MintOrder.js";
 
 
 let launchCollectionListCache = null;
@@ -30,11 +29,21 @@ let launchCollectionListCache = null;
 export default class LaunchService {
 
     static transferToLaunch(collection) {
-        const totalSupply = collection.totalSupply;
-        if (totalSupply == null || totalSupply === 0) {
-            collection.progress = 0;
-        } else {
-            collection.progress = Number((collection.minted / totalSupply * 100).toFixed(2));
+        const stages = JSON.parse(collection.launchStages);
+        const now = Date.now() / 1000;
+        const status = this.getLaunchStatus(now, collection);
+        stages.forEach(stage => {
+            stage.current = false;
+        });
+        if (status === 'minting') {
+            let flag = false;
+            for (const stage of stages) {
+                stage.current = stage.startBlock <= now && (stage.endBlock === 0 || stage.endBlock >= now);
+                if (stage.current) {
+                    flag = true;
+                }
+                stage.end = stage.endBlock !== 0 && stage.endBlock < now;
+            }
         }
         return {
             id: collection.id,
@@ -42,7 +51,7 @@ export default class LaunchService {
             logo: collection.image,
             cover: collection.launchImage,
             banner: collection.launchBanner,
-            stages: collection.launchStages,
+            stages: stages,
             identifier: collection.collectionId,
             minted: collection.minted,
             totalSupply: collection.totalSupply,
@@ -55,7 +64,8 @@ export default class LaunchService {
             discord: collection.discord,
             website: collection.website,
             telegram: collection.telegram,
-            mempool: collection.mempool
+            mempool: collection.mempool,
+            status: status
         }
     }
 
@@ -66,6 +76,12 @@ export default class LaunchService {
         }
         if (needMempool && collection.collectionId) {
             collection.mempool = await MempoolService.getMempoolData(collection.collectionId);
+        }
+        const totalSupply = collection.totalSupply;
+        if (totalSupply == null || totalSupply === 0) {
+            collection.progress = 0;
+        } else {
+            collection.progress = Number((collection.minted / totalSupply * 100).toFixed(2));
         }
         return this.transferToLaunch(collection);
     }
@@ -91,28 +107,50 @@ export default class LaunchService {
         return launchCollectionListCache ?? await this.getAllLaunchCollectionCache();
     }
 
+    static getLaunchStatus(now = Date.now() / 1000, collection) {
+        if (!collection.mintActive || collection.progress >= 100) {
+            return 'completed';
+        }
+        const startBlock = collection.startBlock;
+        const endBlock = collection.endBlock;
+        if (startBlock > now) { // 未开始
+            return 'upcoming';
+        } else if (endBlock > 0 && endBlock < now) { // 已结束, endBlock为0时表示没有结束时间, 打完为止
+            return 'completed';
+        } else { // 进行中
+            return 'minting';
+        }
+    }
+
     static async getBannerCollections() {
         const collections = await this.getAllLaunchCollectionCache();
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        await this.updateCollectionsProgress(collections);
+        const now = Date.now() / 1000;
         return collections.filter(collection => collection.launchRank > 0)
             .sort((a, b) => a.launchRank - b.launchRank).map(collection => {
                 const launch = this.transferToLaunch(collection);
-                if (collection.startBlock !== 0 && collection.endBlock !== 0 && collection.startBlock - 1 <= mempoolHeight && collection.progress < 100 && collection.endBlock > mempoolHeight && collection.mintActive) {
-                    launch.status = 'minting';
-                } else if ((collection.startBlock === 0 || collection.endBlock === 0 || collection.startBlock - 1 > mempoolHeight) && collection.mintActive) {
-                    launch.status = 'upcoming';
-                } else if (collection.endBlock !== 0 && (collection.progress >= 100 || collection.endBlock < mempoolHeight || !collection.mintActive)) {
-                    launch.status = 'completed';
-                }
+                launch.status = this.getLaunchStatus(now, collection);
                 return launch;
             });
     }
 
+    static async updateCollectionsProgress(collections) {
+        collections?.forEach(collection => {
+            const totalSupply = collection.totalSupply;
+            if (totalSupply == null || totalSupply === 0) {
+                collection.progress = 0;
+            } else {
+                collection.progress = Number((collection.minted / totalSupply * 100).toFixed(2));
+            }
+        });
+    }
+
     static async getMintingCollections(page, size) {
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const collections = await this.getAllLaunchCollectionCache();
+        await this.updateCollectionsProgress(collections);
+        const now = Date.now() / 1000;
         const filteredCollections = collections.filter(collection => {
-            return collection.startBlock !== 0 && collection.endBlock !== 0 && collection.startBlock - 1 <= mempoolHeight && collection.progress < 100 && collection.endBlock > mempoolHeight && collection.mintActive;
+            return this.getLaunchStatus(now, collection) === 'minting';
         }).sort((a, b) => {
             return a.endBlock - b.endBlock;
         });
@@ -138,10 +176,11 @@ export default class LaunchService {
     }
 
     static async getUpcomingCollections(page, size) {
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const collections = await this.getAllLaunchCollectionCache();
+        await this.updateCollectionsProgress(collections);
+        const now = Date.now() / 1000;
         const filteredCollections = collections.filter(collection => {
-            return (collection.startBlock === 0 || collection.endBlock === 0 || collection.startBlock - 1 > mempoolHeight) && collection.mintActive;
+            return this.getLaunchStatus(now, collection) === 'upcoming';
         }).sort((a, b) => {
             return a.startBlock - b.startBlock;
         });
@@ -162,10 +201,11 @@ export default class LaunchService {
     }
 
     static async getCompletedCollections(page, size) {
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const collections = await this.getAllLaunchCollectionCache();
+        await this.updateCollectionsProgress(collections);
+        const now = Date.now() / 1000;
         const filteredCollections = collections.filter(collection => {
-            return collection.endBlock !== 0 && (collection.progress >= 100 || collection.endBlock < mempoolHeight || !collection.mintActive);
+            return this.getLaunchStatus(now, collection) === 'completed';
         }).sort((a, b) => {
             return a.endBlock - b.endBlock;
         });
@@ -201,10 +241,9 @@ export default class LaunchService {
         let psbt;
         const orderId = BaseUtil.genId();
         const privateKey = AddressUtil.generatePrivateKeyFromString(orderId);
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const stages = JSON.parse(collection.launchStages);
-        const currentStage = LaunchService.getCurrentStage(parseInt(mempoolHeight), stages);
-        const {available} = await this.getMintLimit0(toAddress, collection.id, collection.collectionId, JSON.parse(collection.launchStages), currentStage.name);
+        const currentStage = LaunchService.getCurrentStage(stages);
+        const {available} = await this.getMintLimit0(toAddress, collection.id, collection.collectionId, stages, currentStage.name);
         if (available === 0) {
             throw new Error('Minted count exceeds limit.');
         }
@@ -466,9 +505,8 @@ export default class LaunchService {
         }
 
         const privateKey = AddressUtil.generatePrivateKeyFromString(orderId);
-        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
         const stages = JSON.parse(collection.launchStages);
-        const currentStage = LaunchService.getCurrentStage(parseInt(mempoolHeight), stages);
+        const currentStage = LaunchService.getCurrentStage(stages);
 
         let whitelistIndex, whitelistLimit, whitelistProof;
         if (currentStage.type === 'private') {
@@ -613,21 +651,23 @@ export default class LaunchService {
         });
     }
 
-    static getCurrentStage(mempoolHeight, stages) {
-        if (!Array.isArray(stages) || typeof mempoolHeight !== "number") {
+    static getCurrentStage(stages) {
+        if (!Array.isArray(stages)) {
             throw new Error("Invalid input");
         }
-
-        const checkHeight = mempoolHeight + 1;
+        const now = Date.now() / 1000;
         const currentStage = stages.find(stage =>
-            checkHeight >= stage.startBlock && checkHeight <= stage.endBlock
+            now >= stage.startBlock && now <= stage.endBlock
         );
         if (!currentStage) {
             const firstStage = stages[0];
             const lastStage = stages[stages.length - 1];
-            if (checkHeight < firstStage.startBlock) {
+            if (now < firstStage.startBlock) {
                 throw new Error("All stages have not started yet.");
-            } else if (checkHeight > lastStage.endBlock) {
+            } else if (now > lastStage.endBlock) {
+                if (lastStage.endBlock === 0) {
+                    return lastStage;
+                }
                 throw new Error("All stages have ended.");
             } else {
                 throw new Error("Not in any available stage.");
@@ -741,8 +781,7 @@ export default class LaunchService {
                     available: -1,
                 }
             }
-            const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
-            currentStage = LaunchService.getCurrentStage(parseInt(mempoolHeight), stages);
+            currentStage = LaunchService.getCurrentStage(stages);
         } else {
             currentStage = stages.find(stage => stage.name === stageName);
         }
@@ -799,7 +838,7 @@ export default class LaunchService {
         if (!collection) {
             throw new Error('Collection not found');
         }
-        return this.getMintLimit0(receiveAddress, collection.id, collection.identifier, JSON.parse(collection.stages));
+        return this.getMintLimit0(receiveAddress, collection.id, collection.identifier, collection.stages);
     }
 
     static async checkWhitelist(receiveAddress, launchId, stage) {
@@ -807,8 +846,7 @@ export default class LaunchService {
         if (!collection) {
             throw new Error('Collection not found');
         }
-        const stages = JSON.parse(collection.stages);
-        const matchStage = stages.find(o => o.name === stage);
+        const matchStage = collection.stages.find(o => o.name === stage);
         if (!matchStage) {
             throw new Error('Stage not found');
         }

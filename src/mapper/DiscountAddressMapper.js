@@ -15,4 +15,10 @@ export default class DiscountAddressMapper {
     static async updateDiscountAddress(address, data) {
         await DiscountAddress.update(data, { where: { address } });
     }
+
+    static async createDiscountAddress(data) {
+        await DiscountAddress.create(data, {
+            ignoreDuplicates: true,
+        });
+    }
 }

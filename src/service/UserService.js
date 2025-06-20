@@ -33,7 +33,7 @@ export default class UserService {
         }
     }
 
-    static async login(address, signature) {
+    static async login(fundAddress, address, signature) {
         const nonce = await RedisHelper.get(`nonce:${address}`);
         if (!nonce) {
             throw new Error('Nonce has expired, please try again');
@@ -43,6 +43,24 @@ export default class UserService {
         const result = BaseUtil.verifySignature(address, message, signature);
         if (!result) {
             throw new Error('Signature verification failed');
+        }
+        if (fundAddress) {
+            if (config.methaneCommittee[fundAddress]) {
+                await DiscountAddressMapper.createDiscountAddress({
+                    address,
+                    takerFee: 10,
+                    mintDiscount: 80,
+                    transferDiscount: 80,
+                });
+            }
+            if (config.methaneCommittee[address]) {
+                await DiscountAddressMapper.createDiscountAddress({
+                    address: fundAddress,
+                    takerFee: 10,
+                    mintDiscount: 80,
+                    transferDiscount: 80,
+                });
+            }
         }
 
         return jwt.sign(

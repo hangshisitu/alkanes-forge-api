@@ -30,4 +30,15 @@ export default class AddressBalanceMapper {
         }
         return null;
     }
+
+    static async getAddressBalance(address, alkanesId) {
+        const addressBalance = await AddressBalance.findOne({
+            where: {
+                address,
+                alkanesId
+            },
+            raw: true
+        });
+        return addressBalance;
+    }
 }

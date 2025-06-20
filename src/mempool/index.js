@@ -206,7 +206,7 @@ async function handle_mempool_mint(txid, protostones) {
         let address = null;
         while (i < mintData.length) {
             const code = mintData[i];
-            if (code === 2 && mintData[i + 2] === 77) {
+            if (code === 2 && (mintData[i + 2] === 77 || mintData[i + 2] === 78)) {
                 if (!feeRate) {
                     const electrsTx = await MempoolUtil.getTxEx(txid);
                     if (!electrsTx || electrsTx.status.confirmed) {

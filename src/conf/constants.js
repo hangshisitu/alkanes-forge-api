@@ -284,7 +284,11 @@ export const Constants = Object.freeze({
             PUSH: '/indexer/push',
             HOLDER_PAGE: '/indexer/holderPage',
             ADDRESS_ALKANES_OUTPOINTS: '/indexer/addressAlkanesOutpoints',
-            OUTPOINT_RECORDS: '/indexer/outpointRecords'
+            OUTPOINT_RECORDS: '/indexer/outpointRecords',
+            MARKET_TX: '/indexer/marketTx',
+            OUTPOINT: '/indexer/outpoint',
+            OUTPOINTS: '/indexer/outpoints',
+            MARKET_TXS: '/indexer/marketTxs'
         },
 
         LAUNCH: {

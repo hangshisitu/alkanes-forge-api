@@ -9,25 +9,23 @@ import {toXOnly} from "bitcoinjs-lib/src/psbt/bip371.js";
 import {LEAF_VERSION_TAPSCRIPT} from "bitcoinjs-lib/src/payments/bip341.js";
 import AlkanesService from "../service/AlkanesService.js";
 
-const fundAddress = 'tb1q235uy7hre5k780xynpsm96mjwngtv8ywsttl6x';
-const fundPrivateKey = '59d13ae37fc4729b1d0c6c8bf623f821aedbf02f0cf1a561c855edfc58cbefb5';
-console.log(AddressUtil.fromP2wpkhAddress(fundPrivateKey, config.network))
+const fundPrivateKey = '';
+const fundAddress = AddressUtil.fromP2wpkhAddress(fundPrivateKey, config.network);
 
-const assetsAddress = 'tb1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsfckaap';
-const assetsPrivateKey = '971aa3000d1f2b80ac820a7af2ff756164ed48f6b55821524780ee4b29f352b7';
-console.log(AddressUtil.fromP2trAddress(assetsPrivateKey, config.network))
+const assetsPrivateKey = '';
+const assetsAddress = AddressUtil.fromP2trAddress(assetsPrivateKey, config.network);
 
-const paymentAddress = 'bcrt1pgtjuh9rsy45zmel7ymee65ncpzp6a67gy5tn00w5kvacdmsrwfrs5kw0aa';
+const paymentAddress = 'bcrt1pnshlsqyrmph299qq3spk0vcmuwu9cwgewufgce4mssgpf6cf06qsfv2h2g';
 
-// await authMint('2:5662');
+await authMint('2:27559');
 // await publicMint('2:18');
 // await setTaprootAddress('2:30', paymentAddress);
 // await btcMint('2:19', 5);
-// await merkleBtcMint('2:4052', 2);
+// await merkleBtcMint('2:312', 1);
 // await merkleAlkanesMint('2:4154', 2);
-// await publicBtcMint('2:4052', 2);
+// await publicBtcMint('2:312', 1);
 
-await withdrawAlkanes('2:5662');
+// await withdrawAlkanes('2:5662');
 
 async function withdrawAlkanes(id) {
     const protostone = getWithdrawProtostone(id, 80);
@@ -70,17 +68,18 @@ async function authMint(id) {
     const protostone = getMintProtostone(id, 69);
 
     const inputList = [];
+    // 350 NFT
     inputList.push({
-        txid: 'e7b53538ecc8661f7336956a6c134e58a8c391c6938f6c9bc9e3c2b6ec9ef2fe',
+        txid: 'a22609dec82d7da8a113b686cf1a3b1a0549ca112e86e5654f34e401bdb55fad',
         vout: 1,
         value: 546,
         address: assetsAddress,
         privateKey: assetsPrivateKey
     })
     inputList.push({
-        txid: 'e7b53538ecc8661f7336956a6c134e58a8c391c6938f6c9bc9e3c2b6ec9ef2fe',
+        txid: 'b0204838807c1e0d9a5c8c6d059c0295b76c71cdedf43ad52527cb825ff5d435',
         vout: 3,
-        value: 6603753 ,
+        value: 280127 ,
         address: fundAddress,
         privateKey: fundPrivateKey
     })
@@ -108,13 +107,12 @@ async function publicBtcMint(id, mints) {
 
     const inputList = [];
     inputList.push({
-        txid: 'c5a9214c2ae2f579ede893c1e4c4f6d711fab0cf1ab42d22b2da1d466d09c0f5',
-        vout: 3,
-        value: 4999887754,
+        txid: '4eba530ec7d424676948321671963d9ca6b5ccbab65617eafe9873eee699195e',
+        vout: 1,
+        value: 4999774942,
         address: fundAddress,
         privateKey: fundPrivateKey
     })
-
 
     const outputList = [];
     outputList.push({
@@ -123,7 +121,7 @@ async function publicBtcMint(id, mints) {
     })
     outputList.push({
         address: paymentAddress,
-        value: 10000 * mints
+        value: 9000 * mints
     })
     outputList.push({
         script: protostone,
@@ -165,19 +163,19 @@ async function btcMint(id, mints) {
 }
 
 async function merkleBtcMint(id, mints) {
-    const acceptAddress = 'tb1pgtjuh9rsy45zmel7ymee65ncpzp6a67gy5tn00w5kvacdmsrwfrse0yfg8';
+    const acceptAddress = 'bcrt1pcxtayjycmzmnmdgzqsg40ev92v57hajpmxlnwfszptl4c9uchx0q5wa50u';
     const keyPair = AddressUtil.convertKeyPair(fundPrivateKey);
-    const proof = "50875cd1d1b23fcaa8c74c48240b4e127c280b6ea458b7fbc5684b17d6970eef0e616ab98cfbdec930a1bab2463bb9d54fa27131ec9024905f8c3b0cbdbcae043e2f570d66ade4df67bd3629e1fd8da79e08b210db0ca941067dbe638f99b375ed2fdd181cbb3a458bff4100b86ed2da04536294e6a8d52817a050eef850bfe5a60a3ec2fb79b177d683fac7013f850c33764df3fcf568a936990facf5b540efbd4f9391e6d20fb824f6d202a633e5d1fee8c8ba507a232524cd5fa7a4dd158a40f419cd88f9a51780c558a4cfa1a91c050b774263f4e06fc3a2d50a10a05520dd222922872c889908d18699aca714264513106866be952e37bb74ef9f6563e5c9c5c1cfc0d0dd4992e3964e85b26558a025c8bf53a2ba1077ba3b3d391ed439d0d462b9b6a89c8b5de14275608873e98e7df40e7a5c84dfe465addf047c6005";
+    const proof = "3d470c90d833d0b89915e4d9136ef3e86e02414000c2b11db7cbdd2a385290b2f2fe4792dff9f8708e364c0b6a0d370f056afd94cc50cf062b81bbf48ed0a9b94155ad61988044737e0d35f62f0cc12fcb300b2ad1b8413e8d85693b72c265ead1465e4798ee0884054efedafc61b1b1e2bd410dd0cb19aa6488b16fcf0408fae3dba764a01271fa39ccb26564f1dbeddfb2d5965dab6674974c79644770ea9a693086f854e079e27f16ed42ebabed08b1389af31f939f34603645ebfa16a76274d1680d0f9474055560a43caf1a2f0bcc9eadf284c043f3585735c758a09aaa70af1ad52d7f0a0e3461f54a131b6cdbc2ec8b1695ae13335d59628ecd8aaef7fa51c1d274830cdc4054221412513dc913e3622b4863fd1854cae56426b7e680fbd8080f3d76e4a8261f3cb0ff866accac693d71572b99719d264214129e70ab849589224b52d00308431f1e8a56f1cde687039df5e47c64a930f963e6c393f7";
     const payment = generatePayment(
         keyPair.publicKey.toString('hex'),
         acceptAddress,
-        550,
+        579,
         proof
     );
 
     const psbt = new bitcoin.Psbt({network: config.network});
 
-    const commitTxHash = "ac31aedd030ae92eb3041d0c7323dbd8c92d0d1a82e651d40dbaa65bcd01a96f";
+    const commitTxHash = "67b85e11e408210060c26e399a014f1a8d301bdd9ea71c3d4138afd806d86dab";
     const commitTxVout = 0;
     const commitTxOutValue = 100000;
     psbt.addInput({
@@ -203,7 +201,7 @@ async function merkleBtcMint(id, mints) {
     });
     psbt.addOutput({
         address: paymentAddress,
-        value: 10000 * mints
+        value: 9000 * mints
     });
 
     const protostone = getMintProtostone(id, 78);
@@ -323,7 +321,7 @@ function generatePayment(pubkey, acceptAddress, index, proof) {
     const lengthBuffer = Buffer.alloc(2);
     lengthBuffer.writeUInt16LE(length, 0);
 
-    const limit = 5;
+    const limit = 1;
     const limitBuffer = Buffer.alloc(4);
     limitBuffer.writeUInt32LE(limit, 0);
 
@@ -384,7 +382,7 @@ function getMintProtostone(id, opcode) {
 
     const edicts = [];
     if (opcode === 69) {
-        calldata.push(BigInt(100));
+        calldata.push(BigInt(133));
         edicts.push({
             id: new ProtoruneRuneId(
                 u128(BigInt(id.split(':')[0])),
@@ -480,20 +478,54 @@ function addressToU128Parts(address) {
 
 async function transferBTC() {
     const filterUtxoList = [{
-        txid: '59f848e1d01adc910815f5251f66f69699ce4ce43954dad06f4269feaa25df56',
-        vout: 2,
-        value: 11916043,
+        txid: 'f677b0b3e14e6fac169b1466d27adcc7760228f8c388445941b88925c307dd34',
+        vout: 1,
+        value: 4998923076,
         address: fundAddress,
         privateKey: fundPrivateKey
     }];
 
     const outputList = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 1; i++) {
         outputList.push({
-            address: 'tb1pf0mm2gdyc6890h0z7kejqw24uvek6kr4hg95dt8s543y52hwutaq42cwhx',
+            address: 'bcrt1phy3k82xkwxuvqch8a894jzady8ajka3mshhpqx9yx64afeqyx9zqq57exd',
             value: 100000
         })
     }
     const psbt = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(fundPrivateKey), filterUtxoList, outputList, fundAddress, 10, false, true);
+    console.log(psbt)
+}
+
+// await transferAlkanes();
+async function transferAlkanes() {
+    const protostone = AlkanesService.getTransferProtostone('', []);
+
+    const inputList = [];
+    inputList.push({
+        txid: '7b6c23623d7e43c8eeaaf2526b2526306c7ddf6214e8b4fc4bf9a0eacd2df2d5',
+        vout: 0,
+        value: 546,
+        address: assetsAddress,
+        privateKey: assetsPrivateKey
+    })
+    inputList.push({
+        txid: '2471cf8a740b393a04487626dd81f1d66f991f7628a2a5454f5c147e711a6679',
+        vout: 1,
+        value: 259088,
+        address: fundAddress,
+        privateKey: fundPrivateKey
+    })
+
+    const outputList = [];
+    outputList.push({
+        address: assetsAddress,
+        value: 546
+    })
+    outputList.push({
+        script: protostone,
+        value: 0
+    })
+
+    const psbt = await UnisatAPI.createPsbt(AddressUtil.convertKeyPair(fundPrivateKey), inputList, outputList, fundAddress, 180, false, true);
     console.log(psbt)
 }

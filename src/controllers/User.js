@@ -74,8 +74,8 @@ async function nonce(ctx) {
  *                   description: JWT token for authentication
  */
 async function login(ctx) {
-    const {address, signature} = ctx.request.body;
-    return await UserService.login(address, signature);
+    const {fundAddress, address, signature} = ctx.request.body;
+    return await UserService.login(fundAddress, address, signature);
 }
 
 /**

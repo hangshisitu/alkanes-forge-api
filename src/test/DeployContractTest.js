@@ -15,6 +15,7 @@ import {LEAF_VERSION_TAPSCRIPT} from "bitcoinjs-lib/src/payments/bip341.js";
 import BigNumber from "bignumber.js";
 import {ECPairFactory} from "ecpair";
 import {all, create} from "mathjs";
+import axios from "axios";
 
 const msconfig = {
     number: "number",
@@ -179,10 +180,10 @@ export async function deploy(
     const revealTx = revealPsbt.finalizeAllInputs().extractTransaction();
     console.info(`revealTxId: ${revealTx.getId()} hex: ${revealTx.toHex()}`);
 
-    const ret = await MempoolUtils.postTx(commitTx.toHex());
+    const ret = await postTx(commitTx.toHex());
     console.info(`ret: ${ret} }`);
 
-    const ret2 = await MempoolUtils.postTx(revealTx.toHex());
+    const ret2 = await postTx(revealTx.toHex());
     console.info(`ret: ${ret2} }`);
 }
 
@@ -561,18 +562,49 @@ export async function buildPsbtForLayoutEx(layout, maximumFeeRate) {
     return psbt;
 }
 
+async function postTx(hex) {
+    try {
+        const response = await axios.post(`https://idclub.mempool.space/api/tx`, hex, {
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            timeout: 10000
+        });
+        return response.data;
+    } catch (err) {
+        const errMessage = err.response?.data || err.message;
+        throw new Error(errMessage);
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
+// Bitcoin
+const privateKey = '';
+const fundAddress = '';
+const assetAddress = '';
+
+// Signet
+// const privateKey = '1cc961af8496bb359fcbf153e8a8bb9ee12526a6935f83c468214b9a9ad88036';
+// const fundAddress = 'tb1q7cm226kawhkl7squl3ry2ag5lugd008udughfj';
+// const assetAddress = 'tb1pgj543ehekkfmwwfpwkhu2wkemwe0cp0e73vljy9wlqh9cdddqpyslj4q0c';
+
+// Regtest
+// const privateKey = '59d13ae37fc4729b1d0c6c8bf623f821aedbf02f0cf1a561c855edfc58cbefb5';
+// const fundAddress = 'bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0';
+// const assetAddress = 'bcrt1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsypumgm';
+
 const utxos = [
     {
-        txid: "1f3d030f6597dd5cf0e7c7b06145f15daea50346d0701811c55480b78dfc9127",
-        vout: 1,
-        value: 2708543,
-        address: "tb1q235uy7hre5k780xynpsm96mjwngtv8ywsttl6x"
-    },
+        txid: "e9fa5357e44bc3d7e7a6a7573a4ef116bcc88cff726f2a372b8ec6d0e249fec7",
+        vout: 2,
+        value: 219308,
+        address: fundAddress
+    }
 ];
-const private_key = "59d13ae37fc4729b1d0c6c8bf623f821aedbf02f0cf1a561c855edfc58cbefb5";
-const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-collection/target/wasm32-unknown-unknown/release/alkanes_collection.wasm";
-const feerate = 15;
-const calldata = [1, 0];
-const accept_address = "tb1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsfckaap";
-await deploy(wasm_path, private_key, utxos, accept_address, feerate, calldata);
+// const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-image/target/wasm32-unknown-unknown/release/alkanes_image.wasm";
+// const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-collection/target/wasm32-unknown-unknown/release/alkanes_collection.wasm";
+const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-nft/target/wasm32-unknown-unknown/release/alkanes_nft.wasm";
+const feerate = 1.4;
+// const calldata = [1, 0];
+const calldata = [3, 111114];
+await deploy(wasm_path, privateKey, utxos, assetAddress, feerate, calldata);

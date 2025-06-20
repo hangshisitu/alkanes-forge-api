@@ -29,7 +29,7 @@ const DiscountAddress = sequelize.define('DiscountAddress', {
     },
     launchDiscount: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         comment: 'launch手续费折扣, 百分位',
     },
     boundAt: {

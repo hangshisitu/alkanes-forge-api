@@ -213,7 +213,24 @@ export default class NftMarketEventMapper {
             }),
         };
     }
+
+    static async getSoldEventsByTxId(txid) {
+        return await NftMarketEvent.findAll({
+            where: {
+                txHash: txid,
+                type: Constants.MARKET_EVENT.SOLD
+            },
+            raw: true,
+        });
+    }
     
-    
+    static async getSoldEventsByBlock(block) {
+        return await NftMarketEvent.findAll({
+            where: {
+                txConfirmedHeight: block,
+            },
+            raw: true,
+        });
+    }
     
 }

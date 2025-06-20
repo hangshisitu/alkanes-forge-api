@@ -3,7 +3,7 @@ import config from '../conf/config.js';
 import * as logger from '../conf/logger.js';
 import BaseUtil from '../utils/BaseUtil.js';
 
-export default async function decodeProtorune(hex, retry = 0,raiseError = false) {
+export default async function decodeProtorune(hex, retry = 0, raiseError = false) {
     while (retry >= 0) {
         retry--;
         try {
@@ -11,7 +11,7 @@ export default async function decodeProtorune(hex, retry = 0,raiseError = false)
             return response.data;
         } catch (error) {
             if (error.response?.status === 400) {
-                return null;
+                return error.response.data;
             }
             if (retry > 0) {
                 await BaseUtil.sleep(1000);

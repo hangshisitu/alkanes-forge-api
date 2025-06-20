@@ -71,6 +71,9 @@ export default class TokenInfoService {
                     }
     
                     if (!alkanes.name) {
+                        if (alkanes.collectionIdentifier) {
+                            throw new Error(`new token ${tokenId} not found name`);
+                        }
                         // logger.warn(`new token ${tokenId} not found name`);
                         return false;
                     }

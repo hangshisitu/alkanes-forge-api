@@ -325,13 +325,11 @@ export default class AlkanesService {
                     }
                 } catch (error) {
                     // 可选：log
-                    if (error instanceof NetworkError) {
-                        logger.error(`Get alkanes ${id} network error occurred.`);
-                        throw error;
-                    }
+                    logger.error(`Get alkanes ${id} error occurred.`);
+                    throw error;
                 }
                 return null;
-            }, 4, errors);
+            }, null, errors);
             if (errors.length > 0) {
                 throw new Error(`Get alkanes info error, errors: ${errors.length}`);
             }
@@ -405,7 +403,7 @@ export default class AlkanesService {
 
         } catch (error) {
             logger.error(`Get alkanes ${id} error:`, error);
-            return null;
+            throw error;
         }
     }
 
