@@ -1,5 +1,4 @@
 import {Constants} from '../conf/constants.js';
-import * as RedisHelper from '../lib/RedisHelper.js';
 import LaunchCollectionMapper from '../mapper/LaunchCollectionMapper.js';
 import LaunchCollection from '../models/LaunchCollection.js';
 import * as logger from '../conf/logger.js';
@@ -22,27 +21,27 @@ import LaunchOrder from '../models/LaunchOrder.js';
 import MempoolUtil from '../utils/MempoolUtil.js';
 import NftItemService from './NftItemService.js';
 import LaunchWhitelistMapper from '../mapper/LaunchWhitelistMapper.js';
-
+import LaunchCollectionVote from '../models/LaunchCollectionVote.js';
+import LaunchCollectionTeamMember from '../models/LaunchCollectionTeamMember.js';
+import sequelize from '../lib/SequelizeHelper.js';
+import {Op} from 'sequelize';
+import * as RedisHelper from '../lib/RedisHelper.js';
 
 let launchCollectionListCache = null;
 
 export default class LaunchService {
 
-    static transferToLaunch(collection) {
-        const stages = JSON.parse(collection.launchStages);
-        const now = Date.now() / 1000;
-        const status = this.getLaunchStatus(now, collection);
+    static async transferToLaunch(collection) {
+        const stages = JSON.parse(collection.launchStages || '[]');
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        const status = await this.getLaunchStatus(mempoolHeight, collection);
         stages.forEach(stage => {
             stage.current = false;
         });
         if (status === 'minting') {
-            let flag = false;
             for (const stage of stages) {
-                stage.current = stage.startBlock <= now && (stage.endBlock === 0 || stage.endBlock >= now);
-                if (stage.current) {
-                    flag = true;
-                }
-                stage.end = stage.endBlock !== 0 && stage.endBlock < now;
+                stage.current = stage.startBlock <= mempoolHeight && (stage.endBlock === 0 || stage.endBlock >= mempoolHeight);
+                stage.end = stage.endBlock !== 0 && stage.endBlock < mempoolHeight;
             }
         }
         return {
@@ -60,6 +59,7 @@ export default class LaunchService {
             endBlock: collection.endBlock,
             mintActive: collection.mintActive,
             description: collection.description,
+            funding: collection.funding,
             twitter: collection.twitter,
             discord: collection.discord,
             website: collection.website,
@@ -83,7 +83,17 @@ export default class LaunchService {
         } else {
             collection.progress = Number((collection.minted / totalSupply * 100).toFixed(2));
         }
-        return this.transferToLaunch(collection);
+        const retCollection = await this.transferToLaunch(collection);
+        const teamMembers = await LaunchCollectionTeamMember.findAll({
+            attributes: ['name', 'head', 'title', 'description', 'twitter'],
+            where: {
+                launchId: id
+            },
+            raw: true
+        });
+        retCollection.teamMembers = teamMembers;
+        retCollection.voteInfo = await this.getVoteInfo(id);
+        return retCollection;
     }
 
     static async getAllLaunchCollection() {
@@ -104,18 +114,24 @@ export default class LaunchService {
     }
 
     static async getAllLaunchCollectionCache() {
-        return launchCollectionListCache ?? await this.getAllLaunchCollectionCache();
+        return launchCollectionListCache ?? await this.getAllLaunchCollection();
     }
 
-    static getLaunchStatus(now = Date.now() / 1000, collection) {
+    static async getLaunchStatus(block, collection) {
+        if (!collection.audited) {
+            return 'reviewing';
+        }
         if (!collection.mintActive || collection.progress >= 100) {
             return 'completed';
         }
+        if (block == null) {
+            block = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        }
         const startBlock = collection.startBlock;
         const endBlock = collection.endBlock;
-        if (startBlock > now) { // 未开始
+        if (startBlock - 1 > block) { // 未开始
             return 'upcoming';
-        } else if (endBlock > 0 && endBlock < now) { // 已结束, endBlock为0时表示没有结束时间, 打完为止
+        } else if (endBlock > 0 && endBlock < block) { // 已结束, endBlock为0时表示没有结束时间, 打完为止
             return 'completed';
         } else { // 进行中
             return 'minting';
@@ -125,13 +141,21 @@ export default class LaunchService {
     static async getBannerCollections() {
         const collections = await this.getAllLaunchCollectionCache();
         await this.updateCollectionsProgress(collections);
-        const now = Date.now() / 1000;
-        return collections.filter(collection => collection.launchRank > 0)
-            .sort((a, b) => a.launchRank - b.launchRank).map(collection => {
-                const launch = this.transferToLaunch(collection);
-                launch.status = this.getLaunchStatus(now, collection);
-                return launch;
-            });
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        const retCollections = collections
+            .filter(collection => collection.launchRank > 0)
+            .sort((a, b) => a.launchRank - b.launchRank);
+        const retLaunchCollections = [];
+        for (const collection of retCollections) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(mempoolHeight, collection);
+            retLaunchCollections.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(retLaunchCollections.map(collection => collection.id));
+        retLaunchCollections.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
+        });
+        return retLaunchCollections;
     }
 
     static async updateCollectionsProgress(collections) {
@@ -145,15 +169,82 @@ export default class LaunchService {
         });
     }
 
+    static async getLaunchCollections(page, size) {
+        const collections = await this.getAllLaunchCollectionCache();
+        await this.updateCollectionsProgress(collections);
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        let filteredCollections = [...collections];
+        for (const collection of filteredCollections) {
+            collection.status = await this.getLaunchStatus(mempoolHeight, collection);
+        }
+        filteredCollections = filteredCollections.filter(collection => collection.status !== 'completed').sort((a, b) => {
+            const aStatus = a.status;
+            const bStatus = b.status;
+            if (aStatus === bStatus) {
+                if (aStatus === 'reviewing') {
+                    return a.createdAt.getTime() - b.createdAt.getTime();
+                } else if (aStatus === 'upcoming') {
+                    return a.startBlock - b.startBlock;
+                } else if (aStatus === 'minting') {
+                    return a.endBlock - b.endBlock;
+                }
+                return 0;
+            }
+            if (aStatus === 'minting') {
+                return -1; // 排在前面
+            }
+            if (aStatus === 'upcoming') {
+                if (bStatus === 'minting') {
+                    return 1;
+                }
+                return -1; // 排在前面
+            }
+            if (aStatus === 'reviewing') {
+                if (bStatus === 'minting' || bStatus === 'upcoming') {
+                    return 1;
+                }
+                return -1; // 排在前面
+            }
+            return 0;
+        });
+        const startIndex = (page - 1) * size;
+        const endIndex = startIndex + size;
+        const pageCollections = filteredCollections.slice(startIndex, endIndex);
+        for (const collection of pageCollections) {
+            if (collection.collectionId) {
+                collection.mempool = await MempoolService.getMempoolData(collection.collectionId);
+            }
+        }
+        const rows = [];
+        for (const collection of pageCollections) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(mempoolHeight, collection);
+            rows.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(rows.map(collection => collection.id));
+        rows.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
+        });
+        return {
+            page,
+            size,
+            total: filteredCollections.length,
+            pages: Math.ceil(filteredCollections.length / size),
+            records: rows
+        };
+    }
+
     static async getMintingCollections(page, size) {
         const collections = await this.getAllLaunchCollectionCache();
         await this.updateCollectionsProgress(collections);
-        const now = Date.now() / 1000;
-        const filteredCollections = collections.filter(collection => {
-            return this.getLaunchStatus(now, collection) === 'minting';
-        }).sort((a, b) => {
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        let filteredCollections = collections.filter(collection => collection.audited).sort((a, b) => {
             return a.endBlock - b.endBlock;
         });
+        for (const collection of filteredCollections) {
+            collection.status = await this.getLaunchStatus(mempoolHeight, collection);
+        }
+        filteredCollections = filteredCollections.filter(collection => collection.status === 'minting');
 
         const startIndex = (page - 1) * size;
         const endIndex = startIndex + size;
@@ -163,8 +254,15 @@ export default class LaunchService {
                 collection.mempool = await MempoolService.getMempoolData(collection.collectionId);
             }
         }
-        const rows = pageCollections.map(collection => {
-            return this.transferToLaunch(collection);
+        const rows = [];
+        for (const collection of pageCollections) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(mempoolHeight, collection);
+            rows.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(rows.map(collection => collection.id));
+        rows.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
         });
         return {
             page,
@@ -178,17 +276,26 @@ export default class LaunchService {
     static async getUpcomingCollections(page, size) {
         const collections = await this.getAllLaunchCollectionCache();
         await this.updateCollectionsProgress(collections);
-        const now = Date.now() / 1000;
-        const filteredCollections = collections.filter(collection => {
-            return this.getLaunchStatus(now, collection) === 'upcoming';
-        }).sort((a, b) => {
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        let filteredCollections = collections.filter(collection => collection.audited).sort((a, b) => {
             return a.startBlock - b.startBlock;
         });
+        for (const collection of filteredCollections) {
+            collection.status = await this.getLaunchStatus(mempoolHeight, collection);
+        }
+        filteredCollections = filteredCollections.filter(collection => collection.status === 'upcoming');
 
         const startIndex = (page - 1) * size;
         const endIndex = startIndex + size;
-        const rows = filteredCollections.slice(startIndex, endIndex).map(collection => {
-            return this.transferToLaunch(collection);
+        const rows = [];
+        for (const collection of filteredCollections.slice(startIndex, endIndex)) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(mempoolHeight, collection);
+            rows.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(rows.map(collection => collection.id));
+        rows.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
         });
 
         return {
@@ -203,19 +310,57 @@ export default class LaunchService {
     static async getCompletedCollections(page, size) {
         const collections = await this.getAllLaunchCollectionCache();
         await this.updateCollectionsProgress(collections);
-        const now = Date.now() / 1000;
-        const filteredCollections = collections.filter(collection => {
-            return this.getLaunchStatus(now, collection) === 'completed';
-        }).sort((a, b) => {
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        let filteredCollections = collections.filter(collection => collection.audited).sort((a, b) => {
             return a.endBlock - b.endBlock;
+        });
+        for (const collection of filteredCollections) {
+            collection.status = await this.getLaunchStatus(mempoolHeight, collection);
+        }
+        filteredCollections = filteredCollections.filter(collection => collection.status === 'completed');
+
+        const startIndex = (page - 1) * size;
+        const endIndex = startIndex + size;
+        const rows = [];
+        for (const collection of filteredCollections.slice(startIndex, endIndex)) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(mempoolHeight, collection);
+            rows.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(rows.map(collection => collection.id));
+        rows.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
+        });
+
+        return {
+            page,
+            size,
+            total: filteredCollections.length,
+            pages: Math.ceil(filteredCollections.length / size),
+            records: rows
+        };
+    }
+
+    static async getAuditCollections(page, size) {
+        const collections = await this.getAllLaunchCollectionCache();
+        await this.updateCollectionsProgress(collections);
+        const filteredCollections = collections.filter(collection => !collection.audited).sort((a, b) => {
+            return a.createdAt.getTime() - b.createdAt.getTime();
         });
 
         const startIndex = (page - 1) * size;
         const endIndex = startIndex + size;
-        const rows = filteredCollections.slice(startIndex, endIndex).map(collection => {
-            return this.transferToLaunch(collection);
+        const pageCollections = filteredCollections.slice(startIndex, endIndex);
+        const rows = [];
+        for (const collection of pageCollections) {
+            const launch = await this.transferToLaunch(collection);
+            launch.status = await this.getLaunchStatus(null, collection);
+            rows.push(launch);
+        }
+        const voteInfos = await this.getVoteInfos(rows.map(collection => collection.id));
+        rows.forEach(collection => {
+            collection.voteInfo = voteInfos[collection.id];
         });
-
         return {
             page,
             size,
@@ -242,7 +387,8 @@ export default class LaunchService {
         const orderId = BaseUtil.genId();
         const privateKey = AddressUtil.generatePrivateKeyFromString(orderId);
         const stages = JSON.parse(collection.launchStages);
-        const currentStage = LaunchService.getCurrentStage(stages);
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        const currentStage = LaunchService.getCurrentStage(mempoolHeight, stages);
         const {available} = await this.getMintLimit0(toAddress, collection.id, collection.collectionId, stages, currentStage.name);
         if (available === 0) {
             throw new Error('Minted count exceeds limit.');
@@ -506,7 +652,8 @@ export default class LaunchService {
 
         const privateKey = AddressUtil.generatePrivateKeyFromString(orderId);
         const stages = JSON.parse(collection.launchStages);
-        const currentStage = LaunchService.getCurrentStage(stages);
+        const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+        const currentStage = LaunchService.getCurrentStage(mempoolHeight, stages);
 
         let whitelistIndex, whitelistLimit, whitelistProof;
         if (currentStage.type === 'private') {
@@ -522,6 +669,10 @@ export default class LaunchService {
         const {txid, error} = await UnisatAPI.unisatPush(psbt);
         if (error) {
             throw new Error(error);
+        }
+        const existOrder = await LaunchOrderMapper.findByPaymentHash(txid);
+        if (existOrder && existOrder.id !== orderId) {
+            throw new Error('Order already exists, please refresh and retry');
         }
 
         let mintHash = txid;
@@ -651,20 +802,20 @@ export default class LaunchService {
         });
     }
 
-    static getCurrentStage(stages) {
+    static async getCurrentStage(mempoolHeight, stages) {
         if (!Array.isArray(stages)) {
             throw new Error("Invalid input");
         }
-        const now = Date.now() / 1000;
+        const checkHeight = mempoolHeight + 1;
         const currentStage = stages.find(stage =>
-            now >= stage.startBlock && now <= stage.endBlock
+            checkHeight >= stage.startBlock && checkHeight <= stage.endBlock
         );
         if (!currentStage) {
             const firstStage = stages[0];
             const lastStage = stages[stages.length - 1];
-            if (now < firstStage.startBlock) {
+            if (checkHeight < firstStage.startBlock) {
                 throw new Error("All stages have not started yet.");
-            } else if (now > lastStage.endBlock) {
+            } else if (checkHeight > lastStage.endBlock) {
                 if (lastStage.endBlock === 0) {
                     return lastStage;
                 }
@@ -781,7 +932,8 @@ export default class LaunchService {
                     available: -1,
                 }
             }
-            currentStage = LaunchService.getCurrentStage(stages);
+            const mempoolHeight = await RedisHelper.get(Constants.REDIS_KEY.MEMPOOL_BLOCK_HEIGHT);
+            currentStage = LaunchService.getCurrentStage(mempoolHeight, stages);
         } else {
             currentStage = stages.find(stage => stage.name === stageName);
         }
@@ -861,6 +1013,164 @@ export default class LaunchService {
             return false;
         }
         return true;
+    }
+
+    static async vote(launchId, vote, userAddress, content, images) {
+        const collection = await this.getDetail(launchId, false);
+        if (!collection) {
+            throw new Error('Collection not found');
+        }
+        if (collection.audited) {
+            throw new Error('Collection can not vote now');
+        }
+        if (images && Array.isArray(images)) {
+            images = JSON.stringify(images);
+        }
+        await LaunchCollectionVote.create({
+            launchId,
+            address: userAddress,
+            vote,
+            content,
+            images
+        }, {
+            ignoreDuplicates: true
+        });
+    }
+
+    static async getAddressVote(launchId, userAddress) {
+        const vote = await LaunchCollectionVote.findOne({
+            attributes: ['vote'],
+            where: {
+                launchId,
+                address: userAddress
+            },
+            raw: true
+        });
+        return vote;
+    }
+
+    static async getVoteInfo(launchId) {
+        const vote = await sequelize.query(`
+            SELECT
+                vote,
+                COUNT(*) as count
+            FROM launch_collection_vote
+            WHERE launch_id = :launchId
+            GROUP BY vote
+        `, {
+            raw: true,
+            replacements: {
+                launchId
+            },
+            type: sequelize.QueryTypes.SELECT
+        });
+        const ret = vote.reduce((acc, vote) => {
+            acc[vote.vote] = vote.count;
+            return acc;
+        }, {});
+        if (!ret[Constants.VOTE.OPPOSE]) {
+            ret[Constants.VOTE.OPPOSE] = 0;
+        }
+        if (!ret[Constants.VOTE.AGREE]) {
+            ret[Constants.VOTE.AGREE] = 0;
+        }
+        if (!ret[Constants.VOTE.NEUTRAL]) {
+            ret[Constants.VOTE.NEUTRAL] = 0;
+        }
+        return ret;
+    }
+
+    static async getVoteInfos(launchIds) {
+        if (!launchIds?.length) {
+            return {};
+        }
+        const votes = await sequelize.query(`
+            SELECT
+                launch_id as launchId,
+                vote,
+                COUNT(*) as count
+            FROM launch_collection_vote
+            WHERE launch_id IN (:launchIds)
+            GROUP BY launch_id, vote
+        `, {
+            raw: true,
+            replacements: {
+                launchIds
+            },
+            type: sequelize.QueryTypes.SELECT
+        });
+        const ret = votes.reduce((acc, vote) => {
+            acc[vote.launchId] = acc[vote.launchId] ?? {};
+            acc[vote.launchId][vote.vote] = vote.count;
+            return acc;
+        }, {});
+        for (const launchId of launchIds) {
+            if (ret[launchId]) {
+                if (!ret[launchId][Constants.VOTE.OPPOSE]) {
+                    ret[launchId][Constants.VOTE.OPPOSE] = 0;
+                }
+                if (!ret[launchId][Constants.VOTE.AGREE]) {
+                    ret[launchId][Constants.VOTE.AGREE] = 0;
+                }
+                if (!ret[launchId][Constants.VOTE.NEUTRAL]) {
+                    ret[launchId][Constants.VOTE.NEUTRAL] = 0;
+                }
+            } else {
+                ret[launchId] = {
+                    [Constants.VOTE.OPPOSE]: 0,
+                    [Constants.VOTE.AGREE]: 0,
+                    [Constants.VOTE.NEUTRAL]: 0,
+                };
+            }
+        }
+        return ret;
+    }
+
+    static async getVoteDetails(launchId, lastId, size) {
+        const where = {
+            launchId,
+            id: {
+                [Op.gt]: lastId || 0
+            }
+        };
+        const rows = await LaunchCollectionVote.findAll({
+            where,
+            order: [['id', 'ASC']],
+            limit: size + 1,
+            raw: true
+        });
+        return {
+            records: rows.slice(0, size),
+            hasMore: rows.length > size
+        };
+    }
+
+    static async modifyLaunchBlock(launchId, startBlock, endBlock, stage) {
+        const collection = await LaunchCollectionMapper.findById(launchId);
+        if (!collection) {
+            throw new Error('Collection not found');
+        }
+        const data = {};
+        if (startBlock != null) {
+            data.startBlock = startBlock;
+        }
+        if (endBlock != null) {
+            data.endBlock = endBlock;
+        }
+        const stages = JSON.parse(collection.launchStages);
+        stages.forEach(o => {
+            if (o.name === stage.name) {
+                if (stage.startBlock != null) {
+                    o.startBlock = stage.startBlock;
+                }
+                if (stage.endBlock != null) {
+                    o.endBlock = stage.endBlock;
+                }
+            }
+        });
+        data.launchStages = JSON.stringify(stages);
+        await LaunchCollectionMapper.updateById(launchId, data);
+        await this.refreshLaunchCollectionCache();
     }
 }
 

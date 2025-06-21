@@ -302,6 +302,16 @@ async function outpoints(ctx) {
     return await IndexerService.getOutpoints(block, txid, alkanesId);
 }
 
+async function alkanesImage(ctx) {
+    const { alkanesId, block } = ctx.request.query;
+    const image = await IndexerService.getAlkanesData(alkanesId, block);
+    if (image) {
+        return image;
+    } else {
+        ctx.status = 404;
+    }
+}
+
 export default [
     {
         path: Constants.API.INDEXER.PUSH,
@@ -342,6 +352,11 @@ export default [
         path: Constants.API.INDEXER.MARKET_TXS,
         method: 'post',
         handler: marketTxs
+    },
+    {
+        path: Constants.API.INDEXER.ALKANES_IMAGE,
+        method: 'get',
+        handler: alkanesImage
     }
 ]
 

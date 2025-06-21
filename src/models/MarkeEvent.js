@@ -12,6 +12,11 @@ const MarketEvent = sequelize.define('MarketEvent', {
         defaultValue: 1,
         comment: '事件类型(1:上架 2:售出 3:下架 4:改价 5:转移)'
     },
+    orderId: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        comment: '订单ID, 售出时写入'
+    },
     alkanesId: {
         type: DataTypes.STRING(16),
         comment: '资产唯一标识'

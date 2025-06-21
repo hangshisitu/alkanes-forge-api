@@ -23,6 +23,42 @@ const FILE_SIGNATURES = {
       extension: '.gif',
       image: true,
     },
+    '52494646': {
+      type: 'webp',
+      mimeType: 'image/webp',
+      extension: '.webp',
+      image: true,
+    },
+    '424d': {
+      type: 'bmp',
+      mimeType: 'image/bmp',
+      extension: '.bmp',
+      image: true,
+    },
+    '49492a00': {
+      type: 'tiff',
+      mimeType: 'image/tiff',
+      extension: '.tiff',
+      image: true,
+    },
+    '4d4d002a': {
+      type: 'tiff',
+      mimeType: 'image/tiff',
+      extension: '.tiff',
+      image: true,
+    },
+    'fffe': {
+      type: 'ico',
+      mimeType: 'image/x-icon',
+      extension: '.ico',
+      image: true,
+    },
+    '00000100': {
+      type: 'ico',
+      mimeType: 'image/x-icon',
+      extension: '.ico',
+      image: true,
+    },
     '25504446': {
       type: 'pdf',
       mimeType: 'application/pdf',
@@ -202,5 +238,20 @@ export default class BaseUtil {
           }
         }
     }
+
+    static detectImageType(buffer) {
+        if (!buffer || buffer.length < 8) return 'unknown';
+      
+        if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'jpeg';
+        if (buffer[0] === 0x89 && buffer.toString('ascii', 1, 4) === 'PNG') return 'png';
+        if (buffer.toString('ascii', 0, 3) === 'GIF') return 'gif';
+        if (buffer[0] === 0x42 && buffer[1] === 0x4D) return 'bmp';
+        if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+        if ((buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2A && buffer[3] === 0x00) ||
+            (buffer[0] === 0x4D && buffer[1] === 0x4D && buffer[2] === 0x00 && buffer[3] === 0x2A)) return 'tiff';
+      
+        return 'unknown';
+      }
+      
 
 }

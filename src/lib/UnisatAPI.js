@@ -144,9 +144,9 @@ export default class UnisatAPI {
             throw new Error('Insufficient utxo balance');
         }
 
-        return UnisatAPI.pickUtxoByTarget(address, amount, feerate, utxoList.filter(utxo => {
-            return !filterOutputs?.includes(`${utxo.txid}:${utxo.vout}`);
-        }));
+        const filterUtxoList = utxoList.filter(utxo => !filterOutputs?.includes(`${utxo.txid}:${utxo.vout}`));
+        console.log(`utxoList: ${JSON.stringify(utxoList)} filterUtxoList: ${JSON.stringify(filterUtxoList)}`);
+        return UnisatAPI.pickUtxoByTarget(address, amount, feerate, filterUtxoList);
     }
 
     static pickUtxoByTarget(address, amount, feerate, utxoList) {

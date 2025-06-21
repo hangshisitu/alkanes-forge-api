@@ -4,6 +4,7 @@
   "alkanesUrl": "http://localhost:18888",
   "alkanesAddressUrl": "http://localhost:18888",
   "alkanesUtxoUrl": "http://localhost:18888",
+  "alkanesIndexerUrl": "http://localhost:18888",
   "reserveNumber": 797,
   "startHeight": 880000,
   "concurrencyLimit": 100,

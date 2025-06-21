@@ -4,6 +4,7 @@
   "alkanesUrl": "https://alkanes-rpc-signet.idclub.io",
   "alkanesAddressUrl": "https://alkanes-rpc-signet.idclub.io",
   "alkanesUtxoUrl": "https://alkanes-rpc-signet.idclub.io",
+  "alkanesIndexerUrl": "https://alkanes-rpc-signet.idclub.io",
   "reserveNumber": 77,
   "startHeight": 200000,
   "concurrencyLimit": 100,

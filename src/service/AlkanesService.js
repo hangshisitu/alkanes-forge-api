@@ -110,7 +110,7 @@ export default class AlkanesService {
                     vout: utxo.vout,
                     protocolTag: '1',
                 },
-            ], config.alkanesUtxoUrl, timeout)
+            ], alkanesUrl, timeout)
 
             return alkaneList.map((alkane) => ({
                 id: `${parseInt(alkane.token.id.block, 16).toString()}:${parseInt(alkane.token.id.tx, 16).toString()}`,
@@ -320,7 +320,7 @@ export default class AlkanesService {
         }
     }
 
-    static async getAlkanesById(id, opcodesToQuery = opcodes) {
+    static async getAlkanesById(id, opcodesToQuery = opcodes, blockHeight = '20000') {
         const opcodeToHRV = {};
         opcodes.forEach((opcode, idx) => opcodeToHRV[opcode] = opcodesHRV[idx]);
         const tokenInfo = {id};
@@ -332,6 +332,7 @@ export default class AlkanesService {
                     const result = await AlkanesService.simulate({
                         target: {block: id.split(':')[0], tx: id.split(':')[1]},
                         inputs: [opcode],
+                        height: `${blockHeight}`,
                     });
                     if (result) {
                         return {

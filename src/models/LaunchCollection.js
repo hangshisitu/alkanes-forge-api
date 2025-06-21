@@ -47,6 +47,10 @@ const LaunchCollection = sequelize.define('LaunchCollection', {
         type: DataTypes.TEXT,
         comment: '描述'
     },
+    funding: {
+        type: DataTypes.STRING,
+        comment: '资金用途'
+    },
     twitter: {
         type: DataTypes.STRING,
         comment: 'twitter id'
@@ -107,6 +111,11 @@ const LaunchCollection = sequelize.define('LaunchCollection', {
         field: 'launch_rank',
         type: DataTypes.INTEGER,
         comment: 'Launch排名'
+    },
+    audited: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: '是否已审核'
     },
     createdAt: {
         type: DataTypes.DATE,

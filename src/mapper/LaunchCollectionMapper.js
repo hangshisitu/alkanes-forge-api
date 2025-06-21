@@ -25,5 +25,12 @@ export default class LaunchCollectionMapper {
         }
     }
 
+    static async updateById(id, data) {
+        return LaunchCollection.update(data, {
+            where: { id },
+            returning: true
+        });
+    }
+
 
 }

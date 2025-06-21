@@ -395,7 +395,7 @@ export default class MarketService {
         // 输入: dummyCount + 出售地址 + 1付款
         const inputAddresses = [...sellerAddressList, {address: fundAddress}];
         // 输出: 1合并dummy + 1接收地址 + 收款地址 +1转账脚本 +1手续费 + dummyCount + 1找零
-        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.revenueAddress.market}, {address: fundAddress}];
+        const outputAddresses = [{address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.revenueAddress.market}, {address: fundAddress}];
         let txFee = Math.ceil(FeeUtil.estTxSize(inputAddresses, outputAddresses) * feerate);
 
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
@@ -427,7 +427,7 @@ export default class MarketService {
         const paymentUtxoList = [...cachedPaymentUtxoList];
         if (needAmount > 0) {
             const patchPaymentUtxoList = await UnisatAPI.getUtxoByTarget(fundAddress, needAmount, feerate, false, cachedPaymentUtxoList.map(utxo => {
-                return `${utxo.txid}:${utxo.txid}`;
+                return `${utxo.txid}:${utxo.vout}`;
             }));
             paymentUtxoList.push(...patchPaymentUtxoList);
         }
@@ -532,11 +532,17 @@ export default class MarketService {
         };
     }
 
-    static async preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress) {
+    static async preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate, userAddress) {
         if (assetAddress !== userAddress) {
             throw new Error('Can not accelerate trade for other address');
         }
-        const listingList = await MarketListingMapper.getByTxids([txid]);
+        let listingList = null;
+        if (orderId) {
+            const events = await MarketEventMapper.getSoldEventsByOrderId(orderId);
+            listingList = await MarketListingMapper.getByOutputs(events.map(event => event.listingOutput));
+        } else {
+            listingList = await MarketListingMapper.getByTxids([txid]);
+        }
         return await this.createUnsignedBuying(listingList[0].alkanesId, listingList.map(listing => listing.id), fundAddress, fundPublicKey, assetAddress, feerate, true);
     }
 
@@ -589,10 +595,18 @@ export default class MarketService {
 
             await MarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, walletType, alkanesId, transaction);
             if (!accelerate) {
+                const orderId = BaseUtil.genId();
+                for (const event of eventList) {
+                    event.orderId = orderId;
+                }
                 await MarketEventMapper.bulkUpsertEvent(eventList, transaction);
             } else {
                 const existingEvent = await MarketEventMapper.getSoldEventByListingOutput(eventList[0].listingOutput);
-                await MarketEventMapper.updateEventTxHash(existingEvent.txHash, txid, transaction);
+                if (existingEvent.orderId) {
+                    await MarketEventMapper.updateEventTxHashByOrderId(existingEvent.orderId, txid, transaction);
+                } else {
+                    await MarketEventMapper.updateEventTxHash(existingEvent.txHash, txid, transaction);
+                }
             }
 
             const {error} = await UnisatAPI.unisatPush(signedPsbt);

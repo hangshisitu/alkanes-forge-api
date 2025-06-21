@@ -174,6 +174,17 @@ export default class NftMarketEventMapper {
             raw: true
         });
     }
+
+    static async updateEventTxHashByOrderId(orderId, txid, transaction = null) {
+        return await NftMarketEvent.update({
+            txHash: txid
+        }, {
+            where: {
+                orderId
+            }, transaction
+        });
+    }
+
     static async updateEventTxHash(oldTxid, newTxid, transaction = null) {
         return await NftMarketEvent.update({
             txHash: newTxid
@@ -232,5 +243,13 @@ export default class NftMarketEventMapper {
             raw: true,
         });
     }
-    
+
+    static async getSoldEventsByOrderId(orderId) {
+        return await NftMarketEvent.findAll({
+            where: {
+                orderId
+            },
+            raw: true,
+        });
+    }
 }

@@ -83,4 +83,13 @@ export default class LaunchOrderMapper {
             raw: true,
         });
     }
+
+    static async findByPaymentHash(paymentHash) {
+        return await LaunchOrder.findOne({
+            where: {
+                paymentHash
+            },
+            raw: true
+        });
+    }
 }

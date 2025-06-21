@@ -59,7 +59,7 @@ export default class IndexerService {
                     }
                     block = indexBlock.block + 1;
                 }
-                const maxHeight = await AlkanesService.metashrewHeight();
+                const maxHeight = await AlkanesService.metashrewHeight(config.alkanesIndexerUrl);
                 if (block > maxHeight) {
                     break;
                 }
@@ -99,7 +99,7 @@ export default class IndexerService {
                                     txid,
                                     vout,
                                     height: block,
-                                }, block, null, 10000);
+                                }, block, config.alkanesIndexerUrl, 1000 * 30);
                                 const alkanesIdCount = outpoint_balances.length;
                                 if (alkanesIdCount === 0) {
                                     return;
@@ -804,7 +804,7 @@ export default class IndexerService {
     }
 
     static async getOutpoint(txid, vout) {
-        return await OutpointRecord.findOne({
+        return await OutpointRecord.findAll({
             where: {
                 txid,
                 vout,
@@ -838,6 +838,32 @@ export default class IndexerService {
         });
     }
 
+    static async getAlkanesData(alkanesId, block) {
+        const result = await AlkanesService.simulate({
+            target: {block: alkanesId.split(':')[0], tx: alkanesId.split(':')[1]},
+            inputs: ['1000'],
+            height: `${block}`,
+        });
+        const text = (result.string || '').trim();
+        if (text.startsWith('data:image/')) {
+            return text;
+        } else if (
+            (text.toLowerCase().startsWith('<?xml version="1.0" encoding="UTF-8"?>'.toLowerCase()) && text.toLowerCase().endsWith('</svg>')) ||
+            (text.toLowerCase().startsWith('<svg ') && text.toLowerCase().endsWith('</svg>'))
+        ) {
+            return text;
+        } else if (text.startsWith('0x')) {
+            const {type, mimeType, image} = BaseUtil.detectFileType(text) ?? {};
+            if (type && image) {
+                // 将image转换为base64
+                const base64 = Buffer.from(text.slice(2), 'hex').toString('base64');
+                return `data:${mimeType};base64,${base64}`;
+            }
+        }
+        logger.error(`can not detect alkanes data type, ${alkanesId} ${block}`);
+        return null;
+    }
+
     static async amendBlock(block) {
         const blockHash = await MempoolUtil.getBlockHash(block);
         const blockDetails = await BtcRPC.getBlockDetails(blockHash);
@@ -868,7 +894,7 @@ export default class IndexerService {
                             txid,
                             vout,
                             height: block,
-                        }, block, null, 10000);
+                        }, block, config.alkanesIndexerUrl, 1000 * 30);
                         const dbOutpoints = await OutpointRecord.findAll({
                             where: {
                                 txid,

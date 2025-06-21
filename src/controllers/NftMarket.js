@@ -53,6 +53,9 @@ async function assets(ctx) {
  *               name:
  *                 type: string
  *                 description: Filter by name
+ *               filterModel:
+ *                 type: string
+ *                 description: Filter model, default is 'or', can be 'and'
  *               attributes:
  *                 type: array
  *                 description: Filter by attributes
@@ -101,12 +104,12 @@ async function assets(ctx) {
  *                   type: integer
  */
 async function listingPage(ctx) {
-    const { collectionId, name, attributes, prices, orderType, page, size } = ctx.request.body;
+    const { collectionId, name, filterModel, attributes, prices, orderType, page, size } = ctx.request.body;
     const collection = await NftCollectionService.getCollectionById(collectionId);
     if (!collection?.show) {
         return null;
     }
-    return await NftMarketService.getListingPage(collectionId, name, attributes, prices, orderType, page, size);
+    return await NftMarketService.getListingPage(collectionId, name, filterModel, attributes, prices, orderType, page, size);
 }
 
 /**
@@ -525,6 +528,7 @@ async function collectionStats(ctx) {
  *               - fundPublicKey
  *               - assetAddress
  *               - txid
+ *               - orderId
  *               - feerate
  *             properties:
  *               fundAddress:
@@ -539,6 +543,9 @@ async function collectionStats(ctx) {
  *               txid:
  *                 type: string
  *                 description: Transaction ID
+ *               orderId:
+ *                 type: string
+ *                 description: Order ID
  *               feerate:
  *                 type: number
  *                 description: Fee rate
@@ -547,9 +554,9 @@ async function collectionStats(ctx) {
  *         description: Unsigned transaction created successfully
  */
 async function preAccelerateTrade(ctx) {
-    const { fundAddress, fundPublicKey, assetAddress, txid, feerate } = ctx.request.body;
+    const { fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate } = ctx.request.body;
     const userAddress = ctx.state.address;
-    return await NftMarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress);
+    return await NftMarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate, userAddress);
 }
 
 /**

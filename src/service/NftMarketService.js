@@ -138,7 +138,10 @@ export default class NftMarketService {
         await NftCollectionService.refreshCollectionFloorPrice(collectionId);
     }
 
-    static async getListingPage(collectionId, name, attributes, prices, orderType, page, size) {
+    static async getListingPage(collectionId, name, filterModel = 'or', attributes, prices, orderType, page, size) {
+        if (filterModel !== 'or' && filterModel !== 'and') {
+            filterModel = 'or';
+        }
         const cacheKey = this.getListingCacheKey(collectionId, name, orderType, page, size);
         if (attributes?.length <= 0 && (!prices || Object.keys(prices).length <= 0)) {
             // 查缓存
@@ -169,7 +172,7 @@ export default class NftMarketService {
         if (attributes?.length > 0) {
             // attributes 是数组，每个元素是对象，对象的属性是 trait_type 和 value
             // 需要根据 attributes 查询 item_id
-            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes);
+            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes, filterModel);
             if (itemIds.length <= 0) {
                 return {
                     page,
@@ -671,7 +674,7 @@ export default class NftMarketService {
         // 输入: dummyCount + 出售地址 + 1付款
         const inputAddresses = [...sellerAddressList, {address: fundAddress}];
         // 输出: 1合并dummy + 1接收地址 + 收款地址 +1转账脚本 +1手续费 + dummyCount + 1找零
-        const outputAddresses = [{address: fundAddress}, {address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.revenueAddress.nftMarket}, {address: fundAddress}];
+        const outputAddresses = [{address: assetAddress}, ...sellerRecipientList, {script: protostone}, {address: config.revenueAddress.nftMarket}, {address: fundAddress}];
         let txFee = Math.ceil(FeeUtil.estTxSize(inputAddresses, outputAddresses) * feerate);
 
         const totalAmount = Math.ceil(totalListingAmount + totalMakerFee + totalTakerFee + txFee);
@@ -703,7 +706,7 @@ export default class NftMarketService {
         const paymentUtxoList = [...cachedPaymentUtxoList];
         if (needAmount > 0) {
             const patchPaymentUtxoList = await UnisatAPI.getUtxoByTarget(fundAddress, needAmount, feerate, false, cachedPaymentUtxoList.map(utxo => {
-                return `${utxo.txid}:${utxo.txid}`;
+                return `${utxo.txid}:${utxo.vout}`;
             }));
             paymentUtxoList.push(...patchPaymentUtxoList);
         }
@@ -817,11 +820,17 @@ export default class NftMarketService {
         };
     }
 
-    static async preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress) {
+    static async preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate, userAddress) {
         if (assetAddress !== userAddress) {
             throw new Error('Can not accelerate trade for other address');
         }
-        const listingList = await NftMarketListingMapper.getByTxids([txid]);
+        let listingList = null;
+        if (orderId) {
+            const events = await NftMarketEventMapper.getSoldEventsByOrderId(orderId);
+            listingList = await NftMarketListingMapper.getByOutputs(events.map(event => event.listingOutput));
+        } else {
+            listingList = await NftMarketListingMapper.getByTxids([txid]);
+        }
         return await this.createUnsignedBuying(listingList[0].collectionId, listingList.map(listing => listing.id), fundAddress, fundPublicKey, assetAddress, feerate, true);
     }
 
@@ -878,10 +887,18 @@ export default class NftMarketService {
 
             await NftMarketListingMapper.bulkUpdateListing(listingOutputList, Constants.LISTING_STATUS.SOLD, buyerAddress, txid, walletType, transaction);
             if (!accelerate) {
+                const orderId = BaseUtil.genId();
+                for (const event of eventList) {
+                    event.orderId = orderId;
+                }
                 await NftMarketEventMapper.bulkUpsertEvent(eventList, transaction);
             } else {
                 const existingEvent = await NftMarketEventMapper.getSoldEventByListingOutput(eventList[0].listingOutput);
-                await NftMarketEventMapper.updateEventTxHash(existingEvent.txHash, txid, transaction);
+                if (existingEvent.orderId) {
+                    await NftMarketEventMapper.updateEventTxHashByOrderId(existingEvent.orderId, txid, transaction);
+                } else {
+                    await NftMarketEventMapper.updateEventTxHash(existingEvent.txHash, txid, transaction);
+                }
             }
 
             const {error} = await UnisatAPI.unisatPush(signedPsbt);

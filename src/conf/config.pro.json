@@ -4,6 +4,7 @@
   "alkanesUrl": "http://10.6.96.3:28888",
   "alkanesAddressUrl": "http://10.6.96.3:28888",
   "alkanesUtxoUrl": "http://10.6.96.3:28888",
+  "alkanesIndexerUrl": "http://10.6.96.3:38888",
   "reserveNumber": 797,
   "startHeight": 880000,
   "concurrencyLimit": 10,

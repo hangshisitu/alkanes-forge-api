@@ -84,7 +84,7 @@ export default class MarketListingMapper {
 
     static async getByOutputs(listingOutputList, transaction = null) {
         return await MarketListing.findAll({
-            attributes: ["alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData", "status"],
+            attributes: ["id", "alkanesId", "tokenAmount", "listingPrice", "listingAmount", "sellerAmount", "sellerAddress", "listingOutput", "psbtData", "status"],
             where: {
                 listingOutput: listingOutputList
             },

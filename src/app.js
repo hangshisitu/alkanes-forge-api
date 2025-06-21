@@ -39,6 +39,7 @@ const AUTH_PATHS = [
     Constants.API.NFT_MARKET.USER_TRADES,
     Constants.API.MARKET.PRE_ACCELERATE_TRADE,
     Constants.API.MARKET.USER_TRADES,
+    Constants.API.LAUNCH.VOTE
 ];
 
 async function jwtAuth(ctx, next) {

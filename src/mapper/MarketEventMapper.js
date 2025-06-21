@@ -177,9 +177,23 @@ export default class MarketEventMapper {
         });
     }
 
+    static async updateEventTxHashByOrderId(orderId, txid, transaction = null) {
+        if (!orderId || !txid) {
+            return 0;
+        }
+        return await MarketEvent.update({
+            txHash: txid
+        }, {
+            where: {
+                orderId
+            },
+            transaction
+        });
+    }
+
     static async updateEventTxHash(oldTxid, newTxid, transaction = null) {
         if (!oldTxid || !newTxid) {
-            return [];
+            return 0;
         }
         return await MarketEvent.update({
             txHash: newTxid
@@ -301,6 +315,15 @@ export default class MarketEventMapper {
         return await MarketEvent.findAll({
             where: {
                 txConfirmedHeight: block,
+            },
+            raw: true,
+        });
+    }
+
+    static async getSoldEventsByOrderId(orderId) {
+        return await MarketEvent.findAll({
+            where: {
+                orderId
             },
             raw: true,
         });

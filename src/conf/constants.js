@@ -195,6 +195,12 @@ export const Constants = Object.freeze({
         TOKEN_DEPLOY_REVEAL_CACHE: 'token_deploy_reveal_cache',
     },
 
+    VOTE: {
+        AGREE: 'agree',
+        OPPOSE: 'oppose',
+        NEUTRAL: 'neutral'
+    },
+
     API: {
         TOKEN: {
             ALL: '/token/all',
@@ -290,7 +296,8 @@ export const Constants = Object.freeze({
             MARKET_TX: '/indexer/marketTx',
             OUTPOINT: '/indexer/outpoint',
             OUTPOINTS: '/indexer/outpoints',
-            MARKET_TXS: '/indexer/marketTxs'
+            MARKET_TXS: '/indexer/marketTxs',
+            ALKANES_IMAGE: '/indexer/alkanesImage'
         },
 
         LAUNCH: {
@@ -301,9 +308,16 @@ export const Constants = Object.freeze({
             MINT_LIMIT: '/launch/mintLimit',
             CHECK_WHITELIST: '/launch/checkWhitelist',
             BANNER_COLLECTIONS: '/launch/banner',
+            LAUNCH_COLLECTIONS: '/launch/launching',
             MINTING_COLLECTIONS: '/launch/minting',
             UPCOMING_COLLECTIONS: '/launch/upcoming',
-            COMPLETED_COLLECTIONS: '/launch/completed'
+            COMPLETED_COLLECTIONS: '/launch/completed',
+            UNAUDITED_COLLECTIONS: '/launch/unaudited',
+            VOTE: '/launch/vote',
+            ADDRESS_VOTE: '/launch/addressVote',
+            VOTE_INFO: '/launch/voteInfo',
+            VOTE_DETAILS: '/launch/voteDetails',
+            MODIFY_LAUNCH_BLOCK: '/launch/modifyLaunchBlock'
         }
     },
     

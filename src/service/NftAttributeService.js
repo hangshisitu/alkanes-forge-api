@@ -2,6 +2,7 @@ import NftItemAttribute from '../models/NftItemAttribute.js';
 import NftCollectionAttribute from '../models/NftCollectionAttribute.js';
 import sequelize from '../lib/SequelizeHelper.js';
 import * as RedisHelper from '../lib/RedisHelper.js';
+import { Op, Sequelize } from 'sequelize';
 
 export default class NftAttributeService {
 
@@ -80,14 +81,28 @@ export default class NftAttributeService {
         await this.deleteCollectionAttributeCache(collectionId);
     }
 
-    static async getItemIdsByAttributes(collectionId, attributes) {
+    static async getItemIdsByAttributes(collectionId, attributes, filterModel = 'or') {
+        if (filterModel !== 'or' && filterModel !== 'and') {
+            filterModel = 'or';
+        }
+        attributes = attributes.map(attribute => `${attribute.trait_type}:${attribute.value}`);
+        const where = {
+            collection_id: collectionId,
+            [Op.and]: [
+                Sequelize.literal(
+                    `CONCAT(trait_type, ':', value) IN (${attributes.map(val => `'${val}'`).join(',')})`
+                )
+            ]
+        };
+        let having = null;
+        if (filterModel === 'and') {
+            having = Sequelize.literal(`COUNT(DISTINCT CONCAT(trait_type, ':', value)) = ${attributes.length}`)
+        }
         return await NftItemAttribute.findAll({
-            where: {
-                collection_id: collectionId,
-                trait_type: attributes.map(attribute => attribute.trait_type),
-                value: attributes.map(attribute => attribute.value)
-            },
+            where,
             attributes: ['item_id'],
+            group: ['item_id'],
+            having,
             raw: true
         });
     }

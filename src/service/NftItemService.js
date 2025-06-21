@@ -14,6 +14,7 @@ import PsbtUtil from "../utils/PsbtUtil.js";
 import MempoolUtil from '../utils/MempoolUtil.js';
 import DiscountAddressMapper from '../mapper/DiscountAddressMapper.js';
 import sequelize from '../lib/SequelizeHelper.js';
+import * as logger from '../conf/logger.js';
 
 export default class NftItemService {
 
@@ -107,7 +108,10 @@ export default class NftItemService {
         return item;
     }
 
-    static async getItemPage(collectionId, holderAddress, listing, utxo, attributes, name, page, size) {
+    static async getItemPage(collectionId, holderAddress, listing, utxo, attributes, name, filterModel = 'or', page, size) {
+        if (filterModel !== 'or' && filterModel !== 'and') {
+            filterModel = 'or';
+        }
         const cacheKey = NftItemService.getItemCacheKey(collectionId, holderAddress, listing, utxo, name, page, size);
         if (attributes?.length <= 0) {
             // 查缓存
@@ -142,7 +146,7 @@ export default class NftItemService {
         if (attributes?.length > 0) {
             // attributes 是数组，每个元素是对象，对象的属性是 trait_type 和 value
             // 需要根据 attributes 查询 item_id
-            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes);
+            const itemIds = await NftAttributeService.getItemIdsByAttributes(collectionId, attributes, filterModel);
             if (itemIds.length <= 0) {
                 return {
                     page,
@@ -163,6 +167,7 @@ export default class NftItemService {
                 }))
             }
         }
+
         const { rows, count } = await NftItem.findAndCountAll({
             where,
             order,
@@ -309,6 +314,26 @@ export default class NftItemService {
                 collectionId
             },
             raw: true,
+        });
+    }
+
+    static async refreshNftItemData(indexHeight) {
+        const nftItems = await NftItem.findAll({
+            where: {
+                collectionId: {
+                    [Op.in]: [
+                        '2:46266',
+                    ]
+                }
+            }
+        });
+        await BaseUtil.concurrentExecute(nftItems, async (nftItem) => {
+            try {
+                await AlkanesService.getAlkanesById(nftItem.id, ['1000'], indexHeight);
+                logger.info(`refreshNftItemData ${nftItem.id} finish`);
+            } catch (err) {
+                logger.error(`refreshNftItemData ${nftItem.id} error: ${err.message}`, err);
+            }
         });
     }
 }

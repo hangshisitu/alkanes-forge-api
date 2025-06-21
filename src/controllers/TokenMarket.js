@@ -496,6 +496,7 @@ async function tokenStats(ctx) {
  *               - fundPublicKey
  *               - assetAddress
  *               - txid
+ *               - orderId
  *               - feerate
  *             properties:
  *               fundAddress:
@@ -510,6 +511,9 @@ async function tokenStats(ctx) {
  *               txid:
  *                 type: string
  *                 description: Transaction ID
+ *               orderId:
+ *                 type: string
+ *                 description: Order ID
  *               feerate:
  *                 type: number
  *                 description: Fee rate
@@ -518,9 +522,9 @@ async function tokenStats(ctx) {
  *         description: Unsigned transaction created successfully
  */
 async function preAccelerateTrade(ctx) {
-    const { fundAddress, fundPublicKey, assetAddress, txid, feerate } = ctx.request.body;
+    const { fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate } = ctx.request.body;
     const userAddress = ctx.state.address;
-    return await MarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, feerate, userAddress);
+    return await MarketService.preAccelerateTrade(fundAddress, fundPublicKey, assetAddress, txid, orderId, feerate, userAddress);
 }
 
 /**

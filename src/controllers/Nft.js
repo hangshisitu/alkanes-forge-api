@@ -136,6 +136,9 @@ async function info(ctx) {
  *               name:
  *                 type: string
  *                 description: Filter by item name
+ *               filterModel:
+ *                 type: string
+ *                 description: Filter model, default is 'or', can be 'and'
  *               page:
  *                 type: integer
  *                 description: Page number
@@ -160,12 +163,12 @@ async function info(ctx) {
  *                   type: integer
  */
 async function itemPage(ctx) {
-    const { collectionId, address, listing, utxo, attributes, name, page, size } = ctx.request.body;
+    const { collectionId, address, listing, utxo, attributes, name, filterModel, page, size } = ctx.request.body;
     const collection = await NftCollectionService.getCollectionById(collectionId);
     if (!collection?.show) {
         return null;
     }
-    return await NftItemService.getItemPage(collectionId, address, listing, utxo, attributes, name, page, size);
+    return await NftItemService.getItemPage(collectionId, address, listing, utxo, attributes, name, filterModel, page, size);
 }
 
 /**
