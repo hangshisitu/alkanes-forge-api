@@ -85,7 +85,12 @@ export default class TokenInfoService {
                         }
                     }
     
-                    if (
+                    if (alkanes.id === '2:0' && alkanes.totalSupply !== undefined) {
+                        alkanes.mintAmount = new BigNumber(3.125).multipliedBy(1e8);
+                        alkanes.cap = new BigNumber(500000);
+                        alkanes.minted = alkanes.totalSupply.dividedBy(alkanes.mintAmount).integerValue(BigNumber.ROUND_CEIL);
+                        alkanes.premine = new BigNumber(440000).multipliedBy(1e8);
+                    } else if (
                         alkanes.totalSupply !== undefined &&
                         alkanes.minted !== undefined &&
                         alkanes.mintAmount !== undefined
@@ -297,10 +302,6 @@ export default class TokenInfoService {
                     data.minted !== undefined &&
                     data.cap !== undefined
                 ) {
-                    data.premine = data.totalSupply.minus(data.minted.multipliedBy(token.mintAmount));
-                    if (data.premine.lt(0)) {
-                        data.premine = new BigNumber(0);
-                    }
                     data.progress = AlkanesService.calculateProgress(token.id, data.minted, data.cap);
                     data.mintActive = data.progress >= 100 ? 0 : 1;
                 }

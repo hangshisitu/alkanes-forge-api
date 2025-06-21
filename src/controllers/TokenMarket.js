@@ -363,7 +363,7 @@ async function putSignedDelisting(ctx) {
  */
 async function createUnsignedBuying(ctx) {
     const { alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate } = ctx.request.body;
-    return await MarketService.createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate);
+    return await MarketService.createUnsignedBuying(alkanesId, listingIds, fundAddress, fundPublicKey, assetAddress, Math.max(1.2, feerate));
 }
 
 /**

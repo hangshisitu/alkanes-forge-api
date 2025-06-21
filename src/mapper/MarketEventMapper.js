@@ -4,7 +4,7 @@ import {Constants} from "../conf/constants.js";
 import sequelize from "../lib/SequelizeHelper.js";
 import * as RedisHelper from "../lib/RedisHelper.js";
 import * as logger from '../conf/logger.js';
-
+import BigNumber from 'bignumber.js';
 export default class MarketEventMapper {
 
     static getEventCacheKey(alkanesId, type, address, page, size) {
@@ -53,6 +53,8 @@ export default class MarketEventMapper {
                 row = row.toJSON();
                 return {
                     ...row,
+                    listingPrice: new BigNumber(row.listingPrice).toFixed(),
+                    tokenAmount: new BigNumber(row.tokenAmount).toFixed(),
                     createdAt: null,
                     updatedAt: row.createdAt
                 }

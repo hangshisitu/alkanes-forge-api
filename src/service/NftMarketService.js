@@ -682,18 +682,20 @@ export default class NftMarketService {
             if (!cachedTx) { // 不存在, 则是被替换了
                 cachedTx = await MempoolUtil.getCachedTx(event.txHash);
             }
-            const listingOutputList = listingList.map(listing => listing.listingOutput);
-            cachedPaymentUtxoList = cachedTx.vin.filter(vin => {
-                return !listingOutputList.includes(`${vin.txid}:${vin.vout}`);
-            }).map(vin => {
-                return {
-                    txid: vin.txid,
-                    vout: vin.vout,
-                    value: vin.prevout.value,
-                    address: fundAddress,
-                    pubkey: fundPublicKey
-                };
-            });
+            if (cachedTx) {
+                const listingOutputList = listingList.map(listing => listing.listingOutput);
+                cachedPaymentUtxoList = cachedTx.vin.filter(vin => {
+                    return !listingOutputList.includes(`${vin.txid}:${vin.vout}`);
+                }).map(vin => {
+                    return {
+                        txid: vin.txid,
+                        vout: vin.vout,
+                        value: vin.prevout.value,
+                        address: fundAddress,
+                        pubkey: fundPublicKey
+                    };
+                });
+            }
         }
         const needAmount = totalAmount - cachedPaymentUtxoList.reduce((acc, curr) => {
             return +curr.value + acc;

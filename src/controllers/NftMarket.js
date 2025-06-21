@@ -103,7 +103,7 @@ async function assets(ctx) {
 async function listingPage(ctx) {
     const { collectionId, name, attributes, prices, orderType, page, size } = ctx.request.body;
     const collection = await NftCollectionService.getCollectionById(collectionId);
-    if (!collection.show) {
+    if (!collection?.show) {
         return null;
     }
     return await NftMarketService.getListingPage(collectionId, name, attributes, prices, orderType, page, size);
@@ -392,7 +392,7 @@ async function putSignedDelisting(ctx) {
  */
 async function createUnsignedBuying(ctx) {
     const { collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate } = ctx.request.body;
-    return await NftMarketService.createUnsignedBuying(collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, feerate);
+    return await NftMarketService.createUnsignedBuying(collectionId, listingIds, fundAddress, fundPublicKey, assetAddress, Math.max(1.2, feerate));
 }
 
 /**
