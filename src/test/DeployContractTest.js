@@ -603,7 +603,7 @@ const assetAddress =
 
 const utxos = [
   {
-    txid: "84f4b5ad5cc04c51dd32fdcbb5c68d6c9d9194b5540098d86d223bdc77f910d3",
+    txid: "191c9a279745a8a1f2781984b8b6dd1f2c0a4d65a70504d9fc78032e9fb894d8",
     vout: 0,
     value: 5000000000,
     address: fundAddress,
