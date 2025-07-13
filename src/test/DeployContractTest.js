@@ -603,7 +603,7 @@ const assetAddress =
 
 const utxos = [
   {
-    txid: "984a7512d3d8f5f56fafb50b508e88d7309bbd18393b4a9ecf75a5e8e9fcd1f4",
+    txid: "342ebfe10121a1ff85944d5ab507c32759e8e452c67f3bfe36aff712ed624ecc",
     vout: 0,
     value: 5000000000,
     address: fundAddress,
@@ -614,17 +614,18 @@ const utxos = [
 const wasm_path =
   "/Users/liuqiwen/workspace/idclub/alkanes-forge/target/alkanes/wasm32-unknown-unknown/release/staking_pool.wasm";
 const feerate = 1.4;
-// const calldata = [1, 0];
-const calldata = [3, 111114];
-// const txid = await deploy(
-//   wasm_path,
-//   privateKey,
-//   utxos,
-//   assetAddress,
-//   feerate,
-//   calldata
-// );
-const txid=Buffer.from("2602158232d6bf6d53f987f21836bb94479413e1655057524b6c3cbf6bfb97d3","hex").reverse().toString("hex");
-const trace = await AlkanesRPCUtil.trace(txid, 3);
+const calldata = [1, 0];
+// const calldata = [3, 111114];
+const txid = await deploy(
+  wasm_path,
+  privateKey,
+  utxos,
+  assetAddress,
+  feerate,
+  calldata
+);
 
-console.info(`ret: ${util.inspect(trace)}`);
+// const txid=Buffer.from("44676559e323e6236119a21d78f3b4ca7c3d661a3ba240becf0a79a6c5e00297","hex").reverse().toString("hex");
+// const trace = await AlkanesRPCUtil.trace(txid, 3);
+
+// console.info(`ret: ${util.inspect(trace)}`);

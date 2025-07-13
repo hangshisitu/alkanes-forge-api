@@ -25,7 +25,7 @@ const fundAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 //   "bcrt1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsypumgm";
 const assetAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 
-const sp_aid = "2:2228";
+const sp_aid = "2:2238";
 const feerate = 2;
 
 const coin_aid = await AlkanesRPCUtil.queryString(sp_aid, [1003]);
@@ -69,7 +69,7 @@ function bigintReplacer(key, value) {
 
 // console.info(`address protoruns: ${JSON.stringify(await AlkanesRPCUtil.protorunesbyaddress(assetAddress),bigintReplacer)}`);
 
-const authUtxo ={txid:'44b5f27fe4b71a11a6c78bb44610c915156c0718f353230bab0dd99db88126b4',vout:1}
+const authUtxo ={txid:'7403e9803924fe29aa4e396ce2cc9aacd74a414c016352f6e0a4bc47c9998938',vout:1}
 console.info(`protoruns: 
   ${JSON.stringify(
     await AlkanesRPCUtil.protorunesbyoutpoint(
@@ -197,7 +197,7 @@ async function staking(
         u128(BigInt(temp[0])),
         u128(BigInt(temp[1]))
     ),
-    amount: u128(BigInt(1)),
+    amount: u128(BigInt(0)),
     output: u32(BigInt(1)),
   }
 
@@ -206,8 +206,8 @@ async function staking(
       alkanes.ProtoStone.message({
         protocolTag: 1n,
         edicts: [edict],
-        pointer: 4,
-        refundPointer: 1,
+        pointer: 0,
+        refundPointer: 0,
         calldata: alkanes.encipher(callData),
       }),
     ],
