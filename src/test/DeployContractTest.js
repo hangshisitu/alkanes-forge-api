@@ -599,11 +599,11 @@ const privateKey =
   "59d13ae37fc4729b1d0c6c8bf623f821aedbf02f0cf1a561c855edfc58cbefb5";
 const fundAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 const assetAddress =
-  "bcrt1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsypumgm";
+  "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 
 const utxos = [
   {
-    txid: "191c9a279745a8a1f2781984b8b6dd1f2c0a4d65a70504d9fc78032e9fb894d8",
+    txid: "984a7512d3d8f5f56fafb50b508e88d7309bbd18393b4a9ecf75a5e8e9fcd1f4",
     vout: 0,
     value: 5000000000,
     address: fundAddress,
@@ -612,19 +612,19 @@ const utxos = [
 // const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-image/target/wasm32-unknown-unknown/release/alkanes_image.wasm";
 // const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-collection/target/wasm32-unknown-unknown/release/alkanes_collection.wasm";
 const wasm_path =
-  "/Users/daxiangqiwu/workspace/idclub/alkanes-forge/target/alkanes/wasm32-unknown-unknown/release/staking_pool.wasm";
+  "/Users/liuqiwen/workspace/idclub/alkanes-forge/target/alkanes/wasm32-unknown-unknown/release/staking_pool.wasm";
 const feerate = 1.4;
-const calldata = [1, 0];
-// const calldata = [3, 111114];
-const txid = await deploy(
-  wasm_path,
-  privateKey,
-  utxos,
-  assetAddress,
-  feerate,
-  calldata
-);
-
+// const calldata = [1, 0];
+const calldata = [3, 111114];
+// const txid = await deploy(
+//   wasm_path,
+//   privateKey,
+//   utxos,
+//   assetAddress,
+//   feerate,
+//   calldata
+// );
+const txid=Buffer.from("2602158232d6bf6d53f987f21836bb94479413e1655057524b6c3cbf6bfb97d3","hex").reverse().toString("hex");
 const trace = await AlkanesRPCUtil.trace(txid, 3);
 
 console.info(`ret: ${util.inspect(trace)}`);

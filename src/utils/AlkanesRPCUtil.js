@@ -11,6 +11,14 @@ export default class AlkanesRPCUtil {
     return await alkanesRpc.trace({ txid, vout });
   }
 
+  static async protorunesbyoutpoint(txid,vout){
+      return await alkanesRpc.protorunesbyoutpoint({txid,vout,protocolTag:BigInt(1)});
+    }
+
+  static async protorunesbyaddress(address){
+    return await alkanesRpc.protorunesbyaddress({address,protocolTag:BigInt(1)});
+  }
+
   static async simulate(alkanesId, params) {
     let tmp = alkanesId.split(":");
     let inputs = params.map((p) => BigInt(p));
