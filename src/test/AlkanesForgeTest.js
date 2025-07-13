@@ -69,7 +69,7 @@ function bigintReplacer(key, value) {
 
 // console.info(`address protoruns: ${JSON.stringify(await AlkanesRPCUtil.protorunesbyaddress(assetAddress),bigintReplacer)}`);
 
-const authUtxo ={txid:'7403e9803924fe29aa4e396ce2cc9aacd74a414c016352f6e0a4bc47c9998938',vout:1}
+const authUtxo ={txid:'7403e9803924fe29aa4e396ce2cc9aacd74a414c016352f6e0a4bc47c9998938',vout:0}
 console.info(`protoruns: 
   ${JSON.stringify(
     await AlkanesRPCUtil.protorunesbyoutpoint(
