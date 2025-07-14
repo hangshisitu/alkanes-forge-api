@@ -25,7 +25,7 @@ const fundAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 //   "bcrt1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsypumgm";
 const assetAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 
-const sp_aid = "2:2238";
+const sp_aid = "2:4";
 const feerate = 2;
 
 const coin_aid = await AlkanesRPCUtil.queryString(sp_aid, [1003]);
@@ -69,7 +69,7 @@ function bigintReplacer(key, value) {
 
 // console.info(`address protoruns: ${JSON.stringify(await AlkanesRPCUtil.protorunesbyaddress(assetAddress),bigintReplacer)}`);
 
-const authUtxo ={txid:'7403e9803924fe29aa4e396ce2cc9aacd74a414c016352f6e0a4bc47c9998938',vout:0}
+const authUtxo ={txid:'8a9f02391b6e5e130ca46b40cb648a4934ea0e7638c69c1819435526850fef05',vout:1}
 console.info(`protoruns: 
   ${JSON.stringify(
     await AlkanesRPCUtil.protorunesbyoutpoint(
@@ -97,24 +97,24 @@ console.info(`protoruns:
 // );
 
 
-// console.info(
-//   `orbital attributes: ${await AlkanesRPCUtil.queryString("2:2219", [1002])}`
-// );
+console.info(
+  `orbital attributes: ${await AlkanesRPCUtil.queryString("2:6", [1002])}`
+);
 
-// console.info(
-//   `orbital profit: ${await AlkanesRPCUtil.queryString(sp_aid, [53,1,466])}`
-// );
+console.info(
+  `orbital profit: ${await AlkanesRPCUtil.queryString(sp_aid, [53,1,922])}`
+);
 
-// console.info(
-//   `orbital profit: ${await AlkanesRPCUtil.queryString("2:2219", [1003,466])}`
-// );
+console.info(
+  `orbital profit: ${await AlkanesRPCUtil.queryString("2:6", [1003,922])}`
+);
 
-// await claim("2:2222",{
-//   txid: "a7799a26415123a46b996c47bc248a44b694ef4ae8060ba1df000c32b92afe74",
-//   vout: 0,
-//   value: 546,
-//   address: assetAddress
-// })
+await claim("2:6",{
+  txid: "8a9f02391b6e5e130ca46b40cb648a4934ea0e7638c69c1819435526850fef05",
+  vout: 0,
+  value: 546,
+  address: assetAddress
+})
 
 // await unstaking(
 //   "2:2211",
@@ -197,7 +197,7 @@ async function staking(
         u128(BigInt(temp[0])),
         u128(BigInt(temp[1]))
     ),
-    amount: u128(BigInt(0)),
+    amount: u128(BigInt(1)),
     output: u32(BigInt(1)),
   }
 
@@ -207,7 +207,7 @@ async function staking(
         protocolTag: 1n,
         edicts: [edict],
         pointer: 0,
-        refundPointer: 0,
+        refundPointer: 1,
         calldata: alkanes.encipher(callData),
       }),
     ],
@@ -358,7 +358,7 @@ async function claim(
         u128(BigInt(temp[1]))
     ),
     amount: u128(BigInt(1)),
-    output: u32(BigInt(0)),
+    output: u32(BigInt(1)),
   }
 
   const protostone = alkanes.encodeRunestoneProtostone({
@@ -366,8 +366,8 @@ async function claim(
       alkanes.ProtoStone.message({
         protocolTag: 1n,
         edicts: [edict],
-        pointer: 1,
-        refundPointer: 0,
+        pointer: 0,
+        refundPointer: 1,
         calldata: alkanes.encipher(callData),
       }),
     ],

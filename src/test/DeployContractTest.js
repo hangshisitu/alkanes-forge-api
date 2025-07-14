@@ -574,7 +574,7 @@ async function postTx(hex) {
       headers: {
         "Content-Type": "text/plain",
       },
-      timeout: 10000,
+      timeout: 50000,
     });
     return response.data;
   } catch (err) {
@@ -603,7 +603,7 @@ const assetAddress =
 
 const utxos = [
   {
-    txid: "342ebfe10121a1ff85944d5ab507c32759e8e452c67f3bfe36aff712ed624ecc",
+    txid: "aa08647e8053f7cfed19c0796a26df7b38f89d81674b23830e9abddd21720a4e",
     vout: 0,
     value: 5000000000,
     address: fundAddress,
