@@ -598,12 +598,11 @@ async function postTx(hex) {
 const privateKey =
   "59d13ae37fc4729b1d0c6c8bf623f821aedbf02f0cf1a561c855edfc58cbefb5";
 const fundAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
-const assetAddress =
-  "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
+const assetAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 
 const utxos = [
   {
-    txid: "aa08647e8053f7cfed19c0796a26df7b38f89d81674b23830e9abddd21720a4e",
+    txid: "fa2119bd4f95720d3e8a034f45335900aa3b5317957d475543b8ecea6abdfa7b",
     vout: 0,
     value: 5000000000,
     address: fundAddress,
@@ -612,7 +611,7 @@ const utxos = [
 // const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-image/target/wasm32-unknown-unknown/release/alkanes_image.wasm";
 // const wasm_path = "/Users/moffat/code/alkanes-protocol/alkanes-nft-contract/alkanes-collection/target/wasm32-unknown-unknown/release/alkanes_collection.wasm";
 const wasm_path =
-  "/Users/liuqiwen/workspace/idclub/alkanes-forge/target/alkanes/wasm32-unknown-unknown/release/staking_pool.wasm";
+  "/Users/daxiangqiwu/workspace/idclub/alkanes-forge/target/alkanes/wasm32-unknown-unknown/release/staking_pool.wasm";
 const feerate = 1.4;
 const calldata = [1, 0];
 // const calldata = [3, 111114];

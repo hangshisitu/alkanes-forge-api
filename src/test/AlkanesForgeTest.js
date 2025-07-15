@@ -1,7 +1,10 @@
 import * as util from "util";
 import * as alkanes from "alkanes";
-import {ProtoruneRuneId} from 'alkanes/lib/protorune/protoruneruneid.js'
-import {u128, u32} from '@magiceden-oss/runestone-lib/dist/src/integer/index.js';
+import { ProtoruneRuneId } from "alkanes/lib/protorune/protoruneruneid.js";
+import {
+  u128,
+  u32,
+} from "@magiceden-oss/runestone-lib/dist/src/integer/index.js";
 import AlkanesRPCUtil from "../utils/AlkanesRPCUtil.js";
 import LayoutUtil from "../utils/LayoutUtil.js";
 import ElectrsUtil from "../utils/electrsUtil.js";
@@ -25,7 +28,7 @@ const fundAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 //   "bcrt1p0jsqa0azdhjs2lda60exs4kdm9ez4xmc28sf0fxxvhu4724w2qqsypumgm";
 const assetAddress = "bcrt1q235uy7hre5k780xynpsm96mjwngtv8ywjzjjd0";
 
-const sp_aid = "2:4";
+const sp_aid = "2:14";
 const feerate = 2;
 
 const coin_aid = await AlkanesRPCUtil.queryString(sp_aid, [1003]);
@@ -60,7 +63,7 @@ console.info(
 );
 
 function bigintReplacer(key, value) {
-  if (typeof value === 'bigint') {
+  if (typeof value === "bigint") {
     return value.toString(); // 转为字符串
     // 或 return Number(value); // 若数值在安全范围内，转为数字
   }
@@ -69,11 +72,18 @@ function bigintReplacer(key, value) {
 
 // console.info(`address protoruns: ${JSON.stringify(await AlkanesRPCUtil.protorunesbyaddress(assetAddress),bigintReplacer)}`);
 
-const authUtxo ={txid:'8a9f02391b6e5e130ca46b40cb648a4934ea0e7638c69c1819435526850fef05',vout:1}
+const authUtxo = {
+  txid: "365ec4d0ae85b3c797f81e036934f98c53ec0099e2ccf4b1f0eb896dff2e049e",
+  vout: 1,
+};
 console.info(`protoruns: 
   ${JSON.stringify(
     await AlkanesRPCUtil.protorunesbyoutpoint(
-      Buffer.from(authUtxo.txid,'hex').reverse().toString('hex'),authUtxo.vout),bigintReplacer)}`);
+      Buffer.from(authUtxo.txid, "hex").reverse().toString("hex"),
+      authUtxo.vout
+    ),
+    bigintReplacer
+  )}`);
 //未到开始高度，报错
 //为没有auth token 报错
 // await staking(
@@ -93,38 +103,34 @@ console.info(`protoruns:
 //   60,
 //   "191c9a279745a8a1f2781984b8b6dd1f2c0a4d65a70504d9fc78032e9fb894d8",
 //   "0:0",
-//   454
+//   452
 // );
 
-
 console.info(
-  `orbital attributes: ${await AlkanesRPCUtil.queryString("2:6", [1002])}`
+  `orbital attributes: ${await AlkanesRPCUtil.queryString("2:16", [1002])}`
 );
 
 console.info(
-  `orbital profit: ${await AlkanesRPCUtil.queryString(sp_aid, [53,1,922])}`
+  `orbital profit: ${await AlkanesRPCUtil.queryString(sp_aid, [53, 1, 2917])}`
 );
 
 console.info(
-  `orbital profit: ${await AlkanesRPCUtil.queryString("2:6", [1003,922])}`
+  `orbital profit: ${await AlkanesRPCUtil.queryString("2:16", [1003, 2917])}`
 );
 
-await claim("2:6",{
-  txid: "8a9f02391b6e5e130ca46b40cb648a4934ea0e7638c69c1819435526850fef05",
-  vout: 0,
-  value: 546,
-  address: assetAddress
-})
+// await claim("2:16", {
+//   txid: "a1468012f50d7f6b7f5248093951e4b4c3d7c7ab1cfa88ce62d18235889dcdf6",
+//   vout: 0,
+//   value: 546,
+//   address: assetAddress,
+// });
 
-// await unstaking(
-//   "2:2211",
-//   {
-//     txid: "4bfe8991483496855e26ec07d77b2221e37a14f367f017f38f3a5d501a7d7b04",
-//     vout: 0,
-//     value: 546,
-//     address: assetAddress
-//   }
-// )
+// await unstaking("2:16", {
+//   txid: "365ec4d0ae85b3c797f81e036934f98c53ec0099e2ccf4b1f0eb896dff2e049e",
+//   vout: 1,
+//   value: 546,
+//   address: assetAddress,
+// });
 
 function encodeStaking(
   brc20_index,
@@ -193,13 +199,10 @@ async function staking(
   const temp = sp_aid.split(":");
   const callData = [BigInt(temp[0]), BigInt(temp[1]), 50n];
   const edict = {
-    id: new ProtoruneRuneId(
-        u128(BigInt(temp[0])),
-        u128(BigInt(temp[1]))
-    ),
+    id: new ProtoruneRuneId(u128(BigInt(temp[0])), u128(BigInt(temp[1]))),
     amount: u128(BigInt(1)),
     output: u32(BigInt(1)),
-  }
+  };
 
   const protostone = alkanes.encodeRunestoneProtostone({
     protostones: [
@@ -239,7 +242,6 @@ async function staking(
   let commitTxId = "";
   let commitValue = 0;
 
-  
   const revealLayout = {
     inputs: [
       {
@@ -254,12 +256,12 @@ async function staking(
         vout: authUtxo.vout,
         value: 546,
         address: assetAddress,
-      }
+      },
     ],
     outs: [
       {
-        value:546,
-        address: assetAddress,  //accept authToken
+        value: 546,
+        address: assetAddress, //accept authToken
       },
       {
         value: 546,
@@ -345,21 +347,14 @@ async function staking(
   console.info(`staking reveal txid: ${reveal_txid}`);
 }
 
-async function claim(
-  orbId,
-  authUtxo
-){
-
+async function claim(orbId, authUtxo) {
   const temp = orbId.split(":");
   const callData = [BigInt(temp[0]), BigInt(temp[1]), 1005n];
   const edict = {
-    id: new ProtoruneRuneId(
-        u128(BigInt(temp[0])),
-        u128(BigInt(temp[1]))
-    ),
+    id: new ProtoruneRuneId(u128(BigInt(temp[0])), u128(BigInt(temp[1]))),
     amount: u128(BigInt(1)),
     output: u32(BigInt(1)),
-  }
+  };
 
   const protostone = alkanes.encodeRunestoneProtostone({
     protostones: [
@@ -373,26 +368,38 @@ async function claim(
     ],
   }).encodedRunestone;
 
-  const layout = {inputs:[
-    authUtxo
-  ],outs:[{
-    address: assetAddress,  //accept nft 
-    value: 546,
-  },{
-    address: assetAddress,
-    value: 546,
-  },{
-    script: protostone,
-    value: 0,
-  }]}
+  const layout = {
+    inputs: [authUtxo],
+    outs: [
+      {
+        address: assetAddress, //accept nft
+        value: 546,
+      },
+      {
+        address: assetAddress,
+        value: 546,
+      },
+      {
+        script: protostone,
+        value: 0,
+      },
+    ],
+  };
 
-  console.info(`layout: ${JSON.stringify(layout)}`)
+  console.info(`layout: ${JSON.stringify(layout)}`);
   let utxos = await ElectrsUtil.getUtxos(fundAddress);
   utxos.sort((a, b) => b.value - a.value);
 
-  await LayoutUtil.addGasAndChangeForLayout(fundAddress,utxos,layout,2,1,true);
+  await LayoutUtil.addGasAndChangeForLayout(
+    fundAddress,
+    utxos,
+    layout,
+    2,
+    1,
+    true
+  );
 
-  const psbt =await LayoutUtil.buildPsbtForLayout(layout,2.25);
+  const psbt = await LayoutUtil.buildPsbtForLayout(layout, 2.25);
   const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, "hex"));
   psbt.signAllInputs(keyPair);
   const tx = psbt.finalizeAllInputs().extractTransaction();
@@ -401,9 +408,7 @@ async function claim(
   console.info(`claim txid: ${txid}`);
 }
 
-async function unstaking(
-  orbId,
-  authUtxo){
+async function unstaking(orbId, authUtxo) {
   const temp = orbId.split(":");
   const callData = [BigInt(temp[0]), BigInt(temp[1]), 1004n];
   const protostone = alkanes.encodeRunestoneProtostone({
@@ -418,23 +423,34 @@ async function unstaking(
     ],
   }).encodedRunestone;
 
-  const layout = {inputs:[
-    authUtxo
-  ],outs:[{
-    address: assetAddress,  //accept nft 
-    value: 546,
-  },{
-    script: protostone,
-    value: 0,
-  }]}
+  const layout = {
+    inputs: [authUtxo],
+    outs: [
+      {
+        address: assetAddress, //accept nft
+        value: 546,
+      },
+      {
+        // script: protostone,
+        value: 0,
+      },
+    ],
+  };
 
-  console.info(`layout: ${JSON.stringify(layout)}`)
+  console.info(`layout: ${JSON.stringify(layout)}`);
   let utxos = await ElectrsUtil.getUtxos(fundAddress);
   utxos.sort((a, b) => b.value - a.value);
 
-  await LayoutUtil.addGasAndChangeForLayout(fundAddress,utxos,layout,2,1,true);
+  await LayoutUtil.addGasAndChangeForLayout(
+    fundAddress,
+    utxos,
+    layout,
+    2,
+    1,
+    true
+  );
 
-  const psbt =await LayoutUtil.buildPsbtForLayout(layout,2.25);
+  const psbt = await LayoutUtil.buildPsbtForLayout(layout, 2.25);
   const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, "hex"));
   psbt.signAllInputs(keyPair);
   const tx = psbt.finalizeAllInputs().extractTransaction();
